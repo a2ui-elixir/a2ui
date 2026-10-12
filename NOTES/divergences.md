@@ -26,7 +26,7 @@ them or documented as a skip with a reason.
 - **`nil` payload decodes to `{:ok, []}`** (TypeScript behaviour). The Python factory
   rejects it.
 
-## State (Phase 3, planned)
+## State (Phase 3)
 
 - **Writes are atomic on error.** Python's `DataModel.set` can leave a partial write
   behind when a later path segment fails. No conformance case reads state after an
@@ -35,3 +35,14 @@ them or documented as a skip with a reason.
 - **Observers do not hold live references.** In Python an observer registered before
   `dispose/1` sees in-place mutations afterwards. An immutable model cannot reproduce
   that, and no case asserts it.
+- **Deterministic iteration order.** Components, child properties and object keys are
+  visited in sorted order (`Components.to_list/1`, `RefSpec.extract/2`,
+  `Topology`), not JSON insertion order, because Elixir maps are unordered. When a
+  graph has several violations the one reported is therefore stable but may differ
+  from the reference's first-inserted choice. Conformance cases carry one violation
+  each; only messages are asserted.
+- **Child-reference property paths** put subscripts directly after the key
+  (`children[0]`, `tabs[1].child`, `items[0][1]`); the reference joins nested lists
+  with a dot in a few unexercised shapes.
+- **`$ref` cycles are cut.** `Catalog.ReferenceMap` stops on a `$ref` it is already
+  expanding; the Python analysis would recurse until it hits the interpreter limit.

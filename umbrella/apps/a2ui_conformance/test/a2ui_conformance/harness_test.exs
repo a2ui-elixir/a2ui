@@ -67,11 +67,18 @@ defmodule A2UIConformance.HarnessTest do
     defp case_for(suite, action), do: Case.new(suite, "n", %{"action" => action})
 
     test "keys on scope: the same action is pending in different phases per family" do
-      assert {:pending, 3} =
+      assert {:ok, A2UIConformance.Handlers.ResolvePath} =
                Dispatcher.resolve(case_for("core/data_context.yaml", "resolve_path"))
 
+      assert {:ok, A2UIConformance.Handlers.DataModel} =
+               Dispatcher.resolve(case_for("core/data_model.yaml", "data_model"))
+
+      # The same action names in the ADK extension are different features.
       assert {:pending, 10} =
                Dispatcher.resolve(case_for("extensions/adk/tools.yaml", "resolve_path"))
+
+      assert {:pending, 10} =
+               Dispatcher.resolve(case_for("extensions/adk/tools.yaml", "data_model"))
 
       assert {:pending, 9} = Dispatcher.resolve(case_for("extensions/a2a/rpc.yaml", "handle_rpc"))
       assert {:pending, 7} = Dispatcher.resolve(case_for("core/rpc.yaml", "handle_rpc"))

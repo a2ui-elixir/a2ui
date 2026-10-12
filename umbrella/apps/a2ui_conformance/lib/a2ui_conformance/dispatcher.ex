@@ -84,7 +84,10 @@ defmodule A2UIConformance.Dispatcher do
     # Phase 2
     {"core", "agent_to_renderer_schema"} => A2UIConformance.Handlers.SchemaDocument,
     {"core", "common_types_schema"} => A2UIConformance.Handlers.SchemaDocument,
-    {"core", "validate_common_type"} => A2UIConformance.Handlers.ValidateCommonType
+    {"core", "validate_common_type"} => A2UIConformance.Handlers.ValidateCommonType,
+    # Phase 3
+    {"core", "data_model"} => A2UIConformance.Handlers.DataModel,
+    {"core", "resolve_path"} => A2UIConformance.Handlers.ResolvePath
   }
 
   @type resolution ::

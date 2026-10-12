@@ -37,18 +37,18 @@ harness: `reference/a2ui/python/a2ui_core/tests/test_conformance.py`
 
 ## M3 — Phase 3: State — target: `data_model` 51, `resolve_path` 15
 
-- [ ] M3.1 `A2UICore.State.DataModel` (port of `state/data_model.py`; pure;
+- [x] M3.1 `A2UICore.State.DataModel` (port of `state/data_model.py`; pure;
       atomic on error — see `NOTES/divergences.md`).
-- [ ] M3.2 `State.Component` / `State.Components` (catalog-agnostic
+- [x] M3.2 `State.Component` / `State.Components` (catalog-agnostic
       `children_fun`, Python `ComponentRefSpec` wording).
-- [ ] M3.3 Integrity/topology (root, dangling, self-ref, cycles, depth 50,
+- [x] M3.3 Integrity/topology (root, dangling, self-ref, cycles, depth 50,
       orphans, composition constraints; Python + TS phrasings).
-- [ ] M3.4 `State.Surface`, `State.SurfaceGroup` (effects as data; clock
+- [x] M3.4 `State.Surface`, `State.SurfaceGroup` (effects as data; clock
       injected).
-- [ ] M3.5 `Resolution.DataContext` path scoping.
-- [ ] M3.6 Handlers `data_model` (L1248–1344), `resolve_path` (L1231).
-- [ ] M3.7 Property tests (StreamData).
-- [ ] M3.8 Gate + commit "phase 3".
+- [x] M3.5 `Resolution.DataContext` path scoping.
+- [x] M3.6 Handlers `data_model` (L1248–1344), `resolve_path` (L1231).
+- [x] M3.7 Property tests (StreamData).
+- [x] M3.8 Gate + commit "phase 3".
 
 ## M4 — Phase 4: Catalog, functions, expressions — target ≈185
 
