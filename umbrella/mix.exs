@@ -11,11 +11,16 @@ defmodule Umbrella.MixProject do
       deps: deps(),
       aliases: aliases(),
       docs: docs(),
+      test_coverage: [tool: ExCoveralls],
       # Shared PLT config for `mix dialyzer` run from the umbrella root
       # (which is how CI invokes it). :ex_unit is required because
       # a2ui_conformance's Matchers are test-support code in lib/.
       dialyzer: [plt_add_apps: [:mix, :ex_unit]]
     ]
+  end
+
+  def cli do
+    [preferred_envs: [coveralls: :test, "coveralls.detail": :test, precommit: :test]]
   end
 
   defp deps do
@@ -35,7 +40,7 @@ defmodule Umbrella.MixProject do
       precommit: [
         "format",
         "quality",
-        "coveralls --max-failures=0"
+        "coveralls --umbrella"
       ]
     ]
   end

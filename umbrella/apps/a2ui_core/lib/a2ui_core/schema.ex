@@ -11,10 +11,13 @@ defmodule A2UICore.Schema do
 
   Annotation-only keywords (allowed, never asserted): `title`,
   `description`, `default`, `deprecated`, `x-deprecated-reason`,
-  `examples`, `readOnly`, `writeOnly`, `format`, `discriminator`,
+  `examples`, `readOnly`, `writeOnly`, `format` (unless `formats: :assert`),
+  `discriminator`,
   `$schema`, `$id`, `$comment`, `catalogId`, `instructions`,
   `protocolVersion`, `returnType`, `allowedCallers`, `requiresUserActivation`,
-  `allowedParents`, `allowedChildren`, `$defs`, `unevaluatedItems` (not
+  `allowedParents`, `allowedChildren`, `metadata` (catalog extension
+  data), `components`/`functions` (catalog containers, entered via `$ref`
+  only), `$defs`, `unevaluatedItems` (not
   used by any A2UI schema; rejected as unsupported if encountered).
   """
 
@@ -39,6 +42,10 @@ defmodule A2UICore.Schema do
   * `:root` — the document that local `#/...` `$ref`s resolve against
     (defaults to the registry entry keyed `"catalog.json"` when present,
     otherwise to `schema` itself).
+  * `:formats` — `:annotate` (default) treats `format` as an annotation,
+    like the reference SDK's validator; `:assert` checks the formats the
+    A2UI schemas use (`uri`, `date`, `time`, `date-time`) the way ajv with
+    ajv-formats does in the upstream spec test runner.
 
   Returns `:ok` on success, or `{:error, [Detail.t()]}`.
   """
@@ -49,7 +56,13 @@ defmodule A2UICore.Schema do
     root =
       Keyword.get(opts, :root, Map.get(registry, "catalog.json", schema))
 
-    ctx = %{registry: registry, root: root, path: [], ref_depth: 0}
+    ctx = %{
+      registry: registry,
+      root: root,
+      path: [],
+      ref_depth: 0,
+      formats: Keyword.get(opts, :formats, :annotate)
+    }
 
     case Engine.eval(data, schema, ctx) do
       {_annotations, []} -> :ok

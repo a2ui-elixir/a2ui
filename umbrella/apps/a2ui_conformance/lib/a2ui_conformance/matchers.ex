@@ -21,11 +21,13 @@ defmodule A2UIConformance.Matchers do
 
   import ExUnit.Assertions
 
-  # A YAML `category` expectation may accept several of our categories
-  # (the Python harness maps categories to exception *tuples*).
+  # A YAML `category` expectation may accept several of our categories:
+  # the Python harness maps categories to exception *tuples*, and
+  # `pytest.raises` also accepts subclasses (A2uiIntegrityError and
+  # A2uiRecursionError subclass A2uiValidationError).
   @category_aliases %{
     "ParseError" => [:parse, :expression],
-    "ValidationError" => [:validation],
+    "ValidationError" => [:validation, :integrity, :recursion],
     "CatalogError" => [:catalog],
     "IntegrityError" => [:integrity, :recursion],
     "RecursionError" => [:recursion],
@@ -75,8 +77,13 @@ defmodule A2UIConformance.Matchers do
 
   defp assert_category!(nil, _error), do: true
 
+  # An unknown category accepts any library error, like the reference's
+  # `CATEGORY_TO_EXCEPTION.get(category, (A2uiError, ValueError))`.
+  defp assert_category!(category, %Error{}) when not is_map_key(@category_aliases, category),
+    do: true
+
   defp assert_category!(category, error) when is_binary(category) do
-    allowed = Map.fetch!(@category_aliases, category)
+    allowed = Map.get(@category_aliases, category, [])
 
     actual =
       case error do
@@ -212,6 +219,67 @@ defmodule A2UIConformance.Matchers do
   defp json_list_equal?(a, b) do
     length(a) == length(b) and Enum.all?(Enum.zip(a, b), fn {x, y} -> json_equal?(x, y) end)
   end
+
+  @doc """
+  Exact JSON equality (numbers compare by value, so `1` equals `1.0`),
+  raising a helpful message on failure. Use for data models, themes,
+  capabilities and data-model reads, which the reference compares with
+  `==`.
+  """
+  @spec assert_json_equal(term(), term(), String.t()) :: true
+  def assert_json_equal(expected, actual, what) do
+    unless json_equal?(expected, actual) do
+      flunk(
+        "#{what}:\nexpected #{inspect(expected, pretty: true)}\ngot " <>
+          inspect(actual, pretty: true, limit: :infinity)
+      )
+    end
+
+    true
+  end
+
+  @doc """
+  Strict structural equality for schema documents (the reference
+  compares canonical JSON strings): like `assert_json_equal/3` but `1`
+  and `1.0` differ.
+  """
+  @spec assert_strict_equal(term(), term(), String.t()) :: true
+  def assert_strict_equal(expected, actual, what) do
+    unless expected === actual do
+      flunk("#{what}: documents differ\n" <> diff_summary(expected, actual, []))
+    end
+
+    true
+  end
+
+  defp diff_summary(a, b, path) when is_map(a) and is_map(b) do
+    keys = Enum.sort(Enum.uniq(Map.keys(a) ++ Map.keys(b)))
+
+    Enum.find_value(keys, "", fn key ->
+      case {Map.fetch(a, key), Map.fetch(b, key)} do
+        {{:ok, x}, {:ok, y}} when x === y -> nil
+        {{:ok, x}, {:ok, y}} -> diff_summary(x, y, path ++ [key])
+        {{:ok, _}, :error} -> "missing #{format_path(path ++ [key])} in actual"
+        {:error, {:ok, _}} -> "unexpected #{format_path(path ++ [key])} in actual"
+      end
+    end)
+  end
+
+  defp diff_summary(a, b, path) when is_list(a) and is_list(b) and length(a) == length(b) do
+    a
+    |> Enum.zip(b)
+    |> Enum.with_index()
+    |> Enum.find_value("", fn
+      {{x, y}, _i} when x === y -> nil
+      {{x, y}, i} -> diff_summary(x, y, path ++ [i])
+    end)
+  end
+
+  defp diff_summary(a, b, path),
+    do: "at #{format_path(path)}: expected #{inspect(a)}, got #{inspect(b)}"
+
+  defp format_path([]), do: "/"
+  defp format_path(path), do: "/" <> Enum.map_join(path, "/", &to_string/1)
 
   @doc """
   Asserts the subset expectation, raising a helpful message on failure.

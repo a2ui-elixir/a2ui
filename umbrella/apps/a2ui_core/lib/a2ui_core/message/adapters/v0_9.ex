@@ -1,3 +1,5 @@
+# Named after the protocol version it adapts (`v0_9`, `v1_0`).
+# credo:disable-for-next-line Credo.Check.Readability.ModuleNames
 defmodule A2UICore.Message.Adapters.V0_9 do
   @moduledoc false
 

@@ -19,7 +19,7 @@ Three packages:
 
 | Hex package | App | Layer | Purpose |
 |---|---|---|---|
-| `a2ui_core` | `:a2ui` | Protocol engine | messages, schemas, state, catalog, functions. **Zero runtime deps beyond Jason.** No Phoenix. |
+| `a2ui_core` | `:a2ui_core` | Protocol engine | messages, schemas, state, catalog, functions. **Zero runtime deps beyond Jason.** No Phoenix. |
 | `a2ui_phoenix` | `:a2ui_phoenix` | Renderer adapter | LiveView components + transports. Depends on `a2ui_core`. |
 | `a2ui_agent` | `:a2ui_agent` | Agent SDK | prompt generation, LLM-response parsing, builder DSL. Depends on `a2ui_core`. |
 
@@ -379,6 +379,8 @@ The Phoenix adapter decodes entire JSON objects, hands them to `Processor.proces
 Each phase is shippable: tests green, dialyzer clean, docs updated. Size/cost is
 author-time estimate; two-person-weeks ⇒ 2 PW.
 
+Live progress and the per-task checklist are in `TODO.md`.
+
 ### Phase 0 — Scaffold (1-2 days)
 
 - Umbrella project, `a2ui_core`/`a2ui_conformance` mix apps, CI (format, credo,
@@ -396,46 +398,61 @@ Modules: `Version`, `Identifier`, `Pointer`, `Schema` (subset), `Error`
 ### Phase 2 — Messages, adapters, wire fidelity (≈1 PW)
 
 Modules: `Message.encode/decode/operations/adapters(v0.9,v1.0)`.
-- Exit: round-trip exact vs `specification/*/json/sample.json` and
-  `common_types_schema`/`agent_to_renderer_schema` golden tests green.
+- Exit: every upstream example bundle (43 v1.0 + 43 v0.9.1) and both JSONL samples
+  decode, validate against the bundle schema (`sample.json`) and round-trip through the
+  encoder; the ajv-calibrated spec cases (`specification/*/test/cases`) replay with the
+  same verdicts; vendored schemas equal the pinned reference; conformance
+  `agent_to_renderer_schema`/`common_types_schema`/`validate_common_type` (25 cases)
+  green.
 
 ### Phase 3 — State (≈2 PW)
 
 Modules: `DataModel`, `Component`, `Surface`, `SurfaceGroup`, `Validation.integrity`.
-- Exit: `data_model.yaml`, `data_model_pointers.yaml`, `data_deletion.yaml`,
-  `data_context.yaml` green; topology/integrity invariants unit-tested.
+- Exit: conformance `data_model` (51) and `resolve_path` (15: `data_context.yaml` plus the
+  4 in `message_processor_v0_9.yaml`) green; topology/integrity invariants unit-tested.
+  (`data_model_pointers.yaml` and `data_deletion.yaml` use `action: validate`, so they
+  belong to Phase 5.)
 
 ### Phase 4 — Catalog, functions, expression (≈2 PW)
 
 Modules: `Catalog.loader`, `Catalog.functions` (behaviour), `Catalog.basic`,
 `Catalog.expression`, `Formatter` behaviour + `:intl` impl.
-- Exit: `catalog.yaml`, `functions.yaml`, `expressions.yaml` (89 cases) green;
-  UAX31 approximation covered by property tests.
+- Exit: conformance `from_json`, `catalog_schema`, `evaluate_function` and
+  `parse_expression_template` (≈185 runnable cases across `catalog.yaml`,
+  `functions.yaml`, `expressions.yaml`) green; UAX31 approximation covered by property
+  tests.
 
 ### Phase 5 — Processor (≈2 PW)
 
 Modules: `Processor`, `Resolution.data_context`, `Resolution.binder`,
 `Validation.payload`.
-- Exit: `validator_v0_9/v1_0.yaml`, `message_processor_v0_9/v1_0.yaml`,
-  `common_types.yaml`, `actions.yaml`, `reserved_keys.yaml`, `multi_catalog.yaml` green;
-  `updateComponents` is atomic (test intentionally failing batches).
+- Exit: every `validate`, `process_messages`, `get_renderer_capabilities`,
+  `get_renderer_data_model`, `select_catalog` and `dispatch_action` case (≈184 runnable:
+  `validator_v0_9/v1_0`, `message_processor_v0_9/v1_0`, `data_deletion`,
+  `data_model_pointers`, `composition_constraints`, `index_function`,
+  `validation_result`, `reserved_keys`, `multi_catalog`, `actions`, and the `validate`
+  cases of `functions`/`expressions`) green; `updateComponents` is atomic (test
+  intentionally failing batches). Includes the generic binder, which the harness uses to
+  compare resolved component props.
 
 ### Phase 6 — Node resolution (≈1 PW)
 
-Modules: `Resolution.Node`.
-- Exit: `node_resolution.yaml` green; placeholders/cycles handled; ids stable.
+Modules: `Resolution.Node`, accessibility checks.
+- Exit: `node_resolution.yaml` (8) and `accessibility.yaml` (6) green; placeholders/cycles
+  handled; ids stable. (The Python harness does not run these; semantics come from the TS
+  and Dart harnesses and the spec.)
 
 ### Phase 7 — RPC v1.0 (≈1 PW)
 
 Modules: `RPC`, `RendererFunctionResponse`, updates to `Processor` for
 `callRendererFunction`/`agentFunctionResponse`.
-- Exit: `rpc_functions.yaml`, `index_function.yaml`, `composition_constraints.yaml`,
-  `validation_result.yaml`, `accessibility.yaml` green.
+- Exit: `rpc_functions.yaml` (15 `handle_rpc` cases) green. (The 3 `extensions/a2a`
+  `handle_rpc` cases belong to Phase 9.)
 
 ### Phase 8 — `a2ui_phoenix` (≈2 PW)
 
 LiveComponent, renderer, basic catalog as function components, LiveView channel transport.
-- Exit: a LiveView skeleton app renders the 40 `catalogs/basic/v1/examples/*` without
+- Exit: a LiveView skeleton app renders the 43 `catalogs/basic/v1/examples/*` without
   errors; demo contact-form works end-to-end; a11y attributes present.
 
 ### Phase 9 — `a2ui_phoenix` transports (≈2 PW)
@@ -476,7 +493,7 @@ recordings, `SPEC_PIN` updated to latest compatible spec commit.
 ## 14. Open questions
 
 1. **Names final?** `a2ui_core`, `a2ui_phoenix`, `a2ui_agent` are free; confirm before CI/publish scaffolding.
-2. **License mirroring?** upstream Apache-2.0; recommend Apache-2.0 for compatibility.
+2. **License:** decided — Apache-2.0 for our code, the license of upstream too.
 3. **JS hooks?** Default recommendation: server-only for v1 (simplest, matches LiveView);
    local actions like `openUrl` executed client-side need a small hook — phase 8.
 4. **Built-in catalog ownership** — same design as upstream: ship 18 components; custom

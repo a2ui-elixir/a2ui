@@ -15,6 +15,7 @@ defmodule A2UICore.Message.Encode do
   #     single-message instantiation directly).
 
   alias A2UICore.Message.Operation
+
   alias A2UICore.Message.Operation.{
     AgentFunctionResponse,
     CallRendererFunction,
@@ -43,7 +44,7 @@ defmodule A2UICore.Message.Encode do
       %{"surfaceId" => op.surface_id}
       |> put_if("catalogId", op.catalog_id)
       |> put_theme_if_v0_9(op, version)
-      |> put_if("sendDataModel", op.send_data_model == true && true || nil)
+      |> put_if("sendDataModel", (op.send_data_model == true && true) || nil)
       |> put_if("components", op.components)
       |> put_if("dataModel", op.data_model)
 

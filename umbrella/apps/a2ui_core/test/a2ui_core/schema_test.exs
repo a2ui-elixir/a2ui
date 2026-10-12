@@ -2,7 +2,6 @@ defmodule A2UICore.SchemaTest do
   @moduledoc false
   use ExUnit.Case, async: true
 
-  alias A2UICore.Error.Detail
   alias A2UICore.Schema
 
   defp assert_ok(data, schema, opts \\ []) do
@@ -551,6 +550,93 @@ defmodule A2UICore.SchemaTest do
       assert_ok("not-a-date", %{"type" => "string", "format" => "date-time"})
       assert_ok(1, %{"title" => "x", "description" => "y", "default" => 2})
       assert_ok("v", %{"deprecated" => true, "x-deprecated-reason" => "old"})
+    end
+  end
+
+  describe "format assertion (formats: :assert, ajv-formats full mode)" do
+    defp format_ok(value, format),
+      do: assert_ok(value, %{"type" => "string", "format" => format}, formats: :assert)
+
+    defp format_error(value, format) do
+      assert [%{code: "type_mismatch", message: message}] =
+               assert_error(value, %{"type" => "string", "format" => format}, formats: :assert)
+
+      assert message =~ "is not a '#{format}'"
+    end
+
+    test "uri requires an absolute RFC 3986 URI" do
+      format_ok("https://example.com/a?b=1#c", "uri")
+      format_ok("mailto:ada@example.com", "uri")
+      format_ok("urn:isbn:0451450523", "uri")
+      format_ok("https://example.com/%20x", "uri")
+      format_error("not a uri", "uri")
+      format_error("/relative/path", "uri")
+      format_error("https://example.com/a b", "uri")
+      format_error("https://example.com/%zz", "uri")
+    end
+
+    test "date checks the calendar" do
+      format_ok("2024-02-29", "date")
+      format_error("2023-02-29", "date")
+      format_error("1900-02-29", "date")
+      format_ok("2000-02-29", "date")
+      format_error("2024-13-01", "date")
+      format_error("2024-04-31", "date")
+      format_error("2024-4-1", "date")
+    end
+
+    test "time requires a time zone and accepts leap seconds only at 23:59 UTC" do
+      format_ok("12:30:00Z", "time")
+      format_ok("12:30:00.123+05:30", "time")
+      format_ok("12:30:00-0800", "time")
+      format_ok("23:59:60Z", "time")
+      format_ok("15:59:60-08:00", "time")
+      format_error("12:30:00", "time")
+      format_error("12:30:60Z", "time")
+      format_error("24:00:00Z", "time")
+      format_error("12:30:00+24:00", "time")
+    end
+
+    test "date-time joins date and time with T, t or a space" do
+      format_ok("2024-01-15T10:30:00Z", "date-time")
+      format_ok("2024-01-15t10:30:00z", "date-time")
+      format_ok("2024-01-15 10:30:00+01:00", "date-time")
+      format_error("2024-01-15T10:30:00", "date-time")
+      format_error("2024-01-15", "date-time")
+    end
+
+    test "unknown formats and non-strings are accepted; annotate mode never asserts" do
+      format_ok("anything", "x-custom")
+      assert_ok(42, %{"format" => "uri"}, formats: :assert)
+      assert_ok("not a uri", %{"format" => "uri"}, formats: :annotate)
+    end
+  end
+
+  describe "applicator edge cases" do
+    test "a discriminated oneOf rejects a non-object instance without crashing" do
+      schema = %{
+        "discriminator" => %{"propertyName" => "component"},
+        "oneOf" => [
+          %{"type" => "object", "properties" => %{"component" => %{"const" => "Text"}}},
+          %{"type" => "object", "properties" => %{"component" => %{"const" => "Icon"}}}
+        ]
+      }
+
+      assert [_ | _] = assert_error(nil, schema)
+      assert [_ | _] = assert_error([1], schema)
+    end
+
+    test "a passing `if` contributes annotations to unevaluatedProperties" do
+      schema = %{
+        "if" => %{"properties" => %{"kind" => %{"const" => "a"}}, "required" => ["kind"]},
+        "then" => %{"properties" => %{"extra" => %{"type" => "string"}}},
+        "unevaluatedProperties" => false
+      }
+
+      assert_ok(%{"kind" => "a", "extra" => "x"}, schema)
+
+      assert [%{code: "extra_field"}] =
+               assert_error(%{"kind" => "b", "extra" => "x"}, schema)
     end
   end
 end

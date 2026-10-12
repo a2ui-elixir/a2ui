@@ -5,6 +5,8 @@ defmodule A2UICore.MessageTest do
   import A2UICore.Message
 
   alias A2UICore.Error
+  alias A2UICore.Message.AdapterRegistry
+  alias A2UICore.Message.Adapters.{V0_9, V1_0}
   alias A2UICore.Message.Operation
 
   doctest A2UICore.Message
@@ -12,30 +14,30 @@ defmodule A2UICore.MessageTest do
   describe "registry: adapter resolution" do
     test "version designators resolve by family" do
       for v <- ["v0.9", "0.9", "v0.9.0", "v0_9"] do
-        assert {:ok, A2UICore.Message.Adapters.V0_9} =
-                 A2UICore.Message.AdapterRegistry.get_adapter(v)
+        assert {:ok, V0_9} =
+                 AdapterRegistry.get_adapter(v)
       end
 
       for v <- ["v0.9.1", "0.9.1"] do
-        assert {:ok, A2UICore.Message.Adapters.V0_9} =
-                 A2UICore.Message.AdapterRegistry.get_adapter(v)
+        assert {:ok, V0_9} =
+                 AdapterRegistry.get_adapter(v)
       end
 
       for v <- ["v1.0", "1.0", "1.0.0", "v1_0"] do
-        assert {:ok, A2UICore.Message.Adapters.V1_0} =
-                 A2UICore.Message.AdapterRegistry.get_adapter(v)
+        assert {:ok, V1_0} =
+                 AdapterRegistry.get_adapter(v)
       end
     end
 
     test "unsupported versions include v0.8 and unknown strings" do
       for v <- ["v0.8", "v99.0", "v1.0.0-beta", "hello"] do
         assert {:error, %Error{category: :validation}} =
-                 A2UICore.Message.AdapterRegistry.get_adapter(v)
+                 AdapterRegistry.get_adapter(v)
       end
     end
 
     test "known actions are the union across adapters plus legacy v0.8 keys" do
-      assert A2UICore.Message.AdapterRegistry.all_known_actions() ==
+      assert AdapterRegistry.all_known_actions() ==
                MapSet.new([
                  "createSurface",
                  "updateComponents",
@@ -59,7 +61,8 @@ defmodule A2UICore.MessageTest do
 
     test "non-collection payloads are rejected with invalid_payload_type at messages.0.version" do
       for bad <- [42, "str", true] do
-        assert {:error, %Error{details: [%{code: "invalid_payload_type", path: "messages.0.version"}]}} =
+        assert {:error,
+                %Error{details: [%{code: "invalid_payload_type", path: "messages.0.version"}]}} =
                  decode(bad)
       end
     end
@@ -203,6 +206,43 @@ defmodule A2UICore.MessageTest do
       assert %Operation.UpdateDataModel{path: "/", value: %{"user" => "Ada"}} = update_data_model
     end
 
+    test "operation order is preserved within and across messages of a list" do
+      inline_create = %{
+        "version" => "v1.0",
+        "createSurface" => %{
+          "surfaceId" => "s",
+          "catalogId" => "basic",
+          "components" => [%{"id" => "root", "component" => "Text", "text" => "Hi"}],
+          "dataModel" => %{"user" => "Ada"}
+        }
+      }
+
+      delete = %{"version" => "v1.0", "deleteSurface" => %{"surfaceId" => "s"}}
+      update = %{"version" => "v1.0", "updateDataModel" => %{"surfaceId" => "s", "value" => 1}}
+
+      expected = [
+        Operation.UpdateDataModel,
+        Operation.CreateSurface,
+        Operation.UpdateComponents,
+        Operation.UpdateDataModel,
+        Operation.DeleteSurface
+      ]
+
+      for payload <- [
+            [update, inline_create, delete],
+            %{"messages" => [update, inline_create, delete]}
+          ] do
+        assert {:ok, ops} = decode(payload)
+        assert Enum.map(ops, & &1.__struct__) == expected
+        assert %Operation.UpdateDataModel{value: 1} = hd(ops)
+      end
+    end
+
+    test "non-message items in a list are ignored (reference parity for [msg, 42])" do
+      update = %{"version" => "v1.0", "updateDataModel" => %{"surfaceId" => "s", "value" => 1}}
+      assert {:ok, [%Operation.UpdateDataModel{value: 1}]} = decode([update, 42])
+    end
+
     test "v0.9 createSurface keeps theme; v1.0 drops it" do
       assert {:ok, [%Operation.CreateSurface{theme: %{"primaryColor" => "#112233"}}]} =
                decode(%{
@@ -230,7 +270,8 @@ defmodule A2UICore.MessageTest do
                    "functionCallId" => "fc1",
                    "callFunction" => %{
                      "@call" => "required",
-                     "catalogId" => "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                     "catalogId" =>
+                       "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                      "args" => %{"value" => "text"}
                    }
                  }

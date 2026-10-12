@@ -32,7 +32,9 @@ defmodule A2UIConformance.Yaml do
   # untouched. Block scalars and comments are tracked so quotes inside
   # them never trigger healing.
 
-  @decode_options [:str_node_as_binary]
+  # Mappings decode to Elixir maps. yamerl's default (proplists) cannot
+  # tell an empty mapping `{}` from an empty sequence `[]`.
+  @decode_options [:str_node_as_binary, {:map_node_format, :map}]
 
   @block_indicator ~r/:\s*[|>][0-9]*[+-]?\s*$/
 
@@ -159,23 +161,8 @@ defmodule A2UIConformance.Yaml do
 
   @doc false
   @spec normalize(term()) :: term()
-  def normalize(entries) when is_list(entries) do
-    if mapping?(entries) do
-      Map.new(entries, fn {key, value} -> {key, normalize(value)} end)
-    else
-      Enum.map(entries, &normalize/1)
-    end
-  end
-
+  def normalize(map) when is_map(map), do: Map.new(map, fn {k, v} -> {k, normalize(v)} end)
+  def normalize(list) when is_list(list), do: Enum.map(list, &normalize/1)
   def normalize(:null), do: nil
   def normalize(value), do: value
-
-  @spec mapping?(term()) :: boolean()
-  defp mapping?(entries) do
-    entries != [] and
-      Enum.all?(entries, fn
-        {key, _value} when is_binary(key) -> true
-        _other -> false
-      end)
-  end
 end

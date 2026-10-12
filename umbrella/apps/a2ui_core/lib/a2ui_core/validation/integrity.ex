@@ -52,12 +52,10 @@ defmodule A2UICore.Validation.Integrity do
   """
   @spec validate_recursion_and_paths(term()) :: :ok | {:error, Error.t()}
   def validate_recursion_and_paths(data) do
-    try do
-      validate_recursion_and_paths!(data)
-      :ok
-    rescue
-      error in Error -> {:error, error}
-    end
+    validate_recursion_and_paths!(data)
+    :ok
+  rescue
+    error in Error -> {:error, error}
   end
 
   # ------------------------------------------------------------------ core --
@@ -82,23 +80,21 @@ defmodule A2UICore.Validation.Integrity do
   defp traverse(_item, _global_depth, _func_depth), do: :ok
 
   defp validate_path_keys!(item) do
-    Enum.each(["path", "@path"], fn key ->
-      case Map.fetch(item, key) do
-        {:ok, path} when is_binary(path) ->
-          unless Regex.match?(@relaxed_path_pattern, path) do
-            Error.raise!(
-              :validation,
-              "invalid_pointer",
-              "Invalid path syntax: '#{path}'",
-              details: [Detail.new("invalid_pointer", "Invalid path syntax: '#{path}'", key)]
-            )
-          end
-
-        _other ->
-          :ok
-      end
-    end)
+    Enum.each(["path", "@path"], fn key -> validate_path_key!(key, Map.get(item, key)) end)
   end
+
+  defp validate_path_key!(key, path) when is_binary(path) do
+    if !Regex.match?(@relaxed_path_pattern, path) do
+      Error.raise!(
+        :validation,
+        "invalid_pointer",
+        "Invalid path syntax: '#{path}'",
+        details: [Detail.new("invalid_pointer", "Invalid path syntax: '#{path}'", key)]
+      )
+    end
+  end
+
+  defp validate_path_key!(_key, _non_string), do: :ok
 
   defp traverse_item(item, global_depth, func_depth) do
     cond do

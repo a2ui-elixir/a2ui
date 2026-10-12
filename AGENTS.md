@@ -21,7 +21,7 @@ Elixir/Phoenix implementation of the [A2UI protocol](https://a2ui.org) — build
    (`reference/a2ui` pin recorded in `SPEC_PIN`).
 6. Every public module/function has `@moduledoc`/`@doc`/`@spec`; CI gates
    `mix format --check-formatted`, `mix credo --strict`, `mix dialyzer`,
-   `mix coveralls --max-failures=0` (run from `umbrella/`, `MIX_ENV=test`).
+   `mix coveralls --umbrella` (run from `umbrella/`, `MIX_ENV=test`).
 
 ## Build & test commands
 
@@ -29,11 +29,22 @@ Elixir/Phoenix implementation of the [A2UI protocol](https://a2ui.org) — build
 cd umbrella
 mix deps.get
 mix compile --warnings-as-errors
-mix test                       # all apps
-mix coveralls --max-failures=0 # incl. per-test coverage gate
+mix test                                   # all apps
+MIX_ENV=test mix coveralls --umbrella      # tests + coverage gate (95% minimum)
 mix credo --strict
-mix dialyzer                   # first run builds the PLT (slow)
+mix dialyzer                               # first run builds the PLT (slow)
 ```
+
+The fidelity and conformance suites need the pinned upstream checkout at
+`reference/a2ui` (see `README.md`). Set `A2UI_REFERENCE_ROOT` to point elsewhere and
+`A2UI_REQUIRE_REFERENCE=1` to make a missing checkout a failure instead of a silent
+zero-test run (CI does).
+
+Do **not** pass `--max-failures=0` to `mix test`/`mix coveralls`: ExUnit then stops
+before running anything and exits 0.
+
+Progress and the working task list live in `TODO.md`; deliberate deviations from the
+reference live in `NOTES/divergences.md`.
 
 ## Repo map
 

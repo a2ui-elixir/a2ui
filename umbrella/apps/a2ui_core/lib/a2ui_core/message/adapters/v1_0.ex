@@ -1,3 +1,5 @@
+# Named after the protocol version it adapts (`v0_9`, `v1_0`).
+# credo:disable-for-next-line Credo.Check.Readability.ModuleNames
 defmodule A2UICore.Message.Adapters.V1_0 do
   @moduledoc false
 
@@ -118,14 +120,20 @@ defmodule A2UICore.Message.Adapters.V1_0 do
   defp inline_operations(cs, surface_id) do
     component_op =
       case cs["components"] do
-        nil -> []
-        components -> [%Operation.UpdateComponents{surface_id: surface_id, components: components}]
+        nil ->
+          []
+
+        components ->
+          [%Operation.UpdateComponents{surface_id: surface_id, components: components}]
       end
 
     data_model_op =
       case cs["dataModel"] do
-        nil -> []
-        data_model -> [%Operation.UpdateDataModel{surface_id: surface_id, path: "/", value: data_model}]
+        nil ->
+          []
+
+        data_model ->
+          [%Operation.UpdateDataModel{surface_id: surface_id, path: "/", value: data_model}]
       end
 
     component_op ++ data_model_op

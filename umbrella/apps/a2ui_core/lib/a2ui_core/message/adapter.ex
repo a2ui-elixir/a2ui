@@ -23,7 +23,7 @@ defmodule A2UICore.Message.Adapter do
 
   alias A2UICore.Error
   alias A2UICore.Error.Detail
-  alias A2UICore.Message.{Operation, AdapterRegistry}
+  alias A2UICore.Message.{AdapterRegistry, Operation}
   alias A2UICore.Schema
   alias A2UICore.Schema.Source
   alias A2UICore.SemVer
@@ -74,7 +74,9 @@ defmodule A2UICore.Message.Adapter do
 
   defp extract_list(adapter, [item | rest], opts, acc) do
     case extract(adapter, item, opts) do
-      {:ok, ops} -> extract_list(adapter, rest, opts, ops ++ acc)
+      # acc is reversed; push this message's ops so that the final
+      # reverse restores both cross-message and in-message order.
+      {:ok, ops} -> extract_list(adapter, rest, opts, Enum.reverse(ops, acc))
       {:error, error} -> {:error, error}
     end
   end
@@ -125,18 +127,15 @@ defmodule A2UICore.Message.Adapter do
 
       true ->
         [action] = present
-
-        case message[action] do
-          payload when is_map(payload) ->
-            with :ok <- ensure_surface_id_string(payload) do
-              {:ok, action}
-            end
-
-          _non_map ->
-            {:ok, action}
-        end
+        validated_action(action, message[action])
     end
   end
+
+  defp validated_action(action, payload) when is_map(payload) do
+    with :ok <- ensure_surface_id_string(payload), do: {:ok, action}
+  end
+
+  defp validated_action(action, _non_map_payload), do: {:ok, action}
 
   defp not_supported_error(adapter, message) do
     version = adapter.version()
@@ -179,7 +178,9 @@ defmodule A2UICore.Message.Adapter do
 
       _other ->
         {:error,
-         Error.new(:validation, "INVALID_ACTION",
+         Error.new(
+           :validation,
+           "INVALID_ACTION",
            "Payload for action '#{action}' must be an object"
          )}
     end
@@ -207,8 +208,7 @@ defmodule A2UICore.Message.Adapter do
         {:error, version_mismatch_error(version, "Input should be #{expected}")}
 
       _missing ->
-        {:error,
-         version_mismatch_error(version, "version: 'version' is a required property")}
+        {:error, version_mismatch_error(version, "version: 'version' is a required property")}
     end
   end
 
@@ -257,7 +257,9 @@ defmodule A2UICore.Message.Adapter do
             summary = Enum.map_join(details, "; ", &summary_line/1)
 
             {:error,
-             Error.new(:validation, "SCHEMA_VALIDATION_FAILED",
+             Error.new(
+               :validation,
+               "SCHEMA_VALIDATION_FAILED",
                "Invalid #{adapter.version()} message: #{summary}",
                details: details
              )}

@@ -4,20 +4,21 @@ defmodule A2UIConformance.SkipPolicy do
   # Derives a skip decision for a case. Skip reasons are *computed* from
   # the case and the dispatcher state, so they cannot silently rot:
   #
-  #   1. `protocolVersion` outside the supported set -> version skip.
-  #   2. Action without a handler yet -> phase-tagged skip.
-  #   3. Explicit per-case skips (case-level exceptions) — these are a
-  #      named list that is validated against the real case corpus; an
-  #      entry that matches no case is itself a test failure.
+  #   1. A protocol version outside the supported set -> version skip
+  #      (v0.8 is out of scope by design).
+  #   2. Action without a handler yet -> phase-tagged skip; optional
+  #      follow-up families are tagged as such.
+  #   3. Explicit per-case skips (case-level exceptions) — a named list
+  #      validated against the real case corpus; an entry that matches no
+  #      case is itself a test failure.
   #
   # Supported versions match `A2UICore.Version.supported/0`.
 
   alias A2UIConformance.{Case, Dispatcher}
 
-  @explicit_case_skips [
-    # {"suite (relative path)", "case name", "reason"} — validated on
-    # boot; remove entries as their phases fix the underlying cases.
-  ]
+  # {{"suite (relative path)", "case name"}, "reason"} — remove entries as
+  # their phases fix the underlying cases.
+  @explicit_case_skips []
 
   @doc """
   Returns `nil` (run the case) or `{:skip, reason}`.
@@ -27,11 +28,8 @@ defmodule A2UIConformance.SkipPolicy do
     version_skip(case) || dispatcher_skip(case) || explicit_skip(case)
   end
 
-  defp version_skip(%Case{protocol_version: nil}), do: nil
-
   defp version_skip(%Case{protocol_version: version}) do
-    if A2UICore.Version.protocol_version?(version) and
-         version in A2UICore.Version.supported() do
+    if version in A2UICore.Version.supported() do
       nil
     else
       {:skip, "unsupported protocol version #{inspect(version)}"}
@@ -41,10 +39,11 @@ defmodule A2UIConformance.SkipPolicy do
   defp dispatcher_skip(%Case{action: nil}),
     do: {:skip, "case has no action"}
 
-  defp dispatcher_skip(%Case{action: action}) do
-    case Dispatcher.resolve(action) do
+  defp dispatcher_skip(%Case{action: action} = case) do
+    case Dispatcher.resolve(case) do
       {:ok, _module} -> nil
       {:pending, phase} -> {:skip, "action '#{action}' lands in phase #{phase}"}
+      {:optional, phase, label} -> {:skip, "optional: #{label} (after phase #{phase})"}
       :unknown -> nil
     end
   end

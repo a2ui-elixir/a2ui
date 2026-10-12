@@ -32,20 +32,45 @@ defmodule A2UICore.Schema.Engine do
   #   unresolvable $ref                  -> "invalid_reference"
 
   alias A2UICore.Error.Detail
-  alias A2UICore.Schema.{ECMA262, Ref}
+  alias A2UICore.Schema.{ECMA262, Format, Ref}
 
   @typedoc "Evaluation annotations."
   @type annotations :: %{props: MapSet.t(String.t()), items: MapSet.t(non_neg_integer())}
 
   @typedoc "Evaluation context."
   @type ctx :: %{
-          registry: Ref.registry(),
-          root: A2UICore.Schema.schema(),
-          path: [String.t() | non_neg_integer()],
-          ref_depth: non_neg_integer()
+          required(:registry) => Ref.registry(),
+          required(:root) => A2UICore.Schema.schema(),
+          required(:path) => [String.t() | non_neg_integer()],
+          required(:ref_depth) => non_neg_integer(),
+          optional(:formats) => :annotate | :assert
         }
 
   @empty_ann %{props: MapSet.new(), items: MapSet.new()}
+
+  # Keywords this evaluator implements. Any other key in a schema position
+  # is silently ignored (like ajv with strict=false), so the keyword
+  # inventory test checks that the vendored schemas use nothing else.
+  @asserted_keywords ~w(
+    type const enum minLength maxLength pattern format
+    minimum maximum exclusiveMinimum exclusiveMaximum multipleOf
+    minItems maxItems uniqueItems contains prefixItems items
+    minProperties maxProperties required properties patternProperties
+    propertyNames additionalProperties unevaluatedProperties
+    allOf anyOf oneOf not if then else $ref
+  )
+
+  @annotation_keywords ~w(
+    title description default deprecated x-deprecated-reason examples
+    readOnly writeOnly discriminator $schema $id $comment $defs
+    catalogId instructions protocolVersion returnType allowedCallers
+    requiresUserActivation allowedParents allowedChildren metadata
+    components functions
+  )
+
+  @doc false
+  @spec keywords() :: %{asserted: [String.t()], annotations: [String.t()]}
+  def keywords, do: %{asserted: @asserted_keywords, annotations: @annotation_keywords}
 
   # ----------------------------------------------------------------- entry --
 
@@ -227,6 +252,7 @@ defmodule A2UICore.Schema.Engine do
     eval_string_length(data, schema, ctx, "minLength")
     |> combine(eval_string_length(data, schema, ctx, "maxLength"))
     |> combine(eval_pattern(data, schema, ctx))
+    |> combine(eval_format(data, schema, ctx))
   end
 
   defp eval_string(_data, _schema, _ctx), do: {@empty_ann, []}
@@ -273,6 +299,22 @@ defmodule A2UICore.Schema.Engine do
   end
 
   defp eval_pattern(_data, _schema, _ctx), do: {@empty_ann, []}
+
+  # `format` is an annotation unless the caller opts into assertion
+  # (`formats: :assert`), mirroring jsonschema without a FormatChecker
+  # (the Python SDK) vs. ajv with ajv-formats (the spec test runner).
+  # Unknown formats are always ignored.
+  @spec eval_format(String.t(), map(), ctx()) :: {annotations(), [Detail.t()]}
+  defp eval_format(data, %{"format" => format}, %{formats: :assert} = ctx)
+       when is_binary(format) do
+    if Format.valid?(format, data) do
+      {@empty_ann, []}
+    else
+      {@empty_ann, [detail(ctx, "type_mismatch", "#{repr(data)} is not a '#{format}'")]}
+    end
+  end
+
+  defp eval_format(_data, _schema, _ctx), do: {@empty_ann, []}
 
   # -- numbers -----------------------------------------------------------
 
@@ -735,7 +777,7 @@ defmodule A2UICore.Schema.Engine do
   @spec discriminated_branch_errors(term(), map(), [term()], [{annotations(), [Detail.t()]}]) ::
           {:ok, [Detail.t()]} | :error
   defp discriminated_branch_errors(data, %{"discriminator" => disc}, subschemas, results)
-       when is_map(disc) do
+       when is_map(disc) and plain_map?(data) do
     with %{"propertyName" => property} when is_binary(property) <- disc,
          {:ok, value} when is_binary(value) <- Map.fetch(data, property),
          {branch_index, _subschema} <-
@@ -788,12 +830,13 @@ defmodule A2UICore.Schema.Engine do
 
   @spec eval_if_then_else(term(), map(), ctx()) :: {annotations(), [Detail.t()]}
   defp eval_if_then_else(data, %{"if" => if_schema} = schema, ctx) do
-    {_if_ann, if_errs} = eval(data, if_schema, ctx)
+    {if_ann, if_errs} = eval(data, if_schema, ctx)
 
     if if_errs == [] do
+      # A passing `if` contributes its annotations (2020-12 §10.2.2.1).
       case Map.fetch(schema, "then") do
-        {:ok, then_schema} -> eval(data, then_schema, ctx)
-        :error -> {@empty_ann, []}
+        {:ok, then_schema} -> combine({if_ann, []}, eval(data, then_schema, ctx))
+        :error -> {if_ann, []}
       end
     else
       case Map.fetch(schema, "else") do

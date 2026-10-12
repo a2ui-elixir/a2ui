@@ -2,7 +2,7 @@ defmodule A2UIConformance.SuiteTest do
   @moduledoc false
 
   # Generated conformance tests: one ExUnit test per upstream YAML case,
-  # dispatched through `A2UIConformance.Dispatcher`.
+  # dispatched through `A2UIConformance.Dispatcher` on {scope, action}.
   #
   # Cases load at compile time; every suite file is registered with
   # `@external_resource` so suite edits trigger recompilation. Skip
@@ -47,7 +47,7 @@ defmodule A2UIConformance.SuiteTest do
   test "every case names a known action" do
     unknown =
       Enum.filter(@case_list, fn case ->
-        match?(:unknown, Dispatcher.resolve(case.action || ""))
+        match?(:unknown, Dispatcher.resolve(case))
       end)
 
     assert unknown == [],
@@ -71,7 +71,7 @@ defmodule A2UIConformance.SuiteTest do
     test "#{case.suite} :: #{case.name}" do
       case = unquote(Macro.escape(case))
 
-      assert {:ok, handler} = Dispatcher.resolve(case.action)
+      assert {:ok, handler} = Dispatcher.resolve(case)
       :ok = handler.run(case, %{})
     end
   end

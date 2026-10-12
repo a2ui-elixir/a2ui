@@ -13,9 +13,15 @@ defmodule A2UIConformance.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      # :ex_unit is required because the harness's Matchers are
+      # assertion helpers living in lib/.
       dialyzer: [plt_local_path: "../../priv/plts", plt_add_apps: [:mix, :ex_unit]],
-      dialyzer: [plt_local_path: "../../priv/plts", plt_add_apps: [:mix]]
+      test_coverage: [tool: ExCoveralls]
     ]
+  end
+
+  def cli do
+    [preferred_envs: [coveralls: :test, "coveralls.detail": :test]]
   end
 
   def application do
@@ -29,7 +35,8 @@ defmodule A2UIConformance.MixProject do
     [
       {:a2ui_core, in_umbrella: true},
       {:yamerl, "~> 0.10"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:excoveralls, "~> 0.18", only: [:test], runtime: false}
     ]
   end
 end
