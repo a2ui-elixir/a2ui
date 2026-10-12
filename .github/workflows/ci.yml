@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+      A2UI_REFERENCE_ROOT: reference/a2ui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            umbrella/deps
+            umbrella/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('umbrella/mix.lock') }}-${{ hashFiles('umbrella/apps/*/mix.exs') }}
+          restore-keys: |
+            mix-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+        working-directory: umbrella
+
+      - name: Check formatting
+        run: mix format --check-formatted
+        working-directory: umbrella
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+        working-directory: umbrella
+
+      - name: Credo (strict)
+        run: mix credo --strict
+        working-directory: umbrella
+
+      - name: Dialyzer
+        run: mix dialyzer
+        working-directory: umbrella
+
+      - name: Tests with coverage
+        run: mix coveralls --max-failures=0
+        working-directory: umbrella

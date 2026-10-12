@@ -1,0 +1,27 @@
+# Elixir/A2UI ignore rules
+
+# BEAM/Mix artifacts
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/*.secret.exs
+
+# PLT cache
+/priv/plts/
+
+# Upstream reference clones (big; maintained via SPEC_PIN)
+/reference/
+
+# OS/editor noise
+.DS_Store
+*.swp
+*~
+
+# Session logs and editor tooling
+session-*.md
+.elixir_ls/
