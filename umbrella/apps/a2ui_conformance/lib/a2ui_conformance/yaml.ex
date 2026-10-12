@@ -25,10 +25,9 @@ defmodule A2UIConformance.Yaml do
   # (`\\uD800`–`\\uDBFF` not followed by its low pair, or a lone low
   # `\\uDC00`–`\\uDFFF`) **inside double-quoted scalars only** into
   # escaped-literal form (`\\\\ud83d` ⇒ the six characters `\\` `u` `d`
-  # `8` `3` `d`). That is precisely the healing semantics our
-  # streaming parser (phase 10) implements for a JSON string cut
-  # mid-escape: emit the partial escape as literal text until the
-  # sequence completes. Paired escapes and valid code points are left
+  # `8` `3` `d`). That is precisely the healing semantics a
+  # streaming parser needs for a JSON string cut mid-escape: emit the
+  # partial escape as literal text until the sequence completes. Paired escapes and valid code points are left
   # untouched. Block scalars and comments are tracked so quotes inside
   # them never trigger healing.
 

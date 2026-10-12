@@ -4,8 +4,7 @@ defmodule A2UICore.ExamplesCorpusTest do
   # contact-form samples go through the FULL pipeline — payload sniffing,
   # preflight, per-version envelope validation with the real catalog,
   # and operation extraction — and then back out through the encoder.
-  # This is the end-to-end wire-fidelity gate (PLAN.md Phase 2 exit
-  # criterion):
+  # This is the end-to-end wire-fidelity gate:
   #
   #   * each bundle validates against the vendored bundle schema
   #     (`sample.json`) with the same registry upstream `run_tests.py`

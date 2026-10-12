@@ -66,7 +66,7 @@ defmodule A2UIConformance.HarnessTest do
   describe "Dispatcher" do
     defp case_for(suite, action), do: Case.new(suite, "n", %{"action" => action})
 
-    test "keys on scope: the same action is pending in different phases per family" do
+    test "keys on scope: the same action name resolves per suite family" do
       assert {:ok, A2UIConformance.Handlers.ResolvePath} =
                Dispatcher.resolve(case_for("core/data_context.yaml", "resolve_path"))
 
@@ -74,35 +74,38 @@ defmodule A2UIConformance.HarnessTest do
                Dispatcher.resolve(case_for("core/data_model.yaml", "data_model"))
 
       # The same action names in the ADK extension are different features.
-      assert {:pending, 10} =
+      assert {:unimplemented, "ADK integration"} =
                Dispatcher.resolve(case_for("extensions/adk/tools.yaml", "resolve_path"))
 
-      assert {:pending, 10} =
+      assert {:unimplemented, "ADK integration"} =
                Dispatcher.resolve(case_for("extensions/adk/tools.yaml", "data_model"))
 
-      assert {:pending, 9} = Dispatcher.resolve(case_for("extensions/a2a/rpc.yaml", "handle_rpc"))
-      assert {:pending, 7} = Dispatcher.resolve(case_for("core/rpc.yaml", "handle_rpc"))
+      assert {:unimplemented, "A2A transport"} =
+               Dispatcher.resolve(case_for("extensions/a2a/rpc.yaml", "handle_rpc"))
 
-      assert {:pending, 5} =
+      assert {:unimplemented, "function RPC"} =
+               Dispatcher.resolve(case_for("core/rpc.yaml", "handle_rpc"))
+
+      assert {:unimplemented, "catalog selection"} =
                Dispatcher.resolve(case_for("core/catalog_selection.yaml", "select_catalog"))
     end
 
-    test "agent families: blueprint suites are phase 10, express and legacy are optional" do
-      assert {:pending, 10} =
+    test "agent families: blueprint suites are one area, express and legacy are optional" do
+      assert {:unimplemented, "agent SDK"} =
                Dispatcher.resolve(case_for("agent/resolve_catalogs.yaml", "resolve_catalogs"))
 
-      assert {:pending, 10} =
+      assert {:unimplemented, "agent SDK"} =
                Dispatcher.resolve(case_for("agent/direct_json/parser.yaml", "parse_chunk"))
 
-      assert {:optional, 10, _} =
+      assert {:optional, _label} =
                Dispatcher.resolve(case_for("agent/express/compiler.yaml", "compile"))
 
-      assert {:optional, 10, _} =
+      assert {:optional, _label} =
                Dispatcher.resolve(case_for("agent/legacy/parser.yaml", "select_catalog"))
     end
 
     test "resolve_nodes is only known in its own suite; unknown actions are unknown" do
-      assert {:pending, 6} =
+      assert {:unimplemented, "node resolution"} =
                Dispatcher.resolve(case_for("core/node_resolution.yaml", "resolve_nodes"))
 
       assert :unknown = Dispatcher.resolve(case_for("core/data_model.yaml", "resolve_nodes"))
@@ -111,7 +114,7 @@ defmodule A2UIConformance.HarnessTest do
       assert :unknown = Dispatcher.resolve(Case.new("core/x.yaml", "n", %{}))
     end
 
-    test "the skip policy reports versions, phases and optional families" do
+    test "the skip policy reports versions, unimplemented actions and optional families" do
       assert {:skip, "unsupported protocol version \"v0.8\""} =
                SkipPolicy.skip_for(
                  Case.new("core/x.yaml", "n", %{
@@ -120,10 +123,10 @@ defmodule A2UIConformance.HarnessTest do
                  })
                )
 
-      assert {:skip, "action 'validate' lands in phase 5"} =
+      assert {:skip, "no handler for action 'validate' (message processing)"} =
                SkipPolicy.skip_for(case_for("core/x.yaml", "validate"))
 
-      assert {:skip, "optional: " <> _} =
+      assert {:skip, "optional family without a handler: " <> _} =
                SkipPolicy.skip_for(case_for("agent/express/x.yaml", "wrap"))
     end
   end

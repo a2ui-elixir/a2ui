@@ -52,16 +52,18 @@ harness: `reference/a2ui/python/a2ui_core/tests/test_conformance.py`
 
 ## M4 — Phase 4: Catalog, functions, expressions — target ≈185
 
-- [ ] M4.1 `A2UICore.Catalog` (`from_json`, indexes, name rules, schema
+- [x] M4.1 `A2UICore.Catalog` (`from_json`, indexes, name rules, schema
       rules, `to_schema`, component payload validation).
-- [ ] M4.2 `Catalog.ReferenceMap`.
-- [ ] M4.3 `A2UICore.Expression`.
-- [ ] M4.4 Functions behaviour + basic catalog functions + `@index`.
-- [ ] M4.5 `A2UICore.Formatter` (en-US default, pluggable).
-- [ ] M4.6 DataContext dynamic values.
-- [ ] M4.7 `CatalogFixtures` (L162–171, L221–473) + handlers `from_json`,
+- [x] M4.2 `Catalog.ReferenceMap`.
+- [x] M4.3 `A2UICore.Expression`.
+- [x] M4.4 Functions behaviour + basic catalog functions + `@index`.
+- [x] M4.5 `A2UICore.Formatter` (en-US default, pluggable).
+- [x] M4.6 DataContext dynamic values.
+- [x] M4.7 `CatalogFixtures` (L162–171, L221–473) + handlers `from_json`,
       `catalog_schema`, `evaluate_function`, `parse_expression_template`.
-- [ ] M4.8 Gate + commit "phase 4".
+      291 passed, 0 failed; the 7 `test_v09_catalog_*` cases upstream skips
+      also pass.
+- [x] M4.8 Gate + commit "phase 4".
 
 ## M5 — Phase 5: Processor — target ≈184
 

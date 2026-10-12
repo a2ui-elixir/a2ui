@@ -1,6 +1,6 @@
 defmodule A2UICore.EdgeCasesTest do
   @moduledoc false
-  # Error paths and rarely-taken branches of the Phase 0-2 modules that
+  # Error paths and rarely-taken branches of the wire-format modules that
   # the fidelity corpus does not reach. Organized by module.
 
   use ExUnit.Case, async: true

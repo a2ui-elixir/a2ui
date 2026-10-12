@@ -6,8 +6,8 @@ defmodule A2UIConformance.SkipPolicy do
   #
   #   1. A protocol version outside the supported set -> version skip
   #      (v0.8 is out of scope by design).
-  #   2. Action without a handler yet -> phase-tagged skip; optional
-  #      follow-up families are tagged as such.
+  #   2. Action without a handler -> skip, with the reason the
+  #      dispatcher reports (unimplemented area or optional family).
   #   3. Explicit per-case skips (case-level exceptions) — a named list
   #      validated against the real case corpus; an entry that matches no
   #      case is itself a test failure.
@@ -16,8 +16,8 @@ defmodule A2UIConformance.SkipPolicy do
 
   alias A2UIConformance.{Case, Dispatcher}
 
-  # {{"suite (relative path)", "case name"}, "reason"} — remove entries as
-  # their phases fix the underlying cases.
+  # {{"suite (relative path)", "case name"}, "reason"} — remove an entry
+  # once the underlying case passes.
   @explicit_case_skips []
 
   @doc """
@@ -42,8 +42,8 @@ defmodule A2UIConformance.SkipPolicy do
   defp dispatcher_skip(%Case{action: action} = case) do
     case Dispatcher.resolve(case) do
       {:ok, _module} -> nil
-      {:pending, phase} -> {:skip, "action '#{action}' lands in phase #{phase}"}
-      {:optional, phase, label} -> {:skip, "optional: #{label} (after phase #{phase})"}
+      {:unimplemented, area} -> {:skip, "no handler for action '#{action}' (#{area})"}
+      {:optional, label} -> {:skip, "optional family without a handler: #{label}"}
       :unknown -> nil
     end
   end

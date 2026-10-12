@@ -40,6 +40,24 @@ defmodule A2UICore.Identifier do
     stripped != "" and Regex.match?(@pattern, stripped)
   end
 
+  @continue_pattern ~r/\A[\p{L}\p{Nl}\p{Mn}\p{Mc}\p{Nd}\p{Pc}]\z/u
+
+  @doc """
+  Returns whether `codepoint` (a one-character string) continues an
+  identifier — the `XID_Continue` approximation used by `valid?/1`.
+  Expression and path scanning use it to find token boundaries.
+
+      iex> A2UICore.Identifier.continue?("a")
+      true
+      iex> A2UICore.Identifier.continue?("-")
+      false
+  """
+  @spec continue?(term()) :: boolean()
+  def continue?(<<c>>) when c in ?a..?z or c in ?A..?Z or c in ?0..?9 or c == ?_, do: true
+  def continue?(<<c>>) when c < 128, do: false
+  def continue?(char) when is_binary(char), do: Regex.match?(@continue_pattern, char)
+  def continue?(_other), do: false
+
   @doc """
   Raises `A2UICore.Error` with category `:catalog` if `name` is not a
   valid UAX #31 identifier.
