@@ -136,7 +136,7 @@ defmodule A2UICore.Message.Operation.AgentFunctionResponse do
   @type t :: %__MODULE__{
           function_call_id: String.t(),
           value: term() | nil,
-          error: %{code: String.t(), message: String.t()} | nil,
+          error: %{optional(String.t()) => term()} | nil,
           version: String.t()
         }
 end

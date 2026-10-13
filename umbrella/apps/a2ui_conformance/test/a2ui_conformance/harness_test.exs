@@ -84,8 +84,8 @@ defmodule A2UIConformance.HarnessTest do
       assert {:unimplemented, "A2A transport"} =
                Dispatcher.resolve(case_for("extensions/a2a/rpc.yaml", "handle_rpc"))
 
-      assert {:unimplemented, "function RPC"} =
-               Dispatcher.resolve(case_for("core/rpc.yaml", "handle_rpc"))
+      assert {:ok, A2UIConformance.Handlers.HandleRpc} =
+               Dispatcher.resolve(case_for("core/rpc_functions.yaml", "handle_rpc"))
 
       assert {:ok, A2UIConformance.Handlers.SelectCatalog} =
                Dispatcher.resolve(case_for("core/multi_catalog.yaml", "select_catalog"))

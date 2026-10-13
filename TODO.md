@@ -100,12 +100,17 @@ harness: `reference/a2ui/python/a2ui_core/tests/test_conformance.py`
       `accessibility_check` (model-level; `axeCore` DOM rules ignored).
 - [x] M6.4 Gate + commit "phase 6".
 
-## M7 — Phase 7: RPC v1.0 — target 15
+## M7 — Phase 7: RPC v1.0 — target 15 (conformance: 532 passed, 566 skipped)
 
-- [ ] M7.1 `A2UICore.RPC` state machine.
-- [ ] M7.2 Processor integration + outbound encoders.
-- [ ] M7.3 Handler `handle_rpc`.
-- [ ] M7.4 Gate + commit "phase 7", then checkpoint and re-plan M8–M11.
+- [x] M7.1 `A2UICore.RPC`: pure state machine (renderer-function calls with
+      catalog/version/caller/activation/argument checks and safe execution;
+      pending agent calls settled by response, timeout, cancel or dispose).
+- [x] M7.2 `Processor` integration (`{:rpc_response, …}` and
+      `{:rpc_settled, …}` effects, `call_agent_function/4`, timeout, cancel,
+      dispose) and `Message.RendererToAgent` builders (`action`, `error`,
+      `callAgentFunction`, `rendererFunctionResponse`).
+- [x] M7.3 Handler `handle_rpc` (15 cases; the 3 A2A cases stay with M9).
+- [x] M7.4 Gate + commit "phase 7", then checkpoint and re-plan M8–M11.
 
 ## M8–M11 (planned at the Phase 7 checkpoint)
 

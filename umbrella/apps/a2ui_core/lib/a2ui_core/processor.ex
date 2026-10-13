@@ -37,8 +37,14 @@ defmodule A2UICore.Processor do
       (`A2UICore.Validation.ComponentsUpdate`).
     * `updateDataModel` — writes into the surface's data model.
     * `deleteSurface` — removes the surface; an unknown id is ignored.
-    * `callRendererFunction` / `agentFunctionResponse` — leave surface
-      state alone and come back as `{:rpc, operation}` effects.
+    * `callRendererFunction` — runs the function (see `A2UICore.RPC`) in
+      the first surface's data context, or in the one of the
+      `:surface_id` option, and comes back as an `{:rpc_response, message}`
+      effect: the `rendererFunctionResponse` to send to the agent. Calls
+      that require user activation need the `:user_activated` option.
+    * `agentFunctionResponse` — settles the pending agent call it answers
+      and comes back as an `{:rpc_settled, call_id, outcome}` effect.
+      Neither changes surface state.
 
   Without a validation configuration (`:validation` option) component
   batches are committed unchecked.
@@ -49,10 +55,19 @@ defmodule A2UICore.Processor do
     * `{:surface_deleted, surface_id}`
     * `{:components_updated, surface_id, component_ids}`
     * `{:data_model_updated, surface_id, path}`
-    * `{:rpc, operation}`
+    * `{:rpc_response, message}`
+    * `{:rpc_settled, call_id, {:ok, value} | {:error, error}}`
+
+  ## Calling the agent
+
+  `call_agent_function/4` registers a call and returns the
+  `callAgentFunction` message. The call is settled by an
+  `agentFunctionResponse` message, by `timeout_agent_call/2` when the
+  host's timer for it fires, by `cancel_agent_call/3`, or by `dispose/1`;
+  the settlements come back as `{:rpc_settled, …}` effects.
   """
 
-  alias A2UICore.{Catalog, Error, Message, SemVer, Version}
+  alias A2UICore.{Catalog, Error, Message, RPC, SemVer, Version}
   alias A2UICore.Message.Operation
 
   alias A2UICore.Message.Operation.{
@@ -64,18 +79,20 @@ defmodule A2UICore.Processor do
     UpdateDataModel
   }
 
+  alias A2UICore.Resolution.DataContext
   alias A2UICore.State.{Component, Components, Surface, SurfaceGroup}
   alias A2UICore.Validation.{ComponentsUpdate, Config, Payload}
 
   @moduledoc since: "0.1.0"
 
   @enforce_keys [:catalogs]
-  defstruct catalogs: [], group: nil, validation: nil
+  defstruct catalogs: [], group: nil, validation: nil, rpc: nil
 
   @type t :: %__MODULE__{
           catalogs: [Catalog.t()],
           group: SurfaceGroup.t(),
-          validation: Config.t() | nil
+          validation: Config.t() | nil,
+          rpc: RPC.t()
         }
 
   @type effect ::
@@ -83,7 +100,8 @@ defmodule A2UICore.Processor do
           | {:surface_deleted, String.t()}
           | {:components_updated, String.t(), [String.t()]}
           | {:data_model_updated, String.t(), String.t()}
-          | {:rpc, Operation.t()}
+          | {:rpc_response, map()}
+          | {:rpc_settled, String.t(), {:ok, term()} | {:error, Error.t()}}
 
   @default_envelope_ref "common_types.json#/$defs/ComponentCommon"
 
@@ -92,7 +110,8 @@ defmodule A2UICore.Processor do
   for surfaces that name none.
 
   Options: `:validation` — an `A2UICore.Validation.Config` applied to
-  component batches (none by default).
+  component batches (none by default); `:default_timeout_ms` — the
+  timeout of agent calls that name none (30 000).
 
   Raises `ArgumentError` when `catalogs` is empty.
   """
@@ -105,7 +124,8 @@ defmodule A2UICore.Processor do
     %__MODULE__{
       catalogs: catalogs,
       group: SurfaceGroup.new(),
-      validation: options[:validation]
+      validation: options[:validation],
+      rpc: RPC.new(catalogs, Keyword.take(options, [:default_timeout_ms]))
     }
   end
 
@@ -117,6 +137,51 @@ defmodule A2UICore.Processor do
   @spec surfaces(t()) :: [Surface.t()]
   def surfaces(%__MODULE__{group: group}), do: SurfaceGroup.to_list(group)
 
+  # -- calling the agent ----------------------------------------------------------
+
+  @doc """
+  Registers a call to an agent function on `surface_id` and returns the
+  `callAgentFunction` message to send; see `A2UICore.RPC.call_agent_function/4`
+  for the call and its options.
+  """
+  @spec call_agent_function(t(), String.t(), map(), keyword()) ::
+          {:ok, t(), map()} | {:error, Error.t()}
+  def call_agent_function(%__MODULE__{} = processor, surface_id, call, options \\ []) do
+    with {:ok, rpc, message} <- RPC.call_agent_function(processor.rpc, surface_id, call, options) do
+      {:ok, %{processor | rpc: rpc}, message}
+    end
+  end
+
+  @doc """
+  The timeout, in milliseconds, of a pending agent call: the host starts a
+  timer for it and reports the expiry with `timeout_agent_call/2`.
+  `nil` for a call that is not pending or has no timeout.
+  """
+  @spec agent_call_timeout(t(), String.t()) :: number() | nil
+  def agent_call_timeout(%__MODULE__{rpc: rpc}, call_id), do: RPC.pending_timeout(rpc, call_id)
+
+  @doc "Rejects a pending agent call whose timer fired, with `TIMEOUT`."
+  @spec timeout_agent_call(t(), String.t()) :: {t(), [effect()]}
+  def timeout_agent_call(%__MODULE__{} = processor, call_id),
+    do: settle_with(processor, &RPC.timeout(&1, call_id))
+
+  @doc "Rejects a pending agent call the host abandoned, with `CANCELLED`."
+  @spec cancel_agent_call(t(), String.t(), String.t()) :: {t(), [effect()]}
+  def cancel_agent_call(%__MODULE__{} = processor, call_id, reason \\ "The call was cancelled."),
+    do: settle_with(processor, &RPC.cancel(&1, call_id, reason))
+
+  @doc """
+  Rejects every pending agent call with `CANCELLED` and stops answering
+  function calls. Surfaces are left as they are.
+  """
+  @spec dispose(t()) :: {t(), [effect()]}
+  def dispose(%__MODULE__{} = processor), do: settle_with(processor, &RPC.dispose/1)
+
+  defp settle_with(processor, fun) do
+    {rpc, settlements} = fun.(processor.rpc)
+    {%{processor | rpc: rpc}, settled(settlements)}
+  end
+
   # -- processing ---------------------------------------------------------------
 
   @doc """
@@ -124,11 +189,16 @@ defmodule A2UICore.Processor do
 
   Returns `{:ok, processor, effects}`, or `{:error, error, processor}`
   where `processor` holds whatever was applied before the failure.
+
+  Options: `:user_activated` — the messages are processed inside a user
+  gesture (functions that require activation run only then);
+  `:surface_id` — the surface whose data and catalog `callRendererFunction`
+  uses (the first one by default).
   """
-  @spec process(t(), term()) :: {:ok, t(), [effect()]} | {:error, Error.t(), t()}
-  def process(%__MODULE__{} = processor, payload) do
+  @spec process(t(), term(), keyword()) :: {:ok, t(), [effect()]} | {:error, Error.t(), t()}
+  def process(%__MODULE__{} = processor, payload, options \\ []) do
     case Message.decode(payload, catalog: :permissive) do
-      {:ok, operations} -> apply_operations(processor, operations)
+      {:ok, operations} -> apply_operations(processor, operations, options)
       {:error, error} -> {:error, error, processor}
     end
   end
@@ -136,11 +206,11 @@ defmodule A2UICore.Processor do
   @doc """
   Applies already-decoded operations in order, as `process/2` does.
   """
-  @spec apply_operations(t(), [Operation.t()]) ::
+  @spec apply_operations(t(), [Operation.t()], keyword()) ::
           {:ok, t(), [effect()]} | {:error, Error.t(), t()}
-  def apply_operations(%__MODULE__{} = processor, operations) do
+  def apply_operations(%__MODULE__{} = processor, operations, options \\ []) do
     Enum.reduce_while(operations, {:ok, processor, []}, fn operation, {:ok, processor, effects} ->
-      case apply_operation(processor, operation) do
+      case apply_operation(processor, operation, options) do
         {:ok, processor, more} -> {:cont, {:ok, processor, effects ++ more}}
         {:error, _error, _processor} = failure -> {:halt, failure}
       end
@@ -150,11 +220,11 @@ defmodule A2UICore.Processor do
   @doc """
   Applies one operation.
   """
-  @spec apply_operation(t(), Operation.t()) ::
+  @spec apply_operation(t(), Operation.t(), keyword()) ::
           {:ok, t(), [effect()]} | {:error, Error.t(), t()}
-  def apply_operation(%__MODULE__{} = processor, operation) do
+  def apply_operation(%__MODULE__{} = processor, operation, options \\ []) do
     case check_allowed(processor, operation) do
-      :ok -> dispatch(processor, operation)
+      :ok -> dispatch(processor, operation, options)
       {:error, error} -> {:error, error, processor}
     end
   end
@@ -178,24 +248,49 @@ defmodule A2UICore.Processor do
 
   defp check_allowed(_processor, _operation), do: :ok
 
-  defp dispatch(processor, %CreateSurface{} = operation), do: create_surface(processor, operation)
+  defp dispatch(processor, %CreateSurface{} = operation, _options),
+    do: create_surface(processor, operation)
 
-  defp dispatch(processor, %UpdateComponents{} = operation),
+  defp dispatch(processor, %UpdateComponents{} = operation, _options),
     do: update_components(processor, operation)
 
-  defp dispatch(processor, %UpdateDataModel{} = operation),
+  defp dispatch(processor, %UpdateDataModel{} = operation, _options),
     do: update_data_model(processor, operation)
 
-  defp dispatch(processor, %DeleteSurface{surface_id: id}) do
+  defp dispatch(processor, %DeleteSurface{surface_id: id}, _options) do
     {group, effects} = SurfaceGroup.delete(processor.group, id)
     {:ok, %{processor | group: group}, effects}
   end
 
-  defp dispatch(processor, %CallRendererFunction{} = operation),
-    do: {:ok, processor, [{:rpc, operation}]}
+  defp dispatch(processor, %CallRendererFunction{} = operation, options) do
+    surface = rpc_surface(processor, options[:surface_id])
 
-  defp dispatch(processor, %AgentFunctionResponse{} = operation),
-    do: {:ok, processor, [{:rpc, operation}]}
+    response =
+      RPC.call_renderer_function(processor.rpc, operation,
+        catalog: surface && Surface.default_catalog(surface),
+        context: surface && DataContext.for_surface(surface),
+        user_activated: options[:user_activated] == true
+      )
+
+    {:ok, processor, [{:rpc_response, response}]}
+  end
+
+  defp dispatch(processor, %AgentFunctionResponse{} = operation, _options) do
+    {rpc, settlements} = RPC.handle_agent_function_response(processor.rpc, operation)
+    {:ok, %{processor | rpc: rpc}, settled(settlements)}
+  end
+
+  defp rpc_surface(processor, nil), do: processor |> surfaces() |> List.first()
+  defp rpc_surface(processor, id), do: surface(processor, id)
+
+  defp settled(settlements) do
+    for settlement <- settlements do
+      case settlement do
+        {:resolved, id, value} -> {:rpc_settled, id, {:ok, value}}
+        {:rejected, id, error} -> {:rpc_settled, id, {:error, error}}
+      end
+    end
+  end
 
   # Inner steps return `{:ok, processor, effects}` or `{:error, error}`;
   # the processor of a failure is the one the step started from.

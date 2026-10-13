@@ -98,7 +98,9 @@ defmodule A2UIConformance.Dispatcher do
     {"core", "dispatch_action"} => A2UIConformance.Handlers.DispatchAction,
     # node resolution and accessibility
     {"core", "resolve_nodes"} => A2UIConformance.Handlers.ResolveNodes,
-    {"core", "accessibility_check"} => A2UIConformance.Handlers.AccessibilityCheck
+    {"core", "accessibility_check"} => A2UIConformance.Handlers.AccessibilityCheck,
+    # function RPC
+    {"core", "handle_rpc"} => A2UIConformance.Handlers.HandleRpc
   }
 
   @type resolution ::

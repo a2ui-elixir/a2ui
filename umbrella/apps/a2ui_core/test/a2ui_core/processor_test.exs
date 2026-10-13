@@ -2,9 +2,10 @@ defmodule A2UICore.ProcessorTest do
   @moduledoc false
   use ExUnit.Case, async: true
 
+  alias A2UICore.Catalog
   alias A2UICore.Catalog.Basic
   alias A2UICore.Error
-  alias A2UICore.Message.Operation.{CallRendererFunction, CreateSurface, UpdateDataModel}
+  alias A2UICore.Message.Operation.{CreateSurface, UpdateDataModel}
   alias A2UICore.Processor
   alias A2UICore.State.{Components, Surface}
   alias A2UICore.Validation.Config
@@ -448,29 +449,185 @@ defmodule A2UICore.ProcessorTest do
   end
 
   describe "RPC operations" do
-    test "come back as effects and leave surfaces alone", %{v10: v10} do
-      processor = ready(v10)
+    defp media_catalog do
+      function = fn name, extra ->
+        Map.merge(
+          %{
+            "type" => "object",
+            "properties" => %{"@call" => %{"const" => name}, "args" => %{"type" => "object"}},
+            "required" => ["@call"]
+          },
+          extra
+        )
+      end
 
-      message = %{
-        "version" => "v1.0",
-        "callRendererFunction" => %{
-          "functionCallId" => "c1",
-          "callFunction" => %{
-            "@call" => "playMedia",
-            "catalogId" => "media_catalog",
-            "args" => %{"mediaId" => "m1"}
-          }
+      document = %{
+        "catalogId" => "media",
+        "components" => %{},
+        "functions" => %{
+          "playMedia" => function.("playMedia", %{"allowedCallers" => "rendererOrAgent"}),
+          "unlock" =>
+            function.("unlock", %{
+              "allowedCallers" => "agentOnly",
+              "requiresUserActivation" => true
+            })
         }
       }
 
-      case Processor.process(processor, message) do
-        {:ok, ^processor,
-         [{:rpc, %CallRendererFunction{function_call_id: "c1", call: "playMedia"}}]} ->
-          :ok
+      document
+      |> Catalog.from_json!(protocol_version: "v1.0")
+      |> Catalog.put_implementations(%{
+        "playMedia" => fn args, _context -> {:ok, %{"playing" => args["mediaId"]}} end,
+        "unlock" => fn _args, _context -> {:ok, nil} end
+      })
+    end
 
-        {:error, error, _} ->
-          flunk("unexpected error: #{error.message}")
+    defp call_message(name, catalog_id \\ nil) do
+      call = %{"@call" => name, "args" => %{"mediaId" => "m1"}}
+      call = if catalog_id, do: Map.put(call, "catalogId", catalog_id), else: call
+
+      %{
+        "version" => "v1.0",
+        "callRendererFunction" => %{"functionCallId" => "c1", "callFunction" => call}
+      }
+    end
+
+    defp response_of(effects) do
+      assert [{:rpc_response, %{"rendererFunctionResponse" => response}}] = effects
+      response
+    end
+
+    test "a renderer function call is answered with a response effect" do
+      processor = ready(media_catalog())
+
+      assert {:ok, ^processor, effects} =
+               Processor.process(processor, call_message("playMedia", "media"))
+
+      assert %{"functionCallId" => "c1", "value" => %{"playing" => "m1"}} = response_of(effects)
+    end
+
+    test "the wire format requires the call to name its catalog" do
+      processor = ready(media_catalog())
+
+      {error, ^processor} = failure(Processor.process(processor, call_message("playMedia")))
+      assert error.message =~ "catalogId"
+    end
+
+    test "an unknown catalog or function is an error response" do
+      processor = ready(media_catalog())
+
+      assert {:ok, _processor, effects} =
+               Processor.process(processor, call_message("playMedia", "elsewhere"))
+
+      assert %{"error" => %{"code" => "INVALID_FUNCTION_CALL", "message" => message}} =
+               response_of(effects)
+
+      assert message == "Catalog not found: elsewhere"
+
+      assert {:ok, _processor, effects} =
+               Processor.process(processor, call_message("nope", "media"))
+
+      assert %{"error" => %{"message" => "Function not found: nope"}} = response_of(effects)
+    end
+
+    test "user activation is an option of the call" do
+      processor = ready(media_catalog())
+
+      message = call_message("unlock", "media")
+
+      assert {:ok, _processor, effects} = Processor.process(processor, message)
+      assert %{"error" => %{"message" => text}} = response_of(effects)
+      assert text =~ "requires user activation"
+
+      assert {:ok, _processor, effects} =
+               Processor.process(processor, message, user_activated: true)
+
+      assert %{"functionCallId" => "c1", "value" => nil} = response_of(effects)
+    end
+
+    test "the call runs whether or not a surface is named" do
+      processor = ready(media_catalog())
+      message = call_message("playMedia", "media")
+
+      for options <- [[surface_id: "s"], [surface_id: "other"], []] do
+        assert {:ok, _processor, effects} = Processor.process(processor, message, options)
+        assert %{"value" => %{"playing" => "m1"}} = response_of(effects)
       end
+    end
+
+    test "agent calls are registered, answered and settled", %{v10: v10} do
+      processor = Processor.new([v10])
+      call = %{"@call" => "queryInventory", "catalogId" => v10.catalog_id, "args" => %{}}
+
+      assert {:ok, processor, message} =
+               Processor.call_agent_function(processor, "s", call,
+                 function_call_id: "q1",
+                 timeout_ms: 500
+               )
+
+      assert %{"callAgentFunction" => %{"functionCallId" => "q1", "surfaceId" => "s"}} = message
+      assert Processor.agent_call_timeout(processor, "q1") == 500
+
+      answer = %{
+        "version" => "v1.0",
+        "agentFunctionResponse" => %{"functionCallId" => "q1", "value" => %{"inStock" => 12}}
+      }
+
+      assert {:ok, processor, [{:rpc_settled, "q1", {:ok, %{"inStock" => 12}}}]} =
+               Processor.process(processor, answer)
+
+      assert Processor.agent_call_timeout(processor, "q1") == nil
+      assert {:ok, ^processor, []} = Processor.process(processor, answer)
+    end
+
+    test "an agent error settles the call as an error", %{v10: v10} do
+      processor = Processor.new([v10])
+      call = %{"@call" => "queryInventory"}
+
+      {:ok, processor, _message} =
+        Processor.call_agent_function(processor, "s", call, function_call_id: "q1")
+
+      answer = %{
+        "version" => "v1.0",
+        "agentFunctionResponse" => %{
+          "functionCallId" => "q1",
+          "error" => %{"code" => "OUT_OF_STOCK", "message" => "none left"}
+        }
+      }
+
+      assert {:ok, _processor, [{:rpc_settled, "q1", {:error, %Error{} = error}}]} =
+               Processor.process(processor, answer)
+
+      assert {error.category, error.code, error.function_call_id} == {:rpc, "OUT_OF_STOCK", "q1"}
+      assert error.message =~ "none left"
+    end
+
+    test "timeouts, cancellation and disposal settle pending calls", %{v10: v10} do
+      processor = Processor.new([v10], default_timeout_ms: 1_000)
+      call = %{"@call" => "slow"}
+
+      {:ok, processor, _} =
+        Processor.call_agent_function(processor, "s", call, function_call_id: "a")
+
+      {:ok, processor, _} =
+        Processor.call_agent_function(processor, "s", call, function_call_id: "b")
+
+      {:ok, processor, _} =
+        Processor.call_agent_function(processor, "s", call, function_call_id: "c")
+
+      assert Processor.agent_call_timeout(processor, "a") == 1_000
+
+      assert {processor, [{:rpc_settled, "a", {:error, %Error{code: "TIMEOUT"}}}]} =
+               Processor.timeout_agent_call(processor, "a")
+
+      assert {processor, [{:rpc_settled, "b", {:error, %Error{code: "CANCELLED"}}}]} =
+               Processor.cancel_agent_call(processor, "b")
+
+      assert {processor, [{:rpc_settled, "c", {:error, %Error{code: "CANCELLED"}}}]} =
+               Processor.dispose(processor)
+
+      assert {:error, %Error{code: "DISPOSED"}} =
+               Processor.call_agent_function(processor, "s", call)
     end
 
     test "apply_operation/2 takes decoded operations", %{v09: v09} do

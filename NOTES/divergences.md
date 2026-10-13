@@ -152,3 +152,28 @@ them or documented as a skip with a reason.
   treats a property referencing `Action`, or a `value` bound to a `Dynamic*` type, as
   interactive and accepts any of `label`, `title`, `text`, `child` as a labelling
   fallback.
+
+## Function RPC
+
+- **There is no listener and no future.** The Python handler takes an
+  `outbound_listener` callback and returns an asyncio future per agent call. `RPC` is a
+  value: `call_agent_function/4` returns the `callAgentFunction` message and a pending
+  record, and a call is settled by data the host feeds back (`agentFunctionResponse`,
+  `timeout/2`, `cancel/3`, `dispose/2`), which returns `{:resolved | :rejected, …}`
+  settlements. `NO_LISTENER` therefore never occurs; the timeout of a call is exposed
+  (`pending_timeout/2`) for the host to arm a timer.
+- **Call ids are counted.** A call without an explicit `functionCallId` gets `call-<n>`
+  from a counter in the handler rather than a random UUID, so the handler stays
+  deterministic.
+- **Functions run synchronously.** An implementation is `(args, context) -> {:ok, value}
+  | {:ok, value, effects} | {:error, error}`; there is no awaitable result to wait for.
+  A raised exception becomes `EXECUTION_ERROR` as in Python.
+- **An omitted `allowedCallers` means `rendererOnly`.** The protocol guide defines the
+  default and Python's handler applies it; `A2UICore.Catalog.Function` keeps `nil` for
+  "omitted" and the RPC reads it as `rendererOnly`.
+- **The wire format requires a `catalogId`.** A `callRendererFunction` without
+  `callFunction.catalogId` fails envelope validation, so the "no catalog id" resolution
+  (the surface's default catalog) is reachable only through the `:catalog` option of
+  `RPC.call_renderer_function/3`.
+- **The first surface supplies the call context.** As in Python, `callRendererFunction`
+  executes in the data context of the first surface unless `:surface_id` names one.

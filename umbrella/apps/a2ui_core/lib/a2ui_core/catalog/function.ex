@@ -8,8 +8,9 @@ defmodule A2UICore.Catalog.Function do
       `args`, `returnType`), as written in the catalog document.
     * `:return_type` — `"string"`, `"number"`, `"boolean"`, `"object"`,
       `"array"`, `"any"` or `"void"`, when declared.
-    * `:allowed_callers` — `"agentOnly"`, `"rendererOnly"` or `nil`
-      (anyone), v1.0.
+    * `:allowed_callers` — `"rendererOnly"`, `"agentOnly"` or
+      `"rendererOrAgent"`; `nil` when the catalog omits it, which the
+      protocol defines as `"rendererOnly"` (v1.0).
     * `:requires_user_activation` — v1.0.
     * `:execute` — `nil` for a schema-only function, else a function of
       `(args, context)` returning `{:ok, value}`, `{:ok, value, effects}`
