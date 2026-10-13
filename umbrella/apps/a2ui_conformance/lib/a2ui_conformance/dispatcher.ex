@@ -86,7 +86,16 @@ defmodule A2UIConformance.Dispatcher do
     {"core", "from_json"} => A2UIConformance.Handlers.FromJson,
     {"core", "catalog_schema"} => A2UIConformance.Handlers.CatalogSchema,
     {"core", "evaluate_function"} => A2UIConformance.Handlers.EvaluateFunction,
-    {"core", "parse_expression_template"} => A2UIConformance.Handlers.ParseExpressionTemplate
+    {"core", "parse_expression_template"} => A2UIConformance.Handlers.ParseExpressionTemplate,
+    # message processing, capabilities, selection, actions
+    {"core", "validate"} => A2UIConformance.Handlers.Validate,
+    {"core", "process_messages"} => A2UIConformance.Handlers.ProcessMessages,
+    {"core", "get_renderer_capabilities"} => A2UIConformance.Handlers.Capabilities,
+    {"core", "get_client_capabilities"} => A2UIConformance.Handlers.Capabilities,
+    {"core", "get_renderer_data_model"} => A2UIConformance.Handlers.RendererDataModel,
+    {"core", "get_client_data_model"} => A2UIConformance.Handlers.RendererDataModel,
+    {"core", "select_catalog"} => A2UIConformance.Handlers.SelectCatalog,
+    {"core", "dispatch_action"} => A2UIConformance.Handlers.DispatchAction
   }
 
   @type resolution ::

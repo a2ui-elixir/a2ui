@@ -70,8 +70,15 @@ defmodule A2UICore.Validation.TopologyTest do
       assert :ok = validate(specs)
     end
 
-    test "unknown component types contribute no references" do
-      assert :ok = validate([{"root", "Mystery", %{"child" => "ghost"}}])
+    test "unknown component types fall back to inferred references" do
+      error = error!(validate([{"root", "Mystery", %{"child" => "ghost"}}]))
+
+      assert error.category == :integrity
+      assert error.message =~ "references non-existent component 'ghost' in field 'child'"
+    end
+
+    test "inferred references ignore properties that are plainly not children" do
+      assert :ok = validate([{"root", "Mystery", %{"text" => "ghost", "label" => "ghost"}}])
     end
   end
 

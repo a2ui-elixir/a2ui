@@ -329,11 +329,45 @@ defmodule A2UICore.MessageTest do
   describe "decode: schema validation details" do
     test "surfaceId type error is caught by the pre-check (reference behavior)" do
       # The reference's `_get_surface_id` pre-check rejects a non-string
-      # surfaceId before schema validation — with no details.
-      assert {:error, %Error{message: msg, details: []}} =
+      # surfaceId before schema validation.
+      assert {:error, %Error{message: msg, details: [detail]}} =
                decode(%{"version" => "v1.0", "createSurface" => %{"surfaceId" => 123}})
 
       assert msg =~ "surfaceId must be a string"
+      assert {detail.code, detail.path} == {"type_mismatch", "createSurface.surfaceId"}
+    end
+
+    test "failures inside a message list are located by message index" do
+      messages = [
+        %{"version" => "v1.0", "deleteSurface" => %{"surfaceId" => "ok"}},
+        %{"version" => "v1.0", "createSurface" => %{"surfaceId" => 123}}
+      ]
+
+      assert {:error, %Error{details: [detail]}} = decode(messages)
+      assert detail.path == "messages.1.createSurface.surfaceId"
+
+      assert {:error, %Error{details: [wrapped]}} = decode(%{"messages" => messages})
+      assert wrapped.path == "messages.1.createSurface.surfaceId"
+    end
+
+    test "schema failures inside a list carry the message position" do
+      messages = [
+        %{"version" => "v0.9", "createSurface" => %{"surfaceId" => "s"}}
+      ]
+
+      assert {:error, %Error{details: details}} = decode(messages)
+
+      assert {"missing_field", "messages.0.createSurface.catalogId"} in Enum.map(
+               details,
+               &{&1.code, &1.path}
+             )
+    end
+
+    test "an unsupported version is an invalid_value at messages.N.version" do
+      messages = [%{"version" => "v0.8", "createSurface" => %{"surfaceId" => "s"}}]
+
+      assert {:error, %Error{details: [detail]}} = decode(messages)
+      assert {detail.code, detail.path} == {"invalid_value", "messages.0.version"}
     end
 
     test "schema-level type errors carry path and code" do
@@ -397,6 +431,55 @@ defmodule A2UICore.MessageTest do
                })
 
       assert Enum.any?(details, &(&1.code == "extra_field"))
+    end
+  end
+
+  describe "decode: permissive envelope catalog" do
+    defp update(version, components) do
+      %{
+        "version" => version,
+        "updateComponents" => %{"surfaceId" => "s", "components" => components}
+      }
+    end
+
+    test "any component object passes the envelope" do
+      for version <- ["v1.0", "v0.9"] do
+        payload = update(version, [%{"id" => "root", "component" => "NotAComponent", "x" => 1}])
+
+        assert {:error, %Error{}} = decode(payload)
+
+        assert {:ok, [%Operation.UpdateComponents{components: [component]}]} =
+                 decode(payload, catalog: :permissive)
+
+        assert component["component"] == "NotAComponent"
+      end
+    end
+
+    test "invalid properties are left for the processor" do
+      payload = update("v1.0", [%{"id" => "root", "component" => "Text", "text" => 5}])
+
+      assert {:error, %Error{}} = decode(payload)
+      assert {:ok, [%Operation.UpdateComponents{}]} = decode(payload, catalog: :permissive)
+    end
+
+    test "a component that is not an object still fails" do
+      payload = update("v1.0", ["Text"])
+
+      assert {:error, %Error{details: [_ | _]}} = decode(payload, catalog: :permissive)
+    end
+
+    test "the envelope itself is still validated" do
+      payload = %{"version" => "v1.0", "createSurface" => %{"surfaceId" => "s", "bogus" => 1}}
+
+      assert {:error, %Error{message: message}} = decode(payload, catalog: :permissive)
+      assert message =~ "Additional properties are not allowed"
+    end
+
+    test "a catalog schema map is used as given" do
+      schema = A2UICore.CommonTypes.permissive_catalog("v1.0")
+      payload = update("v1.0", [%{"id" => "root", "component" => "Whatever"}])
+
+      assert {:ok, [%Operation.UpdateComponents{}]} = decode(payload, catalog: schema)
     end
   end
 

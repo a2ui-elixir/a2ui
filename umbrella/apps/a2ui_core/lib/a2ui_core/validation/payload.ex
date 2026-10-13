@@ -13,12 +13,20 @@ defmodule A2UICore.Validation.Payload do
   and `functions.<name>.<argument path>`; the error message joins
   `path: message` lines.
 
+  A component property that fails its schema is reported as
+  `missing_field` (required), `extra_field` (surplus) or `invalid_value`
+  (anything else — wrong type, value outside an enum, pattern…), which
+  is what the shared conformance suites expect. An unknown component
+  type carries an `invalid_value` detail at its `component` property next
+  to `unrecognized_component`.
+
   With `allow_unknown_elements` (the relaxed configuration) unknown
   component types, unknown functions and unknown properties are
   tolerated.
   """
 
   alias A2UICore.Catalog
+  alias A2UICore.CommonTypes
   alias A2UICore.Error
   alias A2UICore.Error.Detail
   alias A2UICore.{Identifier, Schema}
@@ -67,7 +75,7 @@ defmodule A2UICore.Validation.Payload do
 
     case Catalog.get_component(catalog, type) do
       nil ->
-        unknown_component(identifier_errors, id, type, config)
+        unknown_component(identifier_errors, catalog.catalog_id, id, type, config)
 
       found ->
         errors =
@@ -95,27 +103,38 @@ defmodule A2UICore.Validation.Payload do
 
   defp component_identifier_errors(_catalog, _id), do: []
 
-  defp unknown_component(errors, id, type, config) do
-    errors =
-      if config.allow_unknown_elements do
-        errors
-      else
-        errors ++
-          [
-            Detail.new(
-              "unrecognized_component",
-              "Unrecognized component type '#{display(type)}'",
-              "components.#{display(id)}.component"
-            )
-          ]
-      end
+  defp unknown_component(errors, _catalog_id, _id, _type, %Config{allow_unknown_elements: true}),
+    do: finish(errors)
 
-    finish(errors)
+  defp unknown_component(errors, catalog_id, id, type, _config) do
+    path = "components.#{display(id)}.component"
+
+    unrecognized =
+      Detail.new("unrecognized_component", "Unrecognized component type '#{display(type)}'", path)
+
+    invalid =
+      Detail.new(
+        "invalid_value",
+        "'#{display(type)}' is not a component of catalog '#{catalog_id}'",
+        path
+      )
+
+    {:error, failure(summary(errors ++ [unrecognized]), errors ++ [unrecognized, invalid])}
   end
 
+  # A function call inside a component is checked for its shape here;
+  # whether the function exists, and its arguments, are checked per call
+  # (`nested_function_errors/4`) against the catalog the call names. The
+  # catalog's own `anyFunction` union would reject a call into another
+  # catalog, so a well-formed-call stand-in takes its place.
   defp component_schema_errors(catalog, component, payload, owner, config) do
     schema = component.schema
-    defs = Map.merge(catalog.schema["$defs"] || %{}, schema["$defs"] || %{})
+    version = if Catalog.v1?(catalog), do: "v1.0", else: "v0.9"
+
+    defs =
+      (catalog.schema["$defs"] || %{})
+      |> Map.put("anyFunction", CommonTypes.function_stub(version))
+      |> Map.merge(schema["$defs"] || %{})
 
     full =
       schema
@@ -127,10 +146,20 @@ defmodule A2UICore.Validation.Payload do
     |> strip_undeclared(full)
     |> Schema.validate(full, root: full)
     |> case do
-      :ok -> []
-      {:error, details} -> prefix_details(details, "components.#{owner}", config)
+      :ok ->
+        []
+
+      {:error, details} ->
+        details |> Enum.map(&property_code/1) |> prefix_details("components.#{owner}", config)
     end
   end
+
+  # The engine reports `type`, `enum`, `pattern` and `format` failures as
+  # `type_mismatch`; for a component property they are `invalid_value`.
+  defp property_code(%Detail{code: "type_mismatch"} = detail),
+    do: %{detail | code: "invalid_value"}
+
+  defp property_code(detail), do: detail
 
   # `id` and `component` belong to the envelope: a schema that does not
   # declare them must not see them.

@@ -32,14 +32,60 @@ defmodule A2UICore.State.ComponentTest do
       assert Component.tree(component) == %{"id" => "real", "component" => "Real", "extra" => 1}
     end
 
-    test "child_references uses the spec; a nil spec means no known references" do
-      component = Component.new("row", "Row", %{"children" => ["a", "b"]})
+    test "child_references follows the spec when it names child properties" do
+      component = Component.new("row", "Row", %{"children" => ["a", "b"], "other" => "c"})
       spec = RefSpec.new(list: ["children"])
 
       assert Component.child_references(component, spec) ==
                [{"a", "children[0]"}, {"b", "children[1]"}]
+    end
+
+    test "child_references infers references without a spec" do
+      component = Component.new("row", "Row", %{"children" => ["a", "b"]})
+      inferred = [{"a", "children.[0]"}, {"b", "children.[1]"}]
+
+      assert Component.child_references(component, nil) == inferred
+      assert Component.child_references(component, RefSpec.new()) == inferred
+    end
+
+    test "inferred references use naming conventions" do
+      component =
+        Component.new("c", "Card", %{
+          "contentChild" => "body",
+          "headerChild" => "head",
+          "template" => %{"componentId" => "item", "path" => "/items"},
+          "text" => "ignored",
+          "title" => "ignored"
+        })
+
+      assert Component.child_references(component, nil) == [
+               {"body", "contentChild"},
+               {"head", "headerChild"},
+               {"item", "template.componentId"}
+             ]
+    end
+
+    test "inferred references inspect values against the known ids" do
+      component = Component.new("c", "Custom", %{"slot" => "known", "other" => "unknown"})
 
       assert Component.child_references(component, nil) == []
+      assert Component.child_references(component, nil, ["known"]) == [{"known", "slot"}]
+
+      # One known id qualifies the property; every entry then counts.
+      listed = Component.new("c", "Custom", %{"slots" => ["known", "nope"]})
+
+      assert Component.child_references(listed, nil, ["known"]) ==
+               [{"known", "slots.[0]"}, {"nope", "slots.[1]"}]
+
+      assert Component.child_references(listed, nil, []) == []
+
+      objects =
+        Component.new("c", "Custom", %{"parts" => [%{"child" => "x"}], "box" => %{"child" => "y"}})
+
+      assert Component.child_references(objects, nil) == [
+               {"y", "box.child"},
+               {"x", "parts.[0].child"}
+             ]
     end
   end
 

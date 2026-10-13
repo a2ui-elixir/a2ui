@@ -2,12 +2,32 @@ defmodule A2UICore.State.SurfaceTest do
   @moduledoc false
   use ExUnit.Case, async: true
 
+  alias A2UICore.Catalog.Basic
   alias A2UICore.State.{Component, Components, DataModel, Surface, SurfaceGroup}
 
   doctest A2UICore.State.Surface
   doctest A2UICore.State.SurfaceGroup
 
   @now ~U[2026-03-04 05:06:07Z]
+
+  describe "Surface.default_catalog/1" do
+    test "is the catalog registered under the surface's catalog id" do
+      catalog = Basic.catalog("v1.0")
+
+      surface =
+        Surface.new("s",
+          catalog_id: catalog.catalog_id,
+          catalogs: %{catalog.catalog_id => catalog}
+        )
+
+      assert Surface.default_catalog(surface) == catalog
+    end
+
+    test "is nil without one" do
+      assert Surface.default_catalog(Surface.new("s")) == nil
+      assert Surface.default_catalog(Surface.new("s", catalog_id: "urn:missing")) == nil
+    end
+  end
 
   describe "Surface.new/2" do
     test "defaults" do

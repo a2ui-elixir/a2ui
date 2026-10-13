@@ -84,3 +84,36 @@ them or documented as a skip with a reason.
   `{:warning, %{code: "MISSING_DATA_BINDING", …}}`, once per path per call.
 - **Template parsing counts characters.** The 10 000-character limit applies to
   codepoints, not bytes (as in Python, unlike JavaScript's UTF-16 length).
+
+## Processor and validation
+
+- **Envelopes are validated against a permissive catalog.** `Processor.process/2`
+  decodes with `catalog: :permissive` (any component object, any theme, a
+  well-formed function call), and the processor then checks every component against the
+  catalog its surface actually uses. The reference binds the first catalog's schema into
+  the envelope check, so a component of a second catalog could only be validated there
+  by accident.
+- **Calls into another catalog pass the schema stage.** A function call naming a
+  `catalogId` other than the component's own is checked for well-formed identifiers
+  only; the catalog's own `anyFunction` union would reject it.
+- **`allowed_messages` is enforced.** `ValidationConfig.allowed_messages` is declared
+  but never read in the Python SDK. The processor rejects other actions with
+  `INVALID_ACTION`.
+- **Failures are values, with no rollback across operations.** `Processor.process/2`
+  returns `{:error, error, processor}`; operations applied before the failing one stay
+  applied (as in the reference), and a failing `updateComponents` batch leaves its
+  surface untouched.
+- **Detail codes follow the conformance corpus for component properties.** A property
+  that fails its schema is `missing_field` (required), `extra_field` (surplus) or
+  `invalid_value` (everything else). Python's payload validator reports `type`, `enum`,
+  `pattern` and `format` failures as `type_mismatch`; the shared suites (asserted by the
+  Swift runner) expect `invalid_value`. An unknown component carries
+  `unrecognized_component` as in Python plus `invalid_value` at its `component`
+  property.
+- **Detail paths are located by message.** Failures inside a message list or
+  `{"messages": [...]}` wrapper carry `messages.<i>.` in front of the envelope path
+  (`messages.0.createSurface.catalogId`), as the Swift SDK does; Python never asserts
+  paths. Component-level details keep their `components.<id>.<property>` form, which
+  the harness matches by tail (`chartType` is found at `components.c1.chartType`).
+- **v0.8 suites are skipped by file name.** A suite ending in `_v0_8.yaml` is out of
+  scope even when a case names no version.

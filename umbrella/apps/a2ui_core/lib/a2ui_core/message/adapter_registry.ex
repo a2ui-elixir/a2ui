@@ -136,7 +136,16 @@ defmodule A2UICore.Message.AdapterRegistry do
   defp resolve_version_key(message, index) do
     case message do
       %{"version" => version} when is_binary(version) ->
-        get_adapter(version)
+        with {:error, %Error{details: []} = error} <- get_adapter(version) do
+          detail =
+            Detail.new(
+              "invalid_value",
+              "Unsupported protocol version '#{version}'",
+              "messages.#{index}.version"
+            )
+
+          {:error, %{error | details: [detail]}}
+        end
 
       %{"version" => version} when not is_binary(version) ->
         {:error,

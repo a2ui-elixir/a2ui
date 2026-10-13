@@ -67,15 +67,16 @@ defmodule A2UICore.Validation.Topology do
         :ok
 
       true ->
-        components |> Components.to_list() |> find_dangling(components, info_fun)
+        known = MapSet.new(ids)
+        components |> Components.to_list() |> find_dangling(components, info_fun, known)
     end
   end
 
-  defp find_dangling(list, components, info_fun),
-    do: Enum.find_value(list, :ok, &first_dangling(&1, components, info_fun))
+  defp find_dangling(list, components, info_fun, known),
+    do: Enum.find_value(list, :ok, &first_dangling(&1, components, info_fun, known))
 
-  defp first_dangling(component, components, info_fun) do
-    Enum.find_value(references(component, info_fun), fn {ref, field} ->
+  defp first_dangling(component, components, info_fun, known) do
+    Enum.find_value(references(component, info_fun, known), fn {ref, field} ->
       if Components.has?(components, ref), do: nil, else: dangling(component.id, ref, field)
     end)
   end
@@ -100,7 +101,7 @@ defmodule A2UICore.Validation.Topology do
     all_ids = MapSet.new(ids)
     max_depth = config.max_depth || @max_global_depth
 
-    with {:ok, adjacency} <- adjacency(components, info_fun) do
+    with {:ok, adjacency} <- adjacency(components, info_fun, all_ids) do
       if config.allow_missing_root do
         traverse_all(ids, adjacency, all_ids, max_depth)
       else
@@ -109,17 +110,17 @@ defmodule A2UICore.Validation.Topology do
     end
   end
 
-  defp adjacency(components, info_fun) do
+  defp adjacency(components, info_fun, known) do
     Enum.reduce_while(Components.to_list(components), {:ok, %{}}, fn component, {:ok, acc} ->
-      case adjacency_entry(component, info_fun) do
+      case adjacency_entry(component, info_fun, known) do
         {:ok, refs} -> {:cont, {:ok, Map.put(acc, component.id, refs)}}
         {:error, _} = error -> {:halt, error}
       end
     end)
   end
 
-  defp adjacency_entry(component, info_fun) do
-    refs = references(component, info_fun)
+  defp adjacency_entry(component, info_fun, known) do
+    refs = references(component, info_fun, known)
 
     case Enum.find(refs, fn {ref, _field} -> ref == component.id end) do
       {_ref, field} ->
@@ -237,7 +238,7 @@ defmodule A2UICore.Validation.Topology do
     types = Map.new(list, &{&1.id, &1.type})
 
     children =
-      Map.new(list, fn c -> {c.id, c |> references(info_fun) |> Enum.map(&elem(&1, 0))} end)
+      Map.new(list, fn c -> {c.id, c |> references(info_fun, nil) |> Enum.map(&elem(&1, 0))} end)
 
     parents =
       Enum.reduce(list, %{}, fn parent, acc ->
@@ -295,11 +296,16 @@ defmodule A2UICore.Validation.Topology do
 
   # -- helpers -------------------------------------------------------------------
 
-  defp references(component, info_fun) do
-    case info_fun.(component) do
-      %{ref_spec: spec} -> Component.child_references(component, spec)
-      _ -> []
-    end
+  # `known` is the set of component ids on the surface (value inspection
+  # of the fallback analysis uses it); composition checks pass `nil`.
+  defp references(component, info_fun, known) do
+    spec =
+      case info_fun.(component) do
+        %{ref_spec: spec} -> spec
+        _no_catalog_info -> nil
+      end
+
+    Component.child_references(component, spec, known)
   end
 
   defp integrity(message, id), do: failure(:integrity, "INTEGRITY_ERROR", message, id)

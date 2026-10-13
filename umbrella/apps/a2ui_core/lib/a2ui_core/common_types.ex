@@ -95,6 +95,71 @@ defmodule A2UICore.CommonTypes do
     end
   end
 
+  @doc """
+  The names of the dynamic-value definitions across protocol versions
+  (`DynamicString`, `DynamicValue`, …): unions that accept a `DataBinding`,
+  a `FunctionCall` and literal values. `DataBinding` itself is included.
+  """
+  @spec dynamic_definitions() :: MapSet.t(String.t())
+  def dynamic_definitions do
+    key = {__MODULE__, :dynamic_definitions}
+
+    case :persistent_term.get(key, :missing) do
+      :missing ->
+        names =
+          for version <- Version.supported(),
+              document = Source.document(version, :common_types),
+              document != nil,
+              {name, schema} <- document["$defs"] || %{},
+              dynamic_union?(schema),
+              into: MapSet.new(["DataBinding"]),
+              do: name
+
+        :persistent_term.put(key, names)
+        names
+
+      names ->
+        names
+    end
+  end
+
+  defp dynamic_union?(%{} = schema) do
+    case schema["oneOf"] || schema["anyOf"] do
+      branches when is_list(branches) ->
+        Enum.any?(branches, &match?(%{"$ref" => "#/$defs/DataBinding"}, &1)) and
+          Enum.any?(branches, &function_call_branch?/1)
+
+      _not_a_union ->
+        false
+    end
+  end
+
+  defp dynamic_union?(_schema), do: false
+
+  defp function_call_branch?(%{"$ref" => "#/$defs/FunctionCall"}), do: true
+
+  defp function_call_branch?(%{"allOf" => branches}) when is_list(branches),
+    do: Enum.any?(branches, &match?(%{"$ref" => "#/$defs/FunctionCall"}, &1))
+
+  defp function_call_branch?(_branch), do: false
+
+  @doc """
+  A catalog document that accepts whatever a catalog may define: any
+  component object, any theme, and a well-formed function call of
+  `version`. Message envelopes validate against it when the catalog a
+  component belongs to is only known later.
+  """
+  @spec permissive_catalog(Version.protocol_version()) :: map()
+  def permissive_catalog(version) do
+    %{
+      "$defs" => %{
+        "anyComponent" => %{"type" => "object", "additionalProperties" => true},
+        "theme" => true,
+        "anyFunction" => function_stub(version)
+      }
+    }
+  end
+
   defp common_types!(version) do
     case Source.document(version, :common_types) do
       nil -> raise ArgumentError, "no common types for protocol version #{inspect(version)}"
@@ -102,6 +167,12 @@ defmodule A2UICore.CommonTypes do
     end
   end
 
-  defp function_stub("v1.0"), do: @v1_0_function_stub
-  defp function_stub(_v0_9), do: @v0_9_function_stub
+  @doc """
+  The schema of a well-formed function call of `version`, standing in
+  for a catalog's `anyFunction` union where only the shape of a call —
+  not which functions exist — is to be checked.
+  """
+  @spec function_stub(Version.protocol_version()) :: map()
+  def function_stub("v1.0"), do: @v1_0_function_stub
+  def function_stub(_v0_9), do: @v0_9_function_stub
 end

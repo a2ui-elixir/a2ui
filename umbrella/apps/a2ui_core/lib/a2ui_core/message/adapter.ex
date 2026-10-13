@@ -21,6 +21,7 @@ defmodule A2UICore.Message.Adapter do
   5. operation construction via `c:extract_operations/2`.
   """
 
+  alias A2UICore.CommonTypes
   alias A2UICore.Error
   alias A2UICore.Error.Detail
   alias A2UICore.Message.{AdapterRegistry, Operation}
@@ -31,7 +32,13 @@ defmodule A2UICore.Message.Adapter do
 
   @moduledoc since: "0.1.0"
 
-  @typedoc "Adapter options: `:catalog` binds the active catalog schema."
+  @typedoc """
+  Adapter options: `:catalog` binds the catalog schema the envelope's
+  `catalog.json` references resolve against — a catalog schema map, or
+  `:permissive` for a stand-in that accepts any component object, theme
+  and well-formed function call (the processor checks components against
+  the catalog each surface actually uses).
+  """
   @type opts :: keyword()
 
   @doc """
@@ -51,7 +58,7 @@ defmodule A2UICore.Message.Adapter do
       list when is_list(list) ->
         with :ok <- Integrity.validate_recursion_and_paths(list),
              :ok <- precheck_list_actions(adapter, list) do
-          extract_list(adapter, list, opts, [])
+          extract_list(adapter, list, opts, 0, [])
         end
 
       wrapper when is_map(wrapper) ->
@@ -70,26 +77,41 @@ defmodule A2UICore.Message.Adapter do
     end
   end
 
-  defp extract_list(_adapter, [], _opts, acc), do: {:ok, Enum.reverse(acc)}
+  defp extract_list(_adapter, [], _opts, _index, acc), do: {:ok, Enum.reverse(acc)}
 
-  defp extract_list(adapter, [item | rest], opts, acc) do
+  defp extract_list(adapter, [item | rest], opts, index, acc) do
     case extract(adapter, item, opts) do
       # acc is reversed; push this message's ops so that the final
       # reverse restores both cross-message and in-message order.
-      {:ok, ops} -> extract_list(adapter, rest, opts, Enum.reverse(ops, acc))
-      {:error, error} -> {:error, error}
+      {:ok, ops} -> extract_list(adapter, rest, opts, index + 1, Enum.reverse(ops, acc))
+      {:error, error} -> {:error, locate(error, index)}
     end
   end
 
+  # Detail paths of a failure inside a message list are prefixed with the
+  # message's position (`messages.0.createSurface.surfaceId`), unless the
+  # registry already did.
+  defp locate(%Error{details: details} = error, index) do
+    %{error | details: Enum.map(details, &locate_detail(&1, index))}
+  end
+
+  defp locate_detail(%Detail{path: "messages." <> _} = detail, _index), do: detail
+  defp locate_detail(%Detail{path: ""} = detail, index), do: %{detail | path: "messages.#{index}"}
+
+  defp locate_detail(%Detail{path: path} = detail, index),
+    do: %{detail | path: "messages.#{index}.#{path}"}
+
   defp precheck_list_actions(adapter, list) do
-    Enum.reduce_while(list, :ok, fn
-      item, :ok when is_map(item) ->
+    list
+    |> Enum.with_index()
+    |> Enum.reduce_while(:ok, fn
+      {item, index}, :ok when is_map(item) ->
         case ensure_single_action(adapter, item) do
           {:ok, _action} -> {:cont, :ok}
-          {:error, error} -> {:halt, {:error, error}}
+          {:error, error} -> {:halt, {:error, locate(error, index)}}
         end
 
-      _item, :ok ->
+      {_item, _index}, :ok ->
         {:cont, :ok}
     end)
   end
@@ -132,7 +154,7 @@ defmodule A2UICore.Message.Adapter do
   end
 
   defp validated_action(action, payload) when is_map(payload) do
-    with :ok <- ensure_surface_id_string(payload), do: {:ok, action}
+    with :ok <- ensure_surface_id_string(action, payload), do: {:ok, action}
   end
 
   defp validated_action(action, _non_map_payload), do: {:ok, action}
@@ -161,10 +183,15 @@ defmodule A2UICore.Message.Adapter do
     end
   end
 
-  defp ensure_surface_id_string(payload) do
+  defp ensure_surface_id_string(action, payload) do
     case payload do
       %{"surfaceId" => surface_id} when not is_binary(surface_id) ->
-        {:error, Error.new(:validation, "INVALID_SURFACE_ID", "surfaceId must be a string")}
+        {:error,
+         Error.new(:validation, "INVALID_SURFACE_ID", "surfaceId must be a string",
+           details: [
+             Detail.new("type_mismatch", "surfaceId must be a string", "#{action}.surfaceId")
+           ]
+         )}
 
       _ok ->
         :ok
@@ -232,7 +259,7 @@ defmodule A2UICore.Message.Adapter do
     version = adapter.document_version()
     envelope = Source.document(version, :agent_to_renderer)
     common_types = Source.document(version, :common_types)
-    catalog = Keyword.get(opts, :catalog) || Source.catalog(version, :basic)
+    catalog = envelope_catalog(Keyword.get(opts, :catalog), version)
 
     case message_def(envelope, action) do
       nil ->
@@ -266,6 +293,10 @@ defmodule A2UICore.Message.Adapter do
         end
     end
   end
+
+  defp envelope_catalog(:permissive, version), do: CommonTypes.permissive_catalog(version)
+  defp envelope_catalog(nil, version), do: Source.catalog(version, :basic)
+  defp envelope_catalog(catalog, _version) when is_map(catalog), do: catalog
 
   defp summary_line(%Detail{path: ""} = detail), do: detail.message
   defp summary_line(%Detail{} = detail), do: "#{detail.path}: #{detail.message}"

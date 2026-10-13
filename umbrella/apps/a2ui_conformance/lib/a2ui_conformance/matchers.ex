@@ -40,18 +40,24 @@ defmodule A2UIConformance.Matchers do
   @doc """
   Asserts that `actual` (an `%A2UICore.Error{}` or `{:error, error}`
   tuple, plus its details) satisfies the YAML `expectError` expectation
-  (a message string or a map of `category`/`message`/`code`).
+  (a message string or a map of `category`/`message`/`code`/`details`).
+
+  Each expected detail (`path`, `code`) must be found among the error's
+  details. Paths compare in dotted form; an expected path also matches
+  the tail of a longer one, so `children` is found at
+  `components.root.children`.
   """
   @spec assert_error(term(), term()) :: true
   def assert_error(expected, actual) do
     error = unwrap(actual)
     details = error_details(error)
 
-    {category, message, code} = parse_expectation(expected)
+    {category, message, code, expected_details} = parse_expectation(expected)
 
     assert_category!(category, error)
     assert_message!(message, error, details)
     assert_code!(code, error, details)
+    assert_details!(expected_details, details)
   end
 
   defp unwrap({:error, error}), do: error
@@ -61,17 +67,20 @@ defmodule A2UIConformance.Matchers do
   defp error_details(%Error{details: details}), do: Enum.map(details, &normalize_detail/1)
   defp error_details(_), do: []
 
-  defp normalize_detail(%{code: c, message: m}), do: %{code: to_string(c), message: m}
-  defp normalize_detail(detail) when is_map(detail), do: detail
-  defp normalize_detail(other), do: %{code: "", message: to_string(other)}
+  defp normalize_detail(%{code: c, message: m} = detail),
+    do: %{code: to_string(c), message: m, path: Map.get(detail, :path)}
 
-  defp parse_expectation(expected) when is_binary(expected), do: {nil, expected, nil}
+  defp normalize_detail(detail) when is_map(detail), do: detail
+  defp normalize_detail(other), do: %{code: "", message: to_string(other), path: nil}
+
+  defp parse_expectation(expected) when is_binary(expected), do: {nil, expected, nil, []}
 
   defp parse_expectation(expected) when is_map(expected) do
     {
       expected["category"] || expected["error"],
       expected["message"],
-      expected["code"]
+      expected["code"],
+      if(is_list(expected["details"]), do: expected["details"], else: [])
     }
   end
 
@@ -149,6 +158,40 @@ defmodule A2UIConformance.Matchers do
 
     true
   end
+
+  defp assert_details!([], _details), do: true
+
+  defp assert_details!(expected, details) do
+    for %{} = wanted <- expected, not Enum.any?(details, &detail_matches?(&1, wanted)) do
+      flunk(
+        "expected detail #{inspect(wanted)} not found in " <>
+          inspect(Enum.map(details, &Map.take(&1, [:path, :code])))
+      )
+    end
+
+    true
+  end
+
+  defp detail_matches?(actual, wanted) do
+    code_matches?(actual.code, wanted["code"]) and path_matches?(actual.path, wanted["path"])
+  end
+
+  defp code_matches?(_actual, nil), do: true
+  defp code_matches?(actual, wanted), do: actual == to_string(wanted)
+
+  defp path_matches?(_actual, nil), do: true
+  defp path_matches?(nil, _wanted), do: false
+
+  defp path_matches?(actual, wanted) do
+    actual = dotted(actual)
+    wanted = dotted(wanted)
+
+    actual == wanted or String.ends_with?(actual, "." <> wanted)
+  end
+
+  # `/children/0` and `children.0` name the same location.
+  defp dotted("/" <> pointer), do: String.replace(pointer, "/", ".")
+  defp dotted(path), do: path
 
   defp error_code(%Error{code: code}), do: code
   defp error_code(_), do: nil

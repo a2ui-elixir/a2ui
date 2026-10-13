@@ -65,18 +65,26 @@ harness: `reference/a2ui/python/a2ui_core/tests/test_conformance.py`
       also pass.
 - [x] M4.8 Gate + commit "phase 4".
 
-## M5 — Phase 5: Processor — target ≈184
+## M5 — Phase 5: Processor — target ≈184 (conformance: 476 passed, 595 skipped)
 
-- [ ] M5.1 `A2UICore.Processor`.
-- [ ] M5.2 `Validation.Payload` (messages, function args, allowedCallers,
-      reserved keys).
-- [ ] M5.3 `Resolution.Binder` + `ComponentContext` (generic_binder port).
-- [ ] M5.4 Capabilities, renderer data model, `select_catalog`,
-      `dispatch_action`.
-- [ ] M5.5 `messages.<i>.` detail paths.
-- [ ] M5.6 Handlers `validate`, `process_messages`, capabilities, data model,
-      `select_catalog`, `dispatch_action`.
-- [ ] M5.7 Gate + commit "phase 5".
+- [x] M5.1 `A2UICore.Processor` (`new/2`, `process/2`, `apply_operation/2`;
+      atomic `updateComponents`; effects as data; `allowed_messages`).
+- [x] M5.2 Batch validation: `Validation.ComponentsUpdate` (duplicate ids,
+      per-component schema, prospective graph); `Payload` lets calls into
+      another catalog through the schema stage.
+- [x] M5.3 `Resolution.Binder` (schema-driven classification with a
+      value-shape fallback; checks → `isValid` / `validationErrors` /
+      `validationResult`). `ComponentContext` is not needed: the harness
+      resolves templates in `A2UIConformance.SurfaceState`.
+- [x] M5.4 `Processor.renderer_capabilities/2`, `renderer_data_model/2`,
+      `select_catalog`, `dispatch_action` handlers.
+- [x] M5.5 `messages.<i>.` detail paths (list and wrapper payloads, the
+      registry's version checks, the `surfaceId` pre-check) and the
+      harness' `details` matcher (Swift rule, dotted paths).
+- [x] M5.6 Handlers `validate`, `process_messages`, capabilities, data model,
+      `select_catalog`, `dispatch_action`; `PyStr` (Python `str`/`repr`) and
+      `SurfaceState` for the shared surface assertions.
+- [x] M5.7 Gate + commit "phase 5".
 
 ## M6 — Phase 6: Node resolution, accessibility — target 14
 

@@ -4,8 +4,8 @@ defmodule A2UIConformance.SkipPolicy do
   # Derives a skip decision for a case. Skip reasons are *computed* from
   # the case and the dispatcher state, so they cannot silently rot:
   #
-  #   1. A protocol version outside the supported set -> version skip
-  #      (v0.8 is out of scope by design).
+  #   1. A protocol version outside the supported set, or a suite written
+  #      for v0.8 -> version skip (v0.8 is out of scope by design).
   #   2. Action without a handler -> skip, with the reason the
   #      dispatcher reports (unimplemented area or optional family).
   #   3. Explicit per-case skips (case-level exceptions) — a named list
@@ -28,11 +28,16 @@ defmodule A2UIConformance.SkipPolicy do
     version_skip(case) || dispatcher_skip(case) || explicit_skip(case)
   end
 
-  defp version_skip(%Case{protocol_version: version}) do
-    if version in A2UICore.Version.supported() do
-      nil
-    else
-      {:skip, "unsupported protocol version #{inspect(version)}"}
+  defp version_skip(%Case{protocol_version: version, suite: suite}) do
+    cond do
+      String.ends_with?(suite, "_v0_8.yaml") ->
+        {:skip, "protocol v0.8 suite (out of scope)"}
+
+      version in A2UICore.Version.supported() ->
+        nil
+
+      true ->
+        {:skip, "unsupported protocol version #{inspect(version)}"}
     end
   end
 

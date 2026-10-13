@@ -7,6 +7,7 @@ defmodule A2UIConformance.HarnessTest do
 
   alias A2UIConformance.{Case, Dispatcher, Matchers, SkipPolicy, Yaml}
   alias A2UICore.Error
+  alias A2UICore.Error.Detail
 
   describe "Yaml" do
     test "an empty mapping decodes to %{} and an empty sequence to []" do
@@ -86,8 +87,12 @@ defmodule A2UIConformance.HarnessTest do
       assert {:unimplemented, "function RPC"} =
                Dispatcher.resolve(case_for("core/rpc.yaml", "handle_rpc"))
 
-      assert {:unimplemented, "catalog selection"} =
-               Dispatcher.resolve(case_for("core/catalog_selection.yaml", "select_catalog"))
+      assert {:ok, A2UIConformance.Handlers.SelectCatalog} =
+               Dispatcher.resolve(case_for("core/multi_catalog.yaml", "select_catalog"))
+
+      # `select_catalog` in the agent SDK is a different feature.
+      assert {:unimplemented, "agent SDK"} =
+               Dispatcher.resolve(case_for("agent/resolve_catalogs.yaml", "select_catalog"))
     end
 
     test "agent families: blueprint suites are one area, express and legacy are optional" do
@@ -123,11 +128,20 @@ defmodule A2UIConformance.HarnessTest do
                  })
                )
 
-      assert {:skip, "no handler for action 'validate' (message processing)"} =
-               SkipPolicy.skip_for(case_for("core/x.yaml", "validate"))
+      assert {:skip, "no handler for action 'parse_chunk' (agent SDK)"} =
+               SkipPolicy.skip_for(case_for("agent/direct_json/x.yaml", "parse_chunk"))
 
       assert {:skip, "optional family without a handler: " <> _} =
                SkipPolicy.skip_for(case_for("agent/express/x.yaml", "wrap"))
+
+      assert nil == SkipPolicy.skip_for(case_for("core/x.yaml", "validate"))
+    end
+
+    test "a v0.8 suite is skipped even when its case names no version" do
+      assert {:skip, "protocol v0.8 suite " <> _} =
+               SkipPolicy.skip_for(
+                 case_for("core/message_processor_v0_8.yaml", "process_messages")
+               )
     end
   end
 
@@ -152,6 +166,77 @@ defmodule A2UIConformance.HarnessTest do
 
     test "an unknown category accepts any library error" do
       assert Matchers.assert_error(%{"category" => "SomethingNew"}, error(:state))
+    end
+  end
+
+  describe "Matchers.assert_error details" do
+    defp with_details(details) do
+      Error.new(:validation, "VALIDATION_FAILED", "boom",
+        details: Enum.map(details, fn {code, path} -> Detail.new(code, "m", path) end)
+      )
+    end
+
+    test "an expected detail is found by code and path" do
+      error = with_details([{"missing_field", "messages.0.createSurface.catalogId"}])
+
+      expected = %{
+        "category" => "ValidationError",
+        "details" => [
+          %{"path" => "messages.0.createSurface.catalogId", "code" => "missing_field"}
+        ]
+      }
+
+      assert Matchers.assert_error(expected, error)
+    end
+
+    test "an expected path also matches the tail of a longer one" do
+      error = with_details([{"invalid_value", "components.c1.chartType"}])
+
+      assert Matchers.assert_error(
+               %{"details" => [%{"path" => "chartType", "code" => "invalid_value"}]},
+               error
+             )
+
+      assert_raise ExUnit.AssertionError, fn ->
+        Matchers.assert_error(
+          %{"details" => [%{"path" => "Type", "code" => "invalid_value"}]},
+          error
+        )
+      end
+    end
+
+    test "JSON pointers compare in dotted form" do
+      error = with_details([{"invalid_value", "children.0"}])
+
+      assert Matchers.assert_error(
+               %{"details" => [%{"path" => "/children/0", "code" => "invalid_value"}]},
+               error
+             )
+    end
+
+    test "a wrong code or a missing detail fails" do
+      error = with_details([{"type_mismatch", "messages.0.version"}])
+
+      assert_raise ExUnit.AssertionError, ~r/expected detail/, fn ->
+        Matchers.assert_error(
+          %{"details" => [%{"path" => "messages.0.version", "code" => "missing_field"}]},
+          error
+        )
+      end
+
+      assert_raise ExUnit.AssertionError, fn ->
+        Matchers.assert_error(
+          %{"details" => [%{"path" => "other", "code" => "type_mismatch"}]},
+          error
+        )
+      end
+    end
+
+    test "a detail may constrain only its code or only its path" do
+      error = with_details([{"type_mismatch", "messages.0.version"}])
+
+      assert Matchers.assert_error(%{"details" => [%{"code" => "type_mismatch"}]}, error)
+      assert Matchers.assert_error(%{"details" => [%{"path" => "messages.0.version"}]}, error)
     end
   end
 

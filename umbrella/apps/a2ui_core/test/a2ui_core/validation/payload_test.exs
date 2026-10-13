@@ -78,20 +78,28 @@ defmodule A2UICore.Validation.PayloadTest do
       component = %{"id" => "t", "component" => "Text", "text" => 5}
       {_error, details} = failure(Payload.validate_component(catalog, component))
 
-      assert {"type_mismatch", "components.t.text"} in details
+      assert {"invalid_value", "components.t.text"} in details
     end
 
     test "unknown component types", %{v09: catalog} do
       component = %{"id" => "t", "component" => "Nope"}
       {error, details} = failure(Payload.validate_component(catalog, component))
 
-      assert details == [{"unrecognized_component", "components.t.component"}]
+      assert details == [
+               {"unrecognized_component", "components.t.component"},
+               {"invalid_value", "components.t.component"}
+             ]
+
       assert error.message == "components.t.component: Unrecognized component type 'Nope'"
     end
 
     test "unknown component types without an id are reported against None", %{v09: catalog} do
       {_error, details} = failure(Payload.validate_component(catalog, %{"component" => nil}))
-      assert details == [{"unrecognized_component", "components.None.component"}]
+
+      assert details == [
+               {"unrecognized_component", "components.None.component"},
+               {"invalid_value", "components.None.component"}
+             ]
     end
 
     test "relaxed configuration tolerates unknown elements", %{v09: catalog} do
@@ -132,11 +140,15 @@ defmodule A2UICore.Validation.PayloadTest do
 
     test "calls into another catalog only get identifier checks", %{v10: catalog} do
       foreign = %{"@call" => "anything", "catalogId" => "urn:other", "args" => %{"a" => 1}}
-
       component = %{"id" => "t", "component" => "Text", "text" => foreign}
-      {_error, details} = failure(Payload.validate_component(catalog, component))
 
-      refute Enum.any?(details, &match?({"unrecognized_function", _}, &1))
+      assert Payload.validate_component(catalog, component) == :ok
+
+      malformed = %{"@call" => 7, "catalogId" => "urn:other"}
+      component = %{"id" => "t", "component" => "Text", "text" => malformed}
+
+      assert {:error, %Error{category: :validation}} =
+               Payload.validate_component(catalog, component)
     end
   end
 

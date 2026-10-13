@@ -84,6 +84,13 @@ defmodule A2UICore.State.Surface do
   end
 
   @doc """
+  The surface's default catalog, or `nil` when it has none.
+  """
+  @spec default_catalog(t()) :: A2UICore.Catalog.t() | nil
+  def default_catalog(%__MODULE__{catalog_id: catalog_id, catalogs: catalogs}),
+    do: Map.get(catalogs, catalog_id)
+
+  @doc """
   Writes into the surface's data model; see `A2UICore.State.DataModel.set/3`.
   """
   @spec set_data(t(), term(), term()) ::

@@ -78,7 +78,7 @@ defmodule A2UIConformance.CatalogFixtures do
         v09 = Basic.declared("v0.9")
 
         aliases = %{
-          standard: Catalog.new!("standard", "v0.9", components: Map.values(v09.components)),
+          standard: assembled!("standard", "v0.9", v09),
           basic_v1: Catalog.derive(Basic.declared("v1.0"), "basic")
         }
 
@@ -171,12 +171,12 @@ defmodule A2UIConformance.CatalogFixtures do
         {:ok, register(state, id, catalog)}
       end
     else
-      defaults =
+      source =
         if state.case.raw["action"] in @capability_actions,
-          do: [],
-          else: Map.values(state.v09.components)
+          do: %{state.v09 | components: %{}},
+          else: state.v09
 
-      with {:ok, catalog} <- Catalog.new(id, version, components: defaults) do
+      with {:ok, catalog} <- assembled(id, version, source) do
         {:ok, register(state, id, catalog)}
       end
     end
@@ -326,15 +326,10 @@ defmodule A2UIConformance.CatalogFixtures do
     if known? and carried? do
       state
     else
-      components = Map.values(state.current.components)
-
       catalog =
-        case Catalog.new(id, normalize(version) || state.version, components: components) do
-          {:ok, catalog} ->
-            catalog
-
-          {:error, _unsupported_version} ->
-            Catalog.new!(id, state.version, components: components)
+        case assembled(id, normalize(version) || state.version, state.current) do
+          {:ok, catalog} -> catalog
+          {:error, _unsupported_version} -> assembled!(id, state.version, state.current)
         end
 
       %{state | catalogs: put(state.catalogs, id, catalog)}
@@ -342,6 +337,21 @@ defmodule A2UIConformance.CatalogFixtures do
   end
 
   defp add_catalog_id(state, _id, _version), do: state
+
+  # A catalog made of another catalog's components and none of its
+  # functions. It keeps the definitions those components' schemas refer
+  # to, so they still resolve.
+  defp assembled(id, version, %Catalog{} = source) do
+    Catalog.new(id, version,
+      components: Map.values(source.components),
+      defs: Map.drop(source.defs, ["anyComponent", "anyFunction"])
+    )
+  end
+
+  defp assembled!(id, version, source) do
+    {:ok, catalog} = assembled(id, version, source)
+    catalog
+  end
 
   defp normalize(nil), do: nil
 
