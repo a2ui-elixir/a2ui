@@ -112,7 +112,75 @@ harness: `reference/a2ui/python/a2ui_core/tests/test_conformance.py`
 - [x] M7.3 Handler `handle_rpc` (15 cases; the 3 A2A cases stay with M9).
 - [x] M7.4 Gate + commit "phase 7", then checkpoint and re-plan M8–M11.
 
-## M8–M11 (planned at the Phase 7 checkpoint)
+## Checkpoint after Phase 7
 
-- M8 Phoenix renderer · M9 Transports (SSE, A2A) · M10 Agent SDK (blueprint
-  direct_json first; Express and legacy optional) · M11 Release.
+Core engine complete: 487 of 487 runnable `core/` cases pass (37 v0.8 cases are
+skipped by policy). Conformance: 532 passed, 566 skipped, 0 failed. Core: 1365
+tests. Coverage 95.9%. Format, compile, credo and dialyzer are clean.
+
+Remaining cases by suite family:
+
+| Family | Cases | Handled by |
+|---|---|---|
+| `agent/` shared (catalog provider/resolution/transformer, multi-catalog formats, request processor, skill) | 94 | M10 |
+| `agent/direct_json` (compiler, decompiler, prompt, response parser, streaming) | 162 | M10 |
+| `agent/express` | 115 | optional |
+| `agent/legacy` | 94 (+39 v0.8) | optional |
+| `extensions/a2a` | 14 | M9 (see decision D2) |
+| `extensions/adk` | 11 | out of scope (see decision D3) |
+
+## M8–M11 — proposed at the Phase 7 checkpoint (awaiting approval)
+
+### M8 — `a2ui_phoenix` renderer
+
+- [ ] M8.1 `A2UIPhoenix.Session`: a value wrapping `Processor` and one
+      `NodeResolver` per surface (`handle_message/2`, `write/4`, `invoke/4`),
+      returning the render state and the outbound messages.
+- [ ] M8.2 Function components for the 18 basic components, v0.9.1 and v1.0,
+      with ARIA from `A2UICore.Accessibility`; a component-map behaviour so a
+      custom catalog can bring its own.
+- [ ] M8.3 `A2UIPhoenix.Surface` LiveComponent: recursive node rendering,
+      placeholders, templates.
+- [ ] M8.4 Interaction: input events → `write`, buttons → `invoke` → outbound
+      `action`; `isValid`/`validationResult` display; `openUrl` hook.
+- [ ] M8.5 LiveViewTest: render all 43 + 43 example bundles, a contact-form
+      flow, a11y attributes present.
+- [ ] M8.6 Gate + commit.
+
+### M10 — `a2ui_agent` (blueprint direct_json)
+
+- [ ] M10.1 Catalog provider, resolution and transformer (48 cases).
+- [ ] M10.2 direct_json compiler, decompiler and prompt generator (27).
+- [ ] M10.3 Response parser `wrap`/`unwrap`/`parse_response` and
+      multi-catalog formats (36).
+- [ ] M10.4 Request processor and skill (27).
+- [ ] M10.5 Streaming parser (118 `parse_chunk` cases): an incremental
+      scanner as a pure state machine, with the cut-surrogate healing rules.
+- [ ] M10.6 Examples round-trip test + gate + commit.
+
+### M9 — transports
+
+- [ ] M9.1 SSE plug and transport contract tests.
+- [ ] M9.2 A2A helpers (part creation/detection, extension negotiation,
+      `message/send` handler with `<a2ui-json>` extraction).
+- [ ] M9.3 Explicit skip entries for the ADK-specific cases.
+
+### M11 — release
+
+- [ ] M11.1 ExDoc guides (core, Phoenix, agent), READMEs, changelog.
+- [ ] M11.2 Hex metadata and `mix hex.build` dry-run for the three packages.
+- [ ] M11.3 CI on the pinned reference; `SPEC_PIN` bump procedure.
+
+### Decisions
+
+- **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.
+  The renderer exercises the node-resolver API while it is cheap to change;
+  the agent SDK is the largest conformance-gated block; transports need both.
+- **D2 A2A cases.** The cases are written against the v0.8 extension URI and
+  `beginRendering`. Invariant 3 excludes v0.8. Options: implement the
+  version-agnostic helpers with v0.9.1/v1.0 URIs and skip the v0.8-specific
+  cases, or skip the family.
+- **D3 ADK cases.** `convert_event` and `execute_tool` are specific to
+  Google's Python ADK. Recommended: skip with a stated reason.
+- **D4 Package placement.** The pure A2A helpers have no Phoenix dependency;
+  recommended in `a2ui_agent` rather than `a2ui_phoenix`.
