@@ -3,7 +3,7 @@ defmodule A2UICore.Resolution.BinderTest do
   use ExUnit.Case, async: true
 
   alias A2UICore.Catalog.Basic
-  alias A2UICore.Resolution.{Binder, DataContext}
+  alias A2UICore.Resolution.{Action, Binder, Binding, DataContext}
   alias A2UICore.State.{Component, DataModel}
 
   setup_all do
@@ -233,6 +233,66 @@ defmodule A2UICore.Resolution.BinderTest do
 
     test "nil values stay nil", %{v09: v09} do
       assert {%{"text" => nil}, []} = bind(v09, "Text", %{"text" => nil})
+    end
+  end
+
+  describe "bind/4 with wrap: true" do
+    test "literals are read-only bindings", %{v09: v09} do
+      assert {%{"text" => %Binding{value: "Hello", path: nil}, "variant" => "h1"}, []} =
+               bind(v09, "Text", %{"text" => "Hello", "variant" => "h1"}, %{}, wrap: true)
+    end
+
+    test "a path binding is writable at its absolute path", %{v09: v09, v10: v10} do
+      assert {%{"text" => %Binding{value: "Ada", path: "/n"}}, []} =
+               bind(v09, "Text", %{"text" => %{"path" => "/n"}}, %{"n" => "Ada"}, wrap: true)
+
+      assert {%{"text" => %Binding{value: "Ada", path: "/n"}}, []} =
+               bind(v10, "Text", %{"text" => %{"@path" => "/n"}}, %{"n" => "Ada"}, wrap: true)
+    end
+
+    test "a relative path resolves against the scope", %{v09: v09} do
+      context =
+        DataContext.new("/people/1",
+          data_model: DataModel.new(%{"people" => [%{}, %{"name" => "Lin"}]}),
+          catalog: v09
+        )
+
+      component = Component.new("c", "Text", %{"text" => %{"path" => "name"}})
+
+      assert {%{"text" => %Binding{value: "Lin", path: "/people/1/name"}}, []} =
+               Binder.bind(context, component, v09, wrap: true)
+    end
+
+    test "a function call is read-only", %{v09: v09} do
+      call = %{"call" => "formatString", "args" => %{"value" => "n=${/n}"}}
+
+      assert {%{"text" => %Binding{value: "n=3", path: nil}}, []} =
+               bind(v09, "Text", %{"text" => call}, %{"n" => 3}, wrap: true)
+    end
+
+    test "omitted dynamic properties are empty read-only bindings", %{v09: v09} do
+      assert {%{"value" => %Binding{value: nil, path: nil}, "label" => %Binding{value: "Name"}},
+              []} = bind(v09, "TextField", %{"label" => "Name"}, %{}, wrap: true)
+    end
+
+    test "actions are wrapped with their definition", %{v09: v09} do
+      action = %{"event" => %{"name" => "go"}}
+
+      assert {%{"action" => %Action{definition: ^action}, "child" => "t"}, []} =
+               bind(v09, "Button", %{"child" => "t", "action" => action}, %{}, wrap: true)
+    end
+
+    test "nested dynamic positions are wrapped too", %{v09: v09} do
+      options = [%{"label" => "One", "value" => "1"}]
+
+      assert {%{"options" => [%{"label" => %Binding{value: "One"}, "value" => "1"}]}, []} =
+               bind(v09, "ChoicePicker", %{"options" => options, "value" => ["1"]}, %{},
+                 wrap: true
+               )
+    end
+
+    test "without wrap the same properties are bare values", %{v09: v09} do
+      assert {%{"text" => "Hello"}, []} = bind(v09, "Text", %{"text" => "Hello"})
     end
   end
 

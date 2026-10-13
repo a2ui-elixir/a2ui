@@ -86,12 +86,19 @@ harness: `reference/a2ui/python/a2ui_core/tests/test_conformance.py`
       `SurfaceState` for the shared surface assertions.
 - [x] M5.7 Gate + commit "phase 5".
 
-## M6 — Phase 6: Node resolution, accessibility — target 14
+## M6 — Phase 6: Node resolution, accessibility — target 14 (conformance: 517 passed, 581 skipped)
 
-- [ ] M6.1 `Resolution.Node` (TS port).
-- [ ] M6.2 Accessibility checks.
-- [ ] M6.3 Handlers `resolve_nodes`, `accessibility_check`.
-- [ ] M6.4 Gate + commit "phase 6".
+- [x] M6.1 `Resolution.NodeResolver` / `Node` / `Binding` / `Action`: a pure,
+      diff-based port of the TS node resolver (identity by edge, `:pending`,
+      `:unknown_type` and `:cyclic` placeholders, per-item template scopes,
+      edge-triggered diagnostics, `write/4`, `invoke/5`, `dispose/1`).
+      `Binder` gained `wrap: true`.
+- [x] M6.2 `A2UICore.Accessibility`: `label`/`description`/`live`/`hidden`
+      with explicit-over-inferred precedence, basic-catalog roles and
+      `checked`, and the catalog `lint/1` the spec asks SDK tooling for.
+- [x] M6.3 Handlers `resolve_nodes` (port of `node-resolution.ts`) and
+      `accessibility_check` (model-level; `axeCore` DOM rules ignored).
+- [x] M6.4 Gate + commit "phase 6".
 
 ## M7 — Phase 7: RPC v1.0 — target 15
 

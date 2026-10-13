@@ -28,7 +28,7 @@ defmodule A2UICore.Resolution.Binder do
 
   alias A2UICore.Catalog
   alias A2UICore.CommonTypes
-  alias A2UICore.Resolution.DataContext
+  alias A2UICore.Resolution.{Action, Binding, DataContext}
   alias A2UICore.State.Component
 
   @moduledoc since: "0.1.0"
@@ -55,12 +55,20 @@ defmodule A2UICore.Resolution.Binder do
   `catalog` supplies the component's schema (`nil` or a catalog without
   the component falls back to shape inference). Option `:schema`
   overrides the component schema.
+
+  With `wrap: true` every dynamic position comes back as an
+  `A2UICore.Resolution.Binding` (writable when it was bound to a path,
+  read-only for a literal or a call, and a read-only `nil` binding when
+  the component omitted it) and every action as an
+  `A2UICore.Resolution.Action`, instead of bare values. The positions are
+  those the schema declares, `allOf` envelopes included.
   """
   @spec bind(DataContext.t(), Component.t(), Catalog.t() | nil, keyword()) ::
           {map(), [DataContext.effect()]}
   def bind(%DataContext{} = context, %Component{} = component, catalog, options \\ []) do
-    shape = shape(catalog, component.type, options[:schema])
-    bind_object(component.props, shape, context)
+    wrap? = options[:wrap] == true
+    shape = shape(catalog, component.type, options[:schema], wrap?)
+    bind_object(component.props, shape, context, wrap?)
   end
 
   @doc """
@@ -74,19 +82,46 @@ defmodule A2UICore.Resolution.Binder do
 
   # -- schema classification ----------------------------------------------------
 
-  defp shape(catalog, type, schema_override) do
+  defp shape(catalog, type, schema_override, wrap?) do
     schema = schema_override || component_schema(catalog, type)
 
     if is_map(schema) do
       defs = Map.merge(catalog_defs(catalog), Map.get(schema, "$defs") || %{})
-
-      case classify(schema, defs) do
-        {:object, shape} -> shape
-        _not_an_object -> %{}
-      end
+      shape = object_shape(schema, defs)
+      if wrap?, do: Map.merge(declared_shape(schema, defs), shape), else: shape
     else
       %{}
     end
+  end
+
+  defp object_shape(schema, defs) do
+    case classify(schema, defs) do
+      {:object, shape} -> shape
+      _not_an_object -> %{}
+    end
+  end
+
+  # What the schema declares for each property, including those an `allOf`
+  # envelope's members declare. Wrapped binding needs it: a literal at a
+  # dynamic position is still a (read-only) binding.
+  defp declared_shape(schema, defs) do
+    dynamic = CommonTypes.dynamic_definitions()
+
+    for {key, property} <- declared_properties(schema), is_map(property), into: %{} do
+      {key, classify(property, defs, dynamic)}
+    end
+  end
+
+  defp declared_properties(schema) do
+    own = if is_map(schema["properties"]), do: schema["properties"], else: %{}
+
+    schema
+    |> Map.get("allOf", [])
+    |> Enum.reduce(%{}, fn
+      %{} = member, acc -> Map.merge(acc, declared_properties(member))
+      _other, acc -> acc
+    end)
+    |> Map.merge(own)
   end
 
   defp component_schema(%Catalog{} = catalog, type) do
@@ -256,42 +291,76 @@ defmodule A2UICore.Resolution.Binder do
 
   # -- binding ------------------------------------------------------------------
 
-  defp bind_object(object, shape, context) do
+  defp bind_object(object, shape, context, wrap?) do
     v1? = DataContext.v1?(context)
 
-    Enum.reduce(object, {%{}, []}, fn {key, value}, {result, effects} ->
-      behavior = Map.get(shape, key) || fallback(key, value, v1?)
-      {resolved, extras, more} = bind_value(value, behavior, context)
-      {result |> Map.put(key, resolved) |> Map.merge(extras), effects ++ more}
+    {result, effects} =
+      Enum.reduce(object, {%{}, []}, fn {key, value}, {result, effects} ->
+        behavior = Map.get(shape, key) || fallback(key, value, v1?)
+        {resolved, extras, more} = bind_value(value, behavior, context, wrap?)
+        {result |> Map.put(key, resolved) |> Map.merge(extras), effects ++ more}
+      end)
+
+    {if(wrap?, do: with_omitted_bindings(result, shape), else: result), effects}
+  end
+
+  # A dynamic property the component left out is a read-only binding of
+  # nothing, so consumers can rely on every dynamic property being there.
+  defp with_omitted_bindings(result, shape) do
+    Enum.reduce(shape, result, fn
+      {key, :dynamic}, acc -> Map.put_new(acc, key, %Binding{})
+      _other, acc -> acc
     end)
   end
 
   # Returns `{value, properties to add to the owning object, effects}`.
-  defp bind_value(nil, _behavior, _context), do: {nil, %{}, []}
+  defp bind_value(nil, :dynamic, _context, true), do: {%Binding{}, %{}, []}
+  defp bind_value(nil, _behavior, _context, _wrap?), do: {nil, %{}, []}
 
-  defp bind_value(value, :dynamic, context) do
+  defp bind_value(value, :dynamic, context, wrap?) do
     {resolved, effects} = DataContext.resolve_dynamic_value(context, value)
+
+    resolved =
+      if wrap?, do: %Binding{value: resolved, path: binding_path(context, value)}, else: resolved
+
     {resolved, %{}, effects}
   end
 
-  defp bind_value(value, :checkable, context), do: bind_checks(value, context)
+  defp bind_value(value, :action, _context, true), do: {%Action{definition: value}, %{}, []}
+  defp bind_value(value, :checkable, context, _wrap?), do: bind_checks(value, context)
 
-  defp bind_value(value, {:array, element}, context) when is_list(value) do
+  defp bind_value(value, {:array, element}, context, wrap?) when is_list(value) do
     {items, effects} =
       Enum.map_reduce(value, [], fn item, effects ->
-        {resolved, _extras, more} = bind_value(item, element, context)
+        {resolved, _extras, more} = bind_value(item, element, context, wrap?)
         {resolved, effects ++ more}
       end)
 
     {items, %{}, effects}
   end
 
-  defp bind_value(value, {:object, shape}, context) when is_map(value) do
-    {resolved, effects} = bind_object(value, shape, context)
+  defp bind_value(value, {:object, shape}, context, wrap?) when is_map(value) do
+    {resolved, effects} = bind_object(value, shape, context, wrap?)
     {resolved, %{}, effects}
   end
 
-  defp bind_value(value, _behavior, _context), do: {value, %{}, []}
+  defp bind_value(value, _behavior, _context, _wrap?), do: {value, %{}, []}
+
+  # The absolute path of a `{"path": …}` binding (`{"@path": …}` in
+  # v1.0); `nil` for literals, calls and template objects.
+  defp binding_path(context, %{} = value) do
+    key = if DataContext.v1?(context), do: "@path", else: "path"
+
+    case value do
+      %{^key => path} when is_binary(path) and not is_map_key(value, "componentId") ->
+        DataContext.resolve_path(context, path)
+
+      _other ->
+        nil
+    end
+  end
+
+  defp binding_path(_context, _value), do: nil
 
   defp bind_checks(value, context) do
     rules = if is_list(value), do: value, else: []

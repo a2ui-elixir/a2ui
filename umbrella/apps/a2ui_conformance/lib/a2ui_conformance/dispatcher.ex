@@ -95,7 +95,10 @@ defmodule A2UIConformance.Dispatcher do
     {"core", "get_renderer_data_model"} => A2UIConformance.Handlers.RendererDataModel,
     {"core", "get_client_data_model"} => A2UIConformance.Handlers.RendererDataModel,
     {"core", "select_catalog"} => A2UIConformance.Handlers.SelectCatalog,
-    {"core", "dispatch_action"} => A2UIConformance.Handlers.DispatchAction
+    {"core", "dispatch_action"} => A2UIConformance.Handlers.DispatchAction,
+    # node resolution and accessibility
+    {"core", "resolve_nodes"} => A2UIConformance.Handlers.ResolveNodes,
+    {"core", "accessibility_check"} => A2UIConformance.Handlers.AccessibilityCheck
   }
 
   @type resolution ::
@@ -111,6 +114,10 @@ defmodule A2UIConformance.Dispatcher do
   harness fails those rather than skipping, per the upstream README).
   """
   @spec resolve(Case.t()) :: resolution()
+  def resolve(%Case{scope: "core", action: "resolve_nodes", suite: suite})
+      when suite != @node_resolution_suite,
+      do: :unknown
+
   def resolve(%Case{scope: scope, action: action} = case) when is_binary(action) do
     case Map.fetch(@handlers, {scope, action}) do
       {:ok, module} -> {:ok, module}
@@ -119,10 +126,6 @@ defmodule A2UIConformance.Dispatcher do
   end
 
   def resolve(%Case{}), do: :unknown
-
-  defp without_handler(%Case{scope: "core", action: "resolve_nodes", suite: suite})
-       when suite != @node_resolution_suite,
-       do: :unknown
 
   defp without_handler(%Case{scope: "core", action: action}) do
     case Map.fetch(@core_areas, action) do

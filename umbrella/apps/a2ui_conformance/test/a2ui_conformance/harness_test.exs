@@ -110,8 +110,11 @@ defmodule A2UIConformance.HarnessTest do
     end
 
     test "resolve_nodes is only known in its own suite; unknown actions are unknown" do
-      assert {:unimplemented, "node resolution"} =
+      assert {:ok, A2UIConformance.Handlers.ResolveNodes} =
                Dispatcher.resolve(case_for("core/node_resolution.yaml", "resolve_nodes"))
+
+      assert {:ok, A2UIConformance.Handlers.AccessibilityCheck} =
+               Dispatcher.resolve(case_for("core/accessibility.yaml", "accessibility_check"))
 
       assert :unknown = Dispatcher.resolve(case_for("core/data_model.yaml", "resolve_nodes"))
       assert :unknown = Dispatcher.resolve(case_for("core/data_model.yaml", "compile"))

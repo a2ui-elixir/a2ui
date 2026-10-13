@@ -117,3 +117,38 @@ them or documented as a skip with a reason.
   the harness matches by tail (`chartType` is found at `components.c1.chartType`).
 - **v0.8 suites are skipped by file name.** A suite ending in `_v0_8.yaml` is out of
   scope even when a case names no version.
+
+## Node resolution and accessibility
+
+- **The resolver is a value, not an observer.** The TypeScript and Dart resolvers are
+  reactive: nodes hold signals and notify subscribers. `NodeResolver` is immutable. The
+  host hands it the surface after a change (`update/2`) and reads what happened from the
+  returned notifications (`{:node_created | :node_updated | :node_destroyed, ref}`).
+  One `update/2` is one batch, so a node whose props changed reports once however many
+  properties moved. The suite's "last emission equals final props" and "earlier binding
+  snapshots stay unchanged" checks hold by construction and are not asserted.
+- **Identity is the edge, not the object.** A node keeps its `ref` while the edge that
+  leads to it (parent, property slot, component id, data path, occurrence) keeps leading
+  to the same kind of node. A placeholder that receives its definition, or a component
+  whose type changes, is a new node and the old one is destroyed — the behaviour
+  `replaced_nodes` asserts.
+- **Diagnostics are edge-triggered.** An unknown type, a cycle or a binding problem is
+  reported when it appears and again only after it went away.
+- **Literal dynamic properties are read-only bindings.** With `wrap: true` the Binder
+  uses the schema's declared properties (including `allOf` envelope members), so a
+  literal in a `DynamicString` slot arrives as `%Binding{value: …, path: nil}` like the
+  reference's `ResolvedBinding`; without it the Binder keeps inferring from the value's
+  shape.
+- **Accessibility is checked at the model level only.** No upstream SDK runs
+  `accessibility.yaml` (Python skips it, TypeScript has no handler, Swift checks a subset
+  of literal attributes). The Elixir handler checks `label`, `description`, `live`,
+  `hidden`, `role` and `checked` against `A2UICore.Accessibility`, asserts `{path: …}`
+  expectations as bindings, and runs the catalog lint. `assertions.axeCore` names DOM
+  rules of a browser renderer; it is ignored here and belongs to the Phoenix renderer's
+  tests.
+- **Roles and the lint heuristic are ours.** The spec fixes the attributes and the
+  explicit-over-inferred rule, not role names or how a linter recognises "accepts
+  actions or input bindings". The role map is the four types the suite names; the lint
+  treats a property referencing `Action`, or a `value` bound to a `Dynamic*` type, as
+  interactive and accepts any of `label`, `title`, `text`, `child` as a labelling
+  fallback.
