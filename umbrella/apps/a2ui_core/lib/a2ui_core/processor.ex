@@ -8,12 +8,13 @@ defmodule A2UICore.Processor do
   host may react to. Nothing is delivered by callback and no process is
   involved; the host owns the processor value.
 
-      processor = A2UICore.Processor.new([A2UICore.Catalog.Basic.catalog("v0.9")])
+      catalog = A2UICore.Catalog.Basic.catalog("v0.9")
+      processor = A2UICore.Processor.new([catalog])
 
       {:ok, processor, effects} =
         A2UICore.Processor.process(processor, %{
           "version" => "v0.9",
-          "createSurface" => %{"surfaceId" => "main", "catalogId" => catalog_id}
+          "createSurface" => %{"surfaceId" => "main", "catalogId" => catalog.catalog_id}
         })
 
   ## Semantics

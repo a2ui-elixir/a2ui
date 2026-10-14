@@ -1,14 +1,12 @@
 defmodule A2UICore.Schema.Source do
   @moduledoc """
   Loads the A2UI protocol's own JSON Schema documents — vendored under
-  `priv/` and pinned by `SPEC_PIN` — plus the shipped basic catalogs.
+  `priv/` from a pinned revision of the specification — plus the shipped
+  basic catalogs.
 
   Documents are read once and cached in `:persistent_term` (they are
   immutable, process-free data). The vendored copies are the single
-  source of truth for envelope validation: the conformance
-  `agent_to_renderer_schema` / `common_types_schema` cases compare our
-  emitted documents against the upstream checkout, which pins any
-  drift between the vendored files and the spec.
+  source of truth for envelope validation.
 
   ## Layout
 

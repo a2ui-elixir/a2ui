@@ -36,8 +36,10 @@ defmodule MyAppWeb.AgentLive do
     """
   end
 
+  # Messages for the agent (`action`, `error`, `rendererFunctionResponse`),
+  # here broadcast to the process that talks to it.
   defp send_to_agent(message, socket) do
-    # Deliver `message` (an `action`, `error` or `rendererFunctionResponse`).
+    Phoenix.PubSub.broadcast(MyApp.PubSub, "a2ui:renderer", {:renderer, self(), message})
     socket
   end
 end

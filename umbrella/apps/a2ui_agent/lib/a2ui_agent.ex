@@ -1,7 +1,6 @@
 defmodule A2UIAgent do
   @moduledoc """
-  Agent-side SDK for the A2UI protocol, built on
-  [`A2UICore`](../a2ui_core/readme.html).
+  Agent-side SDK for the A2UI protocol, built on `A2UICore`.
 
   An agent registers the catalogs it can write for, negotiates them with
   each renderer, tells the model how to write A2UI and reads the model's

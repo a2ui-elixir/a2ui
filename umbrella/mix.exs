@@ -1,8 +1,6 @@
 defmodule Umbrella.MixProject do
   use Mix.Project
 
-  @source_commit_info "[spec pinned, see ../SPEC_PIN]"
-
   def project do
     [
       apps_path: "apps",
@@ -10,7 +8,6 @@ defmodule Umbrella.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
-      docs: docs(),
       test_coverage: [tool: ExCoveralls],
       # Shared PLT config for `mix dialyzer` run from the umbrella root
       # (which is how CI invokes it). :ex_unit is required because
@@ -25,7 +22,6 @@ defmodule Umbrella.MixProject do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.40", only: [:dev], runtime: false},
       {:excoveralls, "~> 0.18", only: [:test], runtime: false}
     ]
   end
@@ -42,15 +38,6 @@ defmodule Umbrella.MixProject do
         "quality",
         "coveralls --umbrella"
       ]
-    ]
-  end
-
-  defp docs do
-    [
-      main: "readme",
-      source_url: "https://github.com/a2ui-project/a2ui-elixir",
-      formatters: ["html"],
-      api_reference: @source_commit_info
     ]
   end
 end

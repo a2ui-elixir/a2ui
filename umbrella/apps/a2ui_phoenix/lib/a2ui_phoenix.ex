@@ -1,6 +1,6 @@
 defmodule A2UIPhoenix do
   @moduledoc """
-  Phoenix/LiveView renderer for [`A2UICore`](../a2ui_core/readme.html).
+  Phoenix/LiveView renderer for `A2UICore`.
 
     * `A2UIPhoenix.Session` — the renderer state of a conversation: the
       surfaces an agent built and their resolved component trees; plain

@@ -43,6 +43,13 @@ zero-test run (CI does).
 Do **not** pass `--max-failures=0` to `mix test`/`mix coveralls`: ExUnit then stops
 before running anything and exits 0.
 
+Each publishable app builds its own docs (`mix docs --warnings-as-errors` in
+`apps/a2ui_core`, `apps/a2ui_phoenix` and `apps/a2ui_agent`; CI checks this). Its
+guide lives in `guides/`, and every code example in a guide must run as written. A
+package build of `a2ui_phoenix` or `a2ui_agent` needs `A2UI_HEX_BUILD=1`, so that
+`a2ui_core` becomes a Hex requirement instead of the sibling app (`README.md`,
+Releasing).
+
 Progress and the working task list live in `TODO.md`; deliberate deviations from the
 reference live in `NOTES/divergences.md`.
 
@@ -51,7 +58,7 @@ reference live in `NOTES/divergences.md`.
 ```
 umbrella/apps/a2ui_core          # protocol engine (pure Elixir)
 umbrella/apps/a2ui_conformance   # YAML suite runner against reference/
-umbrella/apps/a2ui_phoenix       # LiveView adapter (Phase 8+)
-umbrella/apps/a2ui_agent         # Agent SDK (Phase 10)
-reference/a2ui                   # upstream spec + conformance (pinned, see ../SPEC_PIN)
+umbrella/apps/a2ui_phoenix       # LiveView renderer, SSE plug
+umbrella/apps/a2ui_agent         # agent SDK, A2A server
+reference/a2ui                   # upstream spec + conformance (pinned, see SPEC_PIN)
 ```

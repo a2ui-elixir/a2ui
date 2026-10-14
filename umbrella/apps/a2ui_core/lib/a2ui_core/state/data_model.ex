@@ -31,7 +31,7 @@ defmodule A2UICore.State.DataModel do
   path, cannot be written through.
 
   Writes are **atomic**: on error the original model is untouched. (The
-  reference leaves partial writes behind; see `NOTES/divergences.md`.)
+  upstream Python SDK leaves partial writes behind.)
 
   ## Subscriptions and notifications
 

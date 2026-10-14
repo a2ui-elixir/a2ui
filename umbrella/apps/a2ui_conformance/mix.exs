@@ -35,6 +35,10 @@ defmodule A2UIConformance.MixProject do
     [
       {:a2ui_core, in_umbrella: true},
       {:a2ui_agent, in_umbrella: true},
+      # a2ui_agent compiles its A2A plug when Plug is available, which it
+      # always is in the umbrella's shared build; depending on it here keeps
+      # that compile consistent when this app is built on its own.
+      {:plug, "~> 1.16", only: [:dev, :test]},
       {:yamerl, "~> 0.10"},
       {:jason, "~> 1.4"},
       {:excoveralls, "~> 0.18", only: [:test], runtime: false}

@@ -1,11 +1,12 @@
 defmodule A2UIPhoenix.Plug.SSESmokeTest do
   @moduledoc false
-  # The event stream over a real HTTP connection (Bandit, read with OTP's
-  # :httpc): each message reaches the client before the source produces
-  # the next one.
+  # The event stream over a real HTTP connection (Bandit, read straight
+  # off the socket): each message reaches the client before the source
+  # produces the next one.
 
   use ExUnit.Case, async: true
 
+  alias A2UIPhoenix.Test.HTTP
   alias A2UIPhoenix.Test.SSE, as: Reader
 
   # Yields three messages. Before each one after the first it reports to
@@ -26,8 +27,6 @@ defmodule A2UIPhoenix.Plug.SSESmokeTest do
   end
 
   setup do
-    {:ok, _apps} = Application.ensure_all_started(:inets)
-
     server =
       start_supervised!(
         {Bandit,
@@ -38,44 +37,46 @@ defmodule A2UIPhoenix.Plug.SSESmokeTest do
       )
 
     {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
-    %{url: ~c"http://127.0.0.1:#{port}/a2ui/events"}
+    %{port: port}
   end
 
-  test "sends each message as it happens", %{url: url} do
-    {:ok, ref} = :httpc.request(:get, {url, []}, [], sync: false, stream: :self)
-
-    assert_receive {:http, {^ref, :stream_start, headers}}, 5_000
-    assert {~c"content-type", ~c"text/event-stream; charset=utf-8"} in headers
+  test "sends each message as it happens", %{port: port} do
+    {socket, 200, headers} = HTTP.request(port, "GET", "/a2ui/events")
+    assert {"content-type", "text/event-stream; charset=utf-8"} in headers
+    assert {"transfer-encoding", "chunked"} in headers
 
     buffer =
-      Enum.reduce(2..3, await_events(ref, "", 1), fn i, buffer ->
+      Enum.reduce(2..3, await_events(socket, "", 1), fn i, buffer ->
         assert_receive {:waiting, ^i, source}, 5_000
         send(source, {:go, i})
-        await_events(ref, buffer, i)
+        await_events(socket, buffer, i)
       end)
 
-    messages = ref |> await_end(buffer) |> Reader.json()
+    messages = socket |> await_end(buffer) |> Reader.json()
     assert Enum.map(messages, & &1["deleteSurface"]["surfaceId"]) == ["s1", "s2", "s3"]
   end
 
-  defp await_events(ref, buffer, count) do
+  defp await_events(socket, buffer, count) do
     if length(Reader.json(buffer)) >= count do
       buffer
     else
-      receive do
-        {:http, {^ref, :stream, chunk}} -> await_events(ref, buffer <> chunk, count)
-      after
-        5_000 -> flunk("expected #{count} events, got: #{inspect(Reader.json(buffer))}")
+      case HTTP.next_chunk(socket) do
+        {:ok, data} ->
+          await_events(socket, buffer <> data, count)
+
+        other ->
+          flunk(
+            "expected #{count} events, got: #{inspect(Reader.json(buffer))}, then: #{inspect(other)}"
+          )
       end
     end
   end
 
-  defp await_end(ref, buffer) do
-    receive do
-      {:http, {^ref, :stream, chunk}} -> await_end(ref, buffer <> chunk)
-      {:http, {^ref, :stream_end, _headers}} -> buffer
-    after
-      5_000 -> flunk("the stream did not end")
+  defp await_end(socket, buffer) do
+    case HTTP.next_chunk(socket) do
+      {:ok, data} -> await_end(socket, buffer <> data)
+      :done -> buffer
+      other -> flunk("the stream did not end: #{inspect(other)}")
     end
   end
 end

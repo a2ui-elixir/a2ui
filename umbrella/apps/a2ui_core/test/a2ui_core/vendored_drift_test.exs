@@ -48,6 +48,15 @@ defmodule A2UICore.VendoredDriftTest do
     end
 
     @tag :vendored_drift
+    test "every reference schema is vendored" do
+      for {dir, reference_dir} <- @schema_dirs do
+        assert @priv |> Path.join("schemas/#{dir}") |> File.ls!() |> Enum.sort() ==
+                 reference_dir |> Reference.path() |> File.ls!() |> Enum.sort(),
+               "schemas/#{dir} and #{reference_dir} list different files"
+      end
+    end
+
+    @tag :vendored_drift
     test "every vendored schema directory has a reference mapping" do
       assert @priv |> Path.join("schemas") |> File.ls!() |> Enum.sort() ==
                @schema_dirs |> Map.keys() |> Enum.sort()

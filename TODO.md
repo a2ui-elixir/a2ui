@@ -182,7 +182,8 @@ format the harness does not load).
 - [x] M9.1 `A2UIPhoenix.Plug.SSE`: one event per message (`data:` lines and an
       optional `event:` type), read lazily, stopped when the client goes.
       Contract tests: framing and order over all 86 example bundles, a client
-      that leaves, and a smoke test over a real connection (Bandit, `:httpc`).
+      that leaves, and a smoke test over a real connection (Bandit, read off
+      the socket).
 - [x] M9.2 A2A: `A2UIAgent.A2A` (extension URIs, agent-card entry,
       negotiation, parts); `A2UIAgent.A2A.Server` (`message/send` answers with
       the task; `message/stream` with the task, `working` updates and a final
@@ -202,11 +203,38 @@ own server tests: `message/send` returns the task; `message/stream` sends the
 `submitted` task, `working` updates and a final `input-required` update; a
 failed negotiation fails the task already announced.
 
-### M11 — release
+### M11 — release (docs build without warnings; `hex.build` for the three packages; nothing published)
 
-- [ ] M11.1 ExDoc guides (core, Phoenix, agent), READMEs, changelog.
-- [ ] M11.2 Hex metadata and `mix hex.build` dry-run for the three packages.
-- [ ] M11.3 CI on the pinned reference; `SPEC_PIN` bump procedure.
+- [x] M11.1 Guides: `processing_messages` (core), `rendering_surfaces`
+      (Phoenix) and `serving_an_agent` (agent). Every example runs as
+      written: the code blocks were run as scripts, and the LiveView, custom
+      component, SSE and A2A examples inside an app made by `mix phx.new`.
+      READMEs rewritten, a CHANGELOG per package, ExDoc config per package
+      (module groups, the guide, source links into `umbrella/apps/<app>`,
+      `a2ui_core` links to hexdocs). `mix docs --warnings-as-errors` is clean;
+      the operation structs `Message.decode/2` returns are now documented.
+- [x] M11.2 Hex metadata: `files`, links, descriptions. `a2ui_core` ships
+      the specification's schemas and catalogs in `priv/` with their license
+      file (`priv/LICENSE-APACHE`). `a2ui_phoenix` and `a2ui_agent` use
+      the sibling app inside the repository and `a2ui_core ~> 0.1.0` in the
+      package (`A2UI_HEX_BUILD=1` for a build; without it `hex.build` drops
+      the dependency). The three tarballs, unpacked into a fresh project,
+      compile and pass the guides' examples.
+- [x] M11.3 CI `package` job: the docs with warnings as errors and the three
+      `hex.build`s. README: conformance scoreboard, releasing, `SPEC_PIN` bump
+      procedure. The drift test also fails when upstream adds or removes a
+      schema file. `a2ui_conformance` depends on `plug` in dev and test, so
+      `a2ui_agent` compiles the same when that app is built on its own. The
+      SSE and A2A smoke tests read the response straight off the socket:
+      `:httpc` keeps body data that arrives together with the headers until
+      more data comes, so a test waiting on its first event failed now and
+      then (OTP's `httpc_handler`).
+
+Open before a first release: the repository URL (`@source_url` names
+`github.com/a2ui-project/a2ui-elixir`, the upstream organization's namespace);
+the copyright holder in the LICENSE files ("lab-elixir-a2ui contributors");
+a license review of upstream text reproduced verbatim because the suites
+compare it exactly (the direct JSON prompt rules, error messages).
 
 ### Decisions
 

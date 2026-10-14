@@ -63,3 +63,44 @@ jobs:
       - name: Tests with coverage
         run: mix coveralls --umbrella
         working-directory: umbrella
+
+  package:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            umbrella/deps
+            umbrella/_build
+          key: mix-dev-${{ runner.os }}-${{ hashFiles('umbrella/mix.lock') }}-${{ hashFiles('umbrella/apps/*/mix.exs') }}
+          restore-keys: |
+            mix-dev-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+        working-directory: umbrella
+
+      - name: Build docs (warnings as errors)
+        run: |
+          for app in a2ui_core a2ui_phoenix a2ui_agent; do
+            (cd "apps/$app" && mix docs --warnings-as-errors)
+          done
+        working-directory: umbrella
+
+      # A2UI_HEX_BUILD=1 makes the sibling a2ui_core a Hex requirement, as in
+      # the published packages.
+      - name: Build Hex packages
+        run: |
+          (cd apps/a2ui_core && mix hex.build)
+          (cd apps/a2ui_phoenix && A2UI_HEX_BUILD=1 mix hex.build)
+          (cd apps/a2ui_agent && A2UI_HEX_BUILD=1 mix hex.build)
+        working-directory: umbrella

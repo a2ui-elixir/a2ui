@@ -79,7 +79,16 @@ defmodule A2UICore.Message do
   Encodes canonical operations back into wire-format message maps.
 
   `overrides` may pass `:version` to force a wire version (e.g.
-  `"v0.9.1"` instead of `"v0.9"`).
+  `"v0.9.1"` instead of `"v0.9"`). Without it, `createSurface` and the
+  function-call operations use the version they carry, and
+  `updateComponents`, `updateDataModel` and `deleteSurface`, which carry
+  none, are encoded as `"v0.9"`.
+
+      iex> A2UICore.Message.encode(
+      ...>   %A2UICore.Message.Operation.DeleteSurface{surface_id: "main"},
+      ...>   version: "v1.0"
+      ...> )
+      %{"version" => "v1.0", "deleteSurface" => %{"surfaceId" => "main"}}
   """
   @spec encode(Operation.t() | [Operation.t()], keyword()) :: map() | [map()]
   def encode(ops, overrides \\ [])

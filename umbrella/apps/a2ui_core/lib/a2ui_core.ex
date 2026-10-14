@@ -4,12 +4,21 @@ defmodule A2UICore do
   versioned message envelopes, catalog schemas, surface state, data model,
   and processing of agent-to-renderer updates.
 
-  Split into layered modules per the plan in `PLAN.md`: primitives
-  (`A2UICore.Version`, `A2UICore.Pointer`, `A2UICore.Identifier`,
-  `A2UICore.Error`), wire (`A2UICore.Message*`), schema validation
-  (`A2UICore.Schema`), state (`A2UICore.State.*`), catalogs
-  (`A2UICore.Catalog*`), resolution (`A2UICore.Resolution.*`),
-  processing (`A2UICore.Processor`), and RPC (`A2UICore.RPC`).
+  The modules are layered:
+
+    * primitives: `A2UICore.Version`, `A2UICore.Pointer`,
+      `A2UICore.Identifier`, `A2UICore.Error`;
+    * wire: `A2UICore.Message` and the operations it decodes to;
+    * schema validation: `A2UICore.Schema`;
+    * state: `A2UICore.State.Surface`, `A2UICore.State.DataModel`;
+    * catalogs: `A2UICore.Catalog`, `A2UICore.Catalog.Basic`;
+    * resolution: `A2UICore.Resolution.NodeResolver`,
+      `A2UICore.Resolution.DataContext`;
+    * processing: `A2UICore.Processor`;
+    * function calls: `A2UICore.RPC`.
+
+  Start with `A2UICore.Processor` and the
+  [processing guide](processing_messages.html).
   """
 
   alias A2UICore.Version

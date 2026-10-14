@@ -1,12 +1,13 @@
 defmodule A2UIAgent.A2A.PlugSmokeTest do
   @moduledoc false
-  # `message/stream` over a real HTTP connection (Bandit, read with OTP's
-  # :httpc): every event reaches the client before the agent produces the
-  # next chunk.
+  # `message/stream` over a real HTTP connection (Bandit, read straight
+  # off the socket): every event reaches the client before the agent
+  # produces the next chunk.
 
   use ExUnit.Case, async: true
 
   alias A2UIAgent.A2A
+  alias A2UIAgent.Test.HTTP
   alias A2UIAgent.Test.SSE
 
   # Writes three chunks. Before each one after the first it reports to
@@ -36,8 +37,6 @@ defmodule A2UIAgent.A2A.PlugSmokeTest do
   end
 
   setup do
-    {:ok, _apps} = Application.ensure_all_started(:inets)
-
     server =
       start_supervised!(
         {Bandit,
@@ -48,10 +47,10 @@ defmodule A2UIAgent.A2A.PlugSmokeTest do
       )
 
     {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
-    %{url: ~c"http://127.0.0.1:#{port}/a2a"}
+    %{port: port}
   end
 
-  test "streams each event as it happens", %{url: url} do
+  test "streams each event as it happens", %{port: port} do
     message = %{
       "role" => "user",
       "parts" => [A2A.text_part("Hi")],
@@ -66,21 +65,21 @@ defmodule A2UIAgent.A2A.PlugSmokeTest do
         "params" => %{"message" => message}
       })
 
-    {:ok, ref} =
-      :httpc.request(:post, {url, [], ~c"application/json", body}, [], sync: false, stream: :self)
+    {socket, 200, headers} =
+      HTTP.request(port, "POST", "/a2a", [{"content-type", "application/json"}], body)
 
-    assert_receive {:http, {^ref, :stream_start, headers}}, 5_000
-    assert {~c"content-type", ~c"text/event-stream; charset=utf-8"} in headers
+    assert {"content-type", "text/event-stream; charset=utf-8"} in headers
+    assert {"transfer-encoding", "chunked"} in headers
 
-    buffer = await_events(ref, "", 2)
+    buffer = await_events(socket, "", 2)
     assert_receive {:waiting, 2, agent}, 5_000
     send(agent, {:go, 2})
 
-    buffer = await_events(ref, buffer, 3)
+    buffer = await_events(socket, buffer, 3)
     assert_receive {:waiting, 3, agent}, 5_000
     send(agent, {:go, 3})
 
-    results = ref |> await_end(buffer) |> SSE.json() |> Enum.map(& &1["result"])
+    results = socket |> await_end(buffer) |> SSE.json() |> Enum.map(& &1["result"])
 
     assert [%{"kind" => "task"} | _] = results
     assert %{"final" => true, "status" => %{"state" => "input-required"}} = List.last(results)
@@ -93,24 +92,27 @@ defmodule A2UIAgent.A2A.PlugSmokeTest do
     assert texts == ["one.", " step 2.", " step 3."]
   end
 
-  defp await_events(ref, buffer, count) do
+  defp await_events(socket, buffer, count) do
     if length(SSE.json(buffer)) >= count do
       buffer
     else
-      receive do
-        {:http, {^ref, :stream, chunk}} -> await_events(ref, buffer <> chunk, count)
-      after
-        5_000 -> flunk("expected #{count} events, got: #{inspect(SSE.json(buffer))}")
+      case HTTP.next_chunk(socket) do
+        {:ok, data} ->
+          await_events(socket, buffer <> data, count)
+
+        other ->
+          flunk(
+            "expected #{count} events, got: #{inspect(SSE.json(buffer))}, then: #{inspect(other)}"
+          )
       end
     end
   end
 
-  defp await_end(ref, buffer) do
-    receive do
-      {:http, {^ref, :stream, chunk}} -> await_end(ref, buffer <> chunk)
-      {:http, {^ref, :stream_end, _headers}} -> buffer
-    after
-      5_000 -> flunk("the stream did not end")
+  defp await_end(socket, buffer) do
+    case HTTP.next_chunk(socket) do
+      {:ok, data} -> await_end(socket, buffer <> data)
+      :done -> buffer
+      other -> flunk("the stream did not end: #{inspect(other)}")
     end
   end
 end

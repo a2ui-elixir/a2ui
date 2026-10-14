@@ -1,17 +1,35 @@
 # lab-elixir-a2ui
 
-A spec-faithful, multi-version Elixir/Phoenix implementation of the
-[A2UI protocol](https://a2ui.org) (v0.9 / v0.9.1 and v1.0).
+An Elixir implementation of the [A2UI protocol](https://a2ui.org), protocol
+versions v0.9, v0.9.1 and v1.0: a protocol engine, a Phoenix LiveView renderer
+and an agent SDK, checked against the upstream conformance suites.
 
-| Package | Namespace | Status |
+| Package | Namespace | What it is |
 |---|---|---|
-| `a2ui_core` | `A2UICore.*` | Protocol engine (pure Elixir, Jason only). Phase 2 done: wire messages, schema validation, version adapters. |
-| `a2ui_conformance` | `A2UIConformance.*` | Test harness running the upstream YAML conformance suites. |
-| `a2ui_phoenix` | `A2UIPhoenix.*` | LiveView renderer — not started. |
-| `a2ui_agent` | `A2UIAgent.*` | Agent SDK — not started. |
+| `a2ui_core` | `A2UICore` | Protocol engine: messages, catalogs, surface state, node resolution, function calls. Pure Elixir; Jason is its only dependency. |
+| `a2ui_phoenix` | `A2UIPhoenix` | LiveView renderer: the basic catalog as function components, two-way bindings, actions, and an SSE plug. |
+| `a2ui_agent` | `A2UIAgent` | Agent SDK: catalog negotiation, prompts, validated parsing of streamed model output, and an A2A server. |
+| `a2ui_conformance` | `A2UIConformance` | Test harness for the upstream YAML conformance suites. Not published. |
 
-Start with `PLAN.md` (design and phases), `TODO.md` (live task list),
-`AGENTS.md` (invariants and commands) and `NOTES/` (research, divergences).
+Each package has a README and a guide under `umbrella/apps/*/guides`.
+`PLAN.md` holds the design, `TODO.md` the task list, `AGENTS.md` the
+invariants and commands, and `NOTES/` the research and the deliberate
+divergences from the reference implementations.
+
+## Conformance
+
+Of the 1053 upstream cases at the pinned commit (`SPEC_PIN`), 690 run and all
+of them pass. The others are skipped, each for a stated reason:
+
+| Suite family | Cases | Run | Skipped |
+|---|---:|---:|---|
+| `core` | 524 | 487 | 37 for protocol v0.8 |
+| `agent` (shared suites) | 94 | 67 | 27 written in the Express format |
+| `agent/direct_json` | 162 | 123 | 39 for v0.8 catalogs |
+| `agent/express` | 115 | 0 | the optional Express format |
+| `agent/legacy` | 133 | 0 | the optional legacy SDK (39 of them v0.8) |
+| `extensions/a2a` | 14 | 13 | 1 v0.8 payload |
+| `extensions/adk` | 11 | 0 | adapters for Google's Python ADK |
 
 ## Getting the upstream reference
 
@@ -28,9 +46,9 @@ git -C reference/a2ui checkout --detach FETCH_HEAD
 
 Environment variables:
 
-- `A2UI_REFERENCE_ROOT` — absolute path of the checkout (default: found by walking up
+- `A2UI_REFERENCE_ROOT`: absolute path of the checkout (default: found by walking up
   to `reference/a2ui`).
-- `A2UI_REQUIRE_REFERENCE=1` — fail instead of silently generating zero tests when the
+- `A2UI_REQUIRE_REFERENCE=1`: fail instead of silently generating zero tests when the
   checkout is missing (CI sets this).
 
 ## Develop
@@ -46,7 +64,80 @@ mix credo --strict
 mix dialyzer                              # first run builds the PLT
 ```
 
+Each publishable package builds its own documentation:
+
+```bash
+cd umbrella/apps/a2ui_core && mix docs    # likewise a2ui_phoenix and a2ui_agent
+```
+
+## Releasing
+
+The three packages share a version. `a2ui_phoenix` and `a2ui_agent` depend on
+`a2ui_core`: on the sibling app inside this repository, and on the Hex release
+in the published package. `A2UI_HEX_BUILD=1` selects the Hex release for a
+build:
+
+```bash
+cd umbrella/apps/a2ui_core && mix hex.build
+cd ../a2ui_phoenix && A2UI_HEX_BUILD=1 mix hex.build
+cd ../a2ui_agent && A2UI_HEX_BUILD=1 mix hex.build
+```
+
+To release:
+
+1. Set the version in the three `mix.exs` files, and give the version's
+   section in each `CHANGELOG.md` its date.
+2. Check that `@source_url` in the three `mix.exs` files is this project's
+   repository. The docs link source files to the tag `v<version>` there.
+3. Tag the commit `v<version>`.
+4. Publish `a2ui_core` first, then `a2ui_phoenix` and `a2ui_agent`, using
+   `A2UI_HEX_BUILD=1 mix hex.publish` for the last two.
+
+## Bumping `SPEC_PIN`
+
+1. Check out the new upstream commit:
+
+   ```bash
+   new=<commit>
+   git -C reference/a2ui fetch --depth 1 https://github.com/a2ui-project/a2ui.git "$new"
+   git -C reference/a2ui checkout --detach FETCH_HEAD
+   ```
+
+2. Run the vendored-drift test. It fails for every schema or catalog under
+   `umbrella/apps/a2ui_core/priv` that differs from the checkout, and for
+   schema files added or removed upstream:
+
+   ```bash
+   cd umbrella/apps/a2ui_core
+   A2UI_REQUIRE_REFERENCE=1 mix test --only vendored_drift
+   ```
+
+3. Copy the changed files over. Run this from the repository root:
+
+   ```bash
+   ref=reference/a2ui
+   priv=umbrella/apps/a2ui_core/priv
+   for v in v0_9 v0_9_1 v1_0; do
+     rm "$priv/schemas/$v"/*.json
+     cp "$ref/specification/$v/json"/*.json "$priv/schemas/$v/"
+   done
+   cp "$ref/specification/v0_9_1/catalogs/basic/catalog.json" "$priv/catalogs/basic_v0_9_1.json"
+   cp "$ref/catalogs/basic/v1/catalog.json" "$priv/catalogs/basic_v1_0.json"
+   cp "$ref/specification/v1_0/test/testing_catalog.json" "$priv/catalogs/testing_v1_0.json"
+   ```
+
+4. Record the commit, its date and what was checked in `SPEC_PIN`.
+5. Run the full gate (the commands under Develop) with
+   `A2UI_REQUIRE_REFERENCE=1`. The conformance suite also fails on an
+   action the harness does not know and on an explicit skip in
+   `A2UIConformance.SkipPolicy` that no longer matches a case.
+6. Fix what fails, or skip a case in `A2UIConformance.SkipPolicy` with the
+   reason. Record deliberate differences from the reference in
+   `NOTES/divergences.md`, update the scoreboard above, and commit.
+
 ## License
 
 Apache-2.0 (`LICENSE`), the license of the upstream specification and
-conformance suites too.
+conformance suites too. The JSON schemas and catalogs under
+`umbrella/apps/a2ui_core/priv` are copies of the specification's files, with
+its license file (`priv/LICENSE-APACHE`).

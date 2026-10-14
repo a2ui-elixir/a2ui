@@ -15,6 +15,8 @@ defmodule A2UICore.Coerce do
       strings. The BEAM has no infinity or NaN, so `"inf"` and `"nan"`
       are not numbers here.
 
+  ## Examples
+
       iex> A2UICore.Coerce.truthy?(%{})
       false
       iex> A2UICore.Coerce.to_string([1, "a"])
