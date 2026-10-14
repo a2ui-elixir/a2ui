@@ -19,6 +19,10 @@ defmodule A2UIAgent do
       and streamed responses (`A2UIAgent.DirectJson.Parser`).
     * `A2UIAgent.PayloadValidator` — checks a payload the way a renderer
       holding the same catalogs would.
+    * `A2UIAgent.A2A`, `A2UIAgent.A2A.Server` and `A2UIAgent.A2A.Plug` —
+      the A2A extension: A2UI parts and extension negotiation, the
+      `message/send` and `message/stream` methods, and a plug that serves
+      them over HTTP.
 
   Everything is plain data: there are no processes, and a streaming
   parser is a value that each chunk updates.

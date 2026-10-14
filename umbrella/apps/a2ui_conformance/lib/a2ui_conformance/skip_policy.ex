@@ -18,7 +18,10 @@ defmodule A2UIConformance.SkipPolicy do
 
   # {{"suite (relative path)", "case name"}, "reason"} — remove an entry
   # once the underlying case passes.
-  @explicit_case_skips []
+  @explicit_case_skips [
+    {{"extensions/a2a/a2a_integration.yaml", "test_handler_replaces_smart_quotes"},
+     "protocol v0.8 payload and catalog (beginRendering; out of scope)"}
+  ]
 
   @doc """
   Returns `nil` (run the case) or `{:skip, reason}`.

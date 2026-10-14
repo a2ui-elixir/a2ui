@@ -63,8 +63,13 @@ defmodule A2UIConformance.Dispatcher do
 
   # -- extensions/: transports and framework integrations ---------------------------
   @extension_areas %{
-    "extensions/a2a" => "A2A transport",
-    "extensions/adk" => "ADK integration"
+    "extensions/a2a" => "A2A transport"
+  }
+
+  # Integrations with another SDK's runtime, which this library does not
+  # have.
+  @optional_extension_scopes %{
+    "extensions/adk" => "ADK integration (Google's Agent Development Kit)"
   }
 
   @extension_actions ~w(
@@ -117,7 +122,15 @@ defmodule A2UIConformance.Dispatcher do
     {"agent/direct_json", "unwrap"} => A2UIConformance.Handlers.AgentFormats,
     {"agent/direct_json", "wrap"} => A2UIConformance.Handlers.AgentFormats,
     {"agent/direct_json", "parse_response"} => A2UIConformance.Handlers.AgentFormats,
-    {"agent/direct_json", "parse_chunk"} => A2UIConformance.Handlers.AgentFormats
+    {"agent/direct_json", "parse_chunk"} => A2UIConformance.Handlers.AgentFormats,
+    # A2A extension
+    {"extensions/a2a", "create_a2ui_part"} => A2UIConformance.Handlers.A2A,
+    {"extensions/a2a", "is_a2ui_part"} => A2UIConformance.Handlers.A2A,
+    {"extensions/a2a", "try_activate_extension"} => A2UIConformance.Handlers.A2A,
+    {"extensions/a2a", "get_extension"} => A2UIConformance.Handlers.A2A,
+    {"extensions/a2a", "try_activate"} => A2UIConformance.Handlers.A2A,
+    {"extensions/a2a", "select_newest"} => A2UIConformance.Handlers.A2A,
+    {"extensions/a2a", "handle_rpc"} => A2UIConformance.Handlers.A2A
   }
 
   # Inference formats other than direct JSON, which a shared agent suite
@@ -191,11 +204,18 @@ defmodule A2UIConformance.Dispatcher do
   end
 
   defp without_handler(%Case{scope: "extensions/" <> _ = scope, action: action}) do
-    with true <- action in @extension_actions,
-         {:ok, area} <- Map.fetch(@extension_areas, scope) do
-      {:unimplemented, area}
-    else
-      _ -> :unknown
+    cond do
+      action not in @extension_actions ->
+        :unknown
+
+      Map.has_key?(@optional_extension_scopes, scope) ->
+        {:optional, @optional_extension_scopes[scope]}
+
+      Map.has_key?(@extension_areas, scope) ->
+        {:unimplemented, @extension_areas[scope]}
+
+      true ->
+        :unknown
     end
   end
 

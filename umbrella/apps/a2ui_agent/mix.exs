@@ -23,7 +23,7 @@ defmodule A2UIAgent.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    [extra_applications: [:logger, :crypto]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -33,6 +33,8 @@ defmodule A2UIAgent.MixProject do
     [
       {:a2ui_core, in_umbrella: true},
       {:jason, "~> 1.4"},
+      {:plug, "~> 1.16", optional: true},
+      {:bandit, "~> 1.12", only: :test},
       {:excoveralls, "~> 0.18", only: [:test], runtime: false}
     ]
   end

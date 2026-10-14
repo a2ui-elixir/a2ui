@@ -246,3 +246,44 @@ transformers and resolution, `validate_payload`, and the direct JSON format
   problems (not a mapping, missing entry, extra keys, ids not a list of strings).
 - **v0.8 catalogs are out of scope.** Agent cases that name a v0.8 catalog file are
   skipped (invariant 3).
+
+## Transports
+
+The references are the Python A2A helpers (`python/a2ui_agent/src/a2ui/a2a`), the
+Kotlin legacy `A2aHandler` (which the conformance harness drives for `handle_rpc`), the
+Node sample agent (`samples/agent/node/restaurant_finder`, the A2A server with tests)
+and the sample web clients.
+
+- **One A2UI message per data part.** Both extension specifications say a data part's
+  `data` "MUST be an array of messages". The Python, Kotlin and Node SDKs and samples all
+  send one message per part, the sample clients read `part.data` as one message, and in
+  A2A's JSON-RPC binding a `DataPart`'s `data` is an object. `A2UIAgent.A2A` writes one
+  message per part; `a2ui_messages/1` reads either shape.
+- **`message/send` answers with a task.** The Kotlin handler answers with a message
+  (`result.parts`); the Node sample agent answers with a task whose status message holds
+  the parts, which is what the sample clients read. `A2UIAgent.A2A.Server` answers with
+  a task, so the conformance handler reads the parts from its status message.
+- **The MIME type of a part follows its version.** Python marks a part
+  `application/json+a2ui` when its version is unknown or is one of "0.8", "0.9", "v0.8"
+  and "v0.9", and `application/a2ui+json` otherwise. `A2A.mime_type/1` uses the older
+  type when the version is unknown or reads as a version before v0.9.1, which agrees with
+  Python on every version Python lists.
+- **A request without capabilities is answered in text.** The Node sample falls back to
+  its default protocol version and basic catalog. `A2UIAgent.A2A.Server` negotiates only
+  with capabilities the message carries or that the `:default_capabilities` option
+  gives; without either, the agent gets no processor and its output is sent as text.
+- **A stream that stops parsing fails the task.** Python's `parse_stream_chunk_to_parts`
+  logs the error, adds its fallback text and goes on with the same parser. A direct JSON
+  parser that fails returns no parser to go on with, so the stream ends with a `failed`
+  status update. A complete response that does not parse is still answered with its
+  text, as in Python.
+- **Streamed messages can repeat.** The streaming parser emits a message again each time
+  it grows (as Python's does), so a `working` update can carry a newer copy of a message
+  an earlier update carried. Each copy is a whole, valid message.
+- **Server-sent events carry data only.** `A2UIPhoenix.Plug.SSE` and the A2A plug write
+  `data:` lines (and an optional `event:` type) without `id:` or `retry:` fields, so a
+  client cannot resume a stream with `Last-Event-ID`.
+- **ADK integration is out of scope.** The `extensions/adk` cases (`convert_event`,
+  `execute_tool`, ADK's `data_model` and `resolve_path`) test adapters to Google's Python
+  Agent Development Kit, which has no Elixir runtime; they are skipped as an optional
+  family.

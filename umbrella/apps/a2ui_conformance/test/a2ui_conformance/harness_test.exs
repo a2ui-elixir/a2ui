@@ -106,14 +106,17 @@ defmodule A2UIConformance.HarnessTest do
                Dispatcher.resolve(case_for("core/data_model.yaml", "data_model"))
 
       # The same action names in the ADK extension are different features.
-      assert {:unimplemented, "ADK integration"} =
+      assert {:optional, "ADK integration" <> _} =
                Dispatcher.resolve(case_for("extensions/adk/tools.yaml", "resolve_path"))
 
-      assert {:unimplemented, "ADK integration"} =
+      assert {:optional, "ADK integration" <> _} =
                Dispatcher.resolve(case_for("extensions/adk/tools.yaml", "data_model"))
 
-      assert {:unimplemented, "A2A transport"} =
+      assert {:ok, A2UIConformance.Handlers.A2A} =
                Dispatcher.resolve(case_for("extensions/a2a/rpc.yaml", "handle_rpc"))
+
+      assert :unknown = Dispatcher.resolve(case_for("extensions/a2a/rpc.yaml", "evaluate"))
+      assert :unknown = Dispatcher.resolve(case_for("extensions/other/x.yaml", "handle_rpc"))
 
       assert {:ok, A2UIConformance.Handlers.HandleRpc} =
                Dispatcher.resolve(case_for("core/rpc_functions.yaml", "handle_rpc"))

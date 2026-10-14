@@ -18,9 +18,12 @@ defmodule A2UIPhoenix.MixProject do
       deps: deps(),
       package: package(),
       dialyzer: [plt_local_path: "../../priv/plts", plt_add_apps: [:mix]],
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [coveralls: :test, coveralls_detail: :test]
+      test_coverage: [tool: ExCoveralls]
     ]
+  end
+
+  def cli do
+    [preferred_envs: [coveralls: :test, "coveralls.detail": :test]]
   end
 
   def application do
@@ -36,7 +39,9 @@ defmodule A2UIPhoenix.MixProject do
       {:phoenix_live_view, "~> 1.2"},
       {:phoenix_html, "~> 4.1"},
       {:plug, "~> 1.20"},
+      {:jason, "~> 1.4"},
       {:lazy_html, "~> 0.1.12", only: :test},
+      {:bandit, "~> 1.12", only: :test},
       {:excoveralls, "~> 0.18", only: [:test], runtime: false}
     ]
   end

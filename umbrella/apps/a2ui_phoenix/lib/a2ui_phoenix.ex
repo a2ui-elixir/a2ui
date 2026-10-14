@@ -12,6 +12,8 @@ defmodule A2UIPhoenix do
     * `A2UIPhoenix.Components.Basic` — the basic catalog's components;
       `A2UIPhoenix.Components` and `A2UIPhoenix.Context` for writing
       components of another catalog.
+    * `A2UIPhoenix.Plug.SSE` — streams agent messages to renderers
+      outside LiveView as server-sent events.
 
   No global processes: state lives in the host's LiveView assigns.
   `priv/static/a2ui_phoenix.js` opens the URLs `openUrl` actions ask for,

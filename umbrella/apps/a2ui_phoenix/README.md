@@ -56,6 +56,20 @@ A catalog of your own brings its components as a map:
 Each component receives `@ctx`, `@node`, `@props` (bindings resolved),
 `@a11y` and `@attrs`; see `A2UIPhoenix.Components`.
 
+## Streaming to other renderers
+
+`A2UIPhoenix.Plug.SSE` streams A2UI messages to a renderer outside LiveView,
+such as a web renderer in the browser, as server-sent events, one message per
+event:
+
+```elixir
+# In a controller:
+def events(conn, params), do: A2UIPhoenix.Plug.SSE.stream(conn, MyAgent.messages(params))
+
+# Or mounted in a router, with the source called for each request:
+forward "/a2ui/events", A2UIPhoenix.Plug.SSE, source: {MyAgent, :messages, []}
+```
+
 ## License
 
 Apache-2.0

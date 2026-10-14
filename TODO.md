@@ -177,12 +177,30 @@ suites above), `agent/legacy` (94 + 39 v0.8), and the fluent builder and
 macros suites (`agent/builder` 11, `agent/macros` 18; a separate golden-file
 format the harness does not load).
 
-### M9 — transports
+### M9 — transports (agent: 345 tests; phoenix: 167 tests; conformance: 737 passed, 363 skipped)
 
-- [ ] M9.1 SSE plug and transport contract tests.
-- [ ] M9.2 A2A helpers (part creation/detection, extension negotiation,
-      `message/send` handler with `<a2ui-json>` extraction).
-- [ ] M9.3 Explicit skip entries for the ADK-specific cases.
+- [x] M9.1 `A2UIPhoenix.Plug.SSE`: one event per message (`data:` lines and an
+      optional `event:` type), read lazily, stopped when the client goes.
+      Contract tests: framing and order over all 86 example bundles, a client
+      that leaves, and a smoke test over a real connection (Bandit, `:httpc`).
+- [x] M9.2 A2A: `A2UIAgent.A2A` (extension URIs, agent-card entry,
+      negotiation, parts); `A2UIAgent.A2A.Server` (`message/send` answers with
+      the task; `message/stream` with the task, `working` updates and a final
+      update; capabilities and data model from the metadata, renderer
+      messages from data parts, a generator per protocol version);
+      `A2UIAgent.A2A.Plug` (optional `plug`: JSON-RPC over HTTP, SSE for
+      streams, `X-A2A-Extensions`, the agent card on `GET`) with a smoke test
+      over Bandit. `extensions/a2a`: 13 of 14; `test_handler_replaces_smart_quotes`
+      is a v0.8 payload and is skipped.
+- [x] M9.3 `extensions/adk` (11) skipped as an optional family: adapters to
+      Google's Python Agent Development Kit.
+- [x] M9.4 Gate + commit.
+
+PLAN's interop test against an upstream sample agent would need that sample's
+npm packages and a model. Instead the server follows the Node sample agent's
+own server tests: `message/send` returns the task; `message/stream` sends the
+`submitted` task, `working` updates and a final `input-required` update; a
+failed negotiation fails the task already announced.
 
 ### M11 — release
 

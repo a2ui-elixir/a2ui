@@ -46,6 +46,54 @@ Catalogs can also be loaded from files (`A2UIAgent.CatalogConfig.from_path/2`)
 or sent by the renderer itself (`inlineCatalogs`, with
 `accepts_inline_catalogs: true`).
 
+## Serving over A2A
+
+`A2UIAgent.A2A.Plug` serves an agent over the JSON-RPC binding of
+[A2A](https://a2a-protocol.org): `message/send` answers with the finished task,
+`message/stream` with server-sent events.
+
+```elixir
+defmodule MyAgent do
+  @behaviour A2UIAgent.A2A.Agent
+
+  alias A2UIAgent.A2A.Request
+
+  # No catalog negotiated: answer in text.
+  @impl true
+  def run(%Request{processor: nil, text: text}), do: {:ok, MyModel.reply(text)}
+
+  # `events` holds the renderer's A2UI messages, such as actions.
+  def run(%Request{processor: processor, text: text, events: events}) do
+    {:ok, prompt} = A2UIAgent.RequestProcessor.prompt(processor)
+    # A string, or an enumerable of chunks as the model streams them.
+    {:ok, MyModel.stream(prompt, text, events)}
+  end
+
+  @impl true
+  def options do
+    basic = A2UIAgent.CatalogConfig.new(A2UICore.Catalog.Basic.catalog("v1.0"))
+    [generator: A2UIAgent.Generator.new([basic])]
+  end
+
+  @impl true
+  def card do
+    %{
+      "name" => "My agent",
+      "capabilities" => %{"extensions" => [A2UIAgent.A2A.agent_extension("1.0")]}
+    }
+  end
+end
+
+# In a Phoenix router or a Plug.Router:
+forward "/a2a", A2UIAgent.A2A.Plug, agent: MyAgent
+```
+
+The renderer's capabilities, which it sends in the message metadata, select the
+catalogs. The model's output goes back as a text part for each run of text and
+an A2UI data part for each message. `A2UIAgent.A2A.Server` does the same
+without Plug, and `A2UIAgent.A2A` holds the part and extension helpers. The
+plug needs the optional `plug` dependency.
+
 ## License
 
 Apache-2.0
