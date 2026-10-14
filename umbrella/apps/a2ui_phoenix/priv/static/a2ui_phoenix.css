@@ -1,0 +1,194 @@
+/* Layout for A2UIPhoenix.Components.Basic. Colors and spacing come from
+   the --a2ui-* custom properties the reference web renderer uses. */
+
+.a2ui-surface {
+  font-family: var(--a2ui-font-family, inherit);
+  color: var(--a2ui-color-on-background, inherit);
+}
+
+.a2ui-row,
+.a2ui-column,
+.a2ui-list {
+  display: flex;
+  gap: var(--a2ui-spacing-m, 0.5rem);
+}
+
+.a2ui-row,
+.a2ui-list.horizontal {
+  flex-direction: row;
+}
+
+.a2ui-column,
+.a2ui-list.vertical {
+  flex-direction: column;
+}
+
+.a2ui-list.horizontal {
+  overflow-x: auto;
+}
+
+.a2ui-card {
+  padding: var(--a2ui-spacing-l, 1rem);
+  border: var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc);
+  border-radius: var(--a2ui-card-border-radius, 0.5rem);
+  background: var(--a2ui-color-surface, #fff);
+}
+
+.a2ui-text h1,
+.a2ui-text h2,
+.a2ui-text h3,
+.a2ui-text h4,
+.a2ui-text h5 {
+  margin: 0;
+}
+
+.a2ui-text.caption {
+  font-size: var(--a2ui-font-size-xs, 0.75rem);
+  color: var(--a2ui-text-caption-color, #666);
+}
+
+.a2ui-image {
+  max-width: 100%;
+}
+
+.a2ui-image.icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.a2ui-image.avatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+}
+
+.a2ui-icon.svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: currentColor;
+}
+
+.a2ui-divider.vertical {
+  align-self: stretch;
+  width: 0;
+  height: auto;
+  margin: 0;
+}
+
+.a2ui-button {
+  padding: var(--a2ui-spacing-m, 0.5rem) var(--a2ui-spacing-l, 1rem);
+  border: var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc);
+  border-radius: var(--a2ui-spacing-s, 0.25rem);
+  background: var(--a2ui-color-surface, #fff);
+  cursor: pointer;
+}
+
+.a2ui-button.primary {
+  border: none;
+  background: var(--a2ui-color-primary, #17e);
+  color: var(--a2ui-color-on-primary, #fff);
+}
+
+.a2ui-button.borderless {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--a2ui-color-primary, #17e);
+}
+
+.a2ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.a2ui-textfield-container,
+.a2ui-checkbox-container,
+.a2ui-choice-picker-container,
+.a2ui-slider-container,
+.a2ui-date-time-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--a2ui-spacing-xs, 0.25rem);
+}
+
+.a2ui-textfield {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--a2ui-spacing-m, 0.5rem);
+  border: var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc);
+  border-radius: var(--a2ui-spacing-s, 0.25rem);
+  font: inherit;
+}
+
+.a2ui-textfield.invalid,
+input.invalid {
+  border-color: var(--a2ui-color-error, red);
+}
+
+.a2ui-error-message {
+  color: var(--a2ui-color-error, red);
+  font-size: var(--a2ui-font-size-xs, 0.75rem);
+}
+
+.a2ui-chips-group,
+.a2ui-options-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--a2ui-spacing-s, 0.25rem);
+}
+
+.a2ui-chip.selected {
+  background: var(--a2ui-color-primary, #17e);
+  color: var(--a2ui-color-on-primary, #fff);
+}
+
+.a2ui-tab-bar {
+  display: flex;
+  gap: var(--a2ui-spacing-s, 0.25rem);
+  border-bottom: var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc);
+}
+
+.a2ui-tab-button {
+  border: none;
+  background: none;
+  padding: var(--a2ui-spacing-m, 0.5rem);
+  cursor: pointer;
+}
+
+.a2ui-tab-button.active {
+  border-bottom: 2px solid var(--a2ui-color-primary, #17e);
+}
+
+.a2ui-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 40%);
+  z-index: 1000;
+}
+
+.a2ui-modal-content {
+  position: relative;
+  max-width: min(90vw, 40rem);
+  max-height: 90vh;
+  overflow: auto;
+  padding: var(--a2ui-spacing-l, 1rem);
+  border-radius: var(--a2ui-spacing-m, 0.5rem);
+  background: var(--a2ui-color-surface, #fff);
+}
+
+.a2ui-modal-close {
+  position: absolute;
+  top: var(--a2ui-spacing-s, 0.25rem);
+  right: var(--a2ui-spacing-s, 0.25rem);
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.a2ui-placeholder.a2ui-pending {
+  min-height: 1rem;
+}

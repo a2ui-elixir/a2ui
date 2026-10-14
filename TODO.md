@@ -129,23 +129,26 @@ Remaining cases by suite family:
 | `extensions/a2a` | 14 | M9 (see decision D2) |
 | `extensions/adk` | 11 | out of scope (see decision D3) |
 
-## M8–M11 — proposed at the Phase 7 checkpoint (awaiting approval)
+## M8–M11 — approved 2026-10-14 (order 8 → 10 → 9 → 11; D1–D4 as recommended)
 
-### M8 — `a2ui_phoenix` renderer
+### M8 — `a2ui_phoenix` renderer (phoenix: 155 tests; conformance unchanged)
 
-- [ ] M8.1 `A2UIPhoenix.Session`: a value wrapping `Processor` and one
-      `NodeResolver` per surface (`handle_message/2`, `write/4`, `invoke/4`),
-      returning the render state and the outbound messages.
-- [ ] M8.2 Function components for the 18 basic components, v0.9.1 and v1.0,
-      with ARIA from `A2UICore.Accessibility`; a component-map behaviour so a
-      custom catalog can bring its own.
-- [ ] M8.3 `A2UIPhoenix.Surface` LiveComponent: recursive node rendering,
-      placeholders, templates.
-- [ ] M8.4 Interaction: input events → `write`, buttons → `invoke` → outbound
-      `action`; `isValid`/`validationResult` display; `openUrl` hook.
-- [ ] M8.5 LiveViewTest: render all 43 + 43 example bundles, a contact-form
-      flow, a11y attributes present.
-- [ ] M8.6 Gate + commit.
+- [x] M8.1 `A2UIPhoenix.Session`: the processor plus one `NodeResolver` per
+      surface (`handle_message/3`, `write/5`, `invoke/4`, `dispose/1`), effects
+      as data (`{:send, message}`, `{:open_url, url}`, diagnostics); core
+      gained `Processor.set_data/4` for renderer-side writes.
+- [x] M8.2 Function components for the 18 basic components (v0.9.1 and
+      v1.0) with ARIA from `A2UICore.Accessibility`; a component map
+      (`%{type => component}`) merged over `Components.Basic.components/0`.
+- [x] M8.3 `A2UIPhoenix.Surface` LiveComponent: recursive node rendering,
+      placeholders, templates; local UI state (tabs, modals, filters).
+- [x] M8.4 Interaction: form changes → `Inputs.decode/4` → `write`; buttons,
+      chips → `invoke`/`write`; check messages and `aria-describedby`;
+      `openUrl` pushed to the browser (`priv/static/a2ui_phoenix.js`);
+      `A2UIPhoenix.Live` hosts the session in a LiveView.
+- [x] M8.5 LiveViewTest: all 43 + 43 example bundles render, the contact-form
+      flow, tabs, the modal sample, inputs, a11y attributes.
+- [x] M8.6 Gate + commit.
 
 ### M10 — `a2ui_agent` (blueprint direct_json)
 

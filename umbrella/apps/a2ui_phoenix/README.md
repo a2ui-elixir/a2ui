@@ -1,21 +1,61 @@
 # A2UIPhoenix
 
-**TODO: Add description**
+A Phoenix LiveView renderer for [A2UI](https://a2ui.org) surfaces, built on
+`a2ui_core`. It renders the basic catalog (protocol v0.9.1 and v1.0) as
+function components, keeps two-way bindings in the surface's data model, and
+turns user actions into renderer→agent messages.
 
-## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `a2ui_phoenix` to your list of dependencies in `mix.exs`:
+## Usage
 
 ```elixir
-def deps do
-  [
-    {:a2ui_phoenix, "~> 0.1.0"}
-  ]
+defmodule MyAppWeb.AgentLive do
+  use MyAppWeb, :live_view
+
+  alias A2UIPhoenix.{Live, Session}
+
+  def mount(_params, _session, socket) do
+    session = Session.new([A2UICore.Catalog.Basic.catalog("v1.0")])
+    {:ok, Live.init(socket, session, on_send: &send_to_agent/2)}
+  end
+
+  # Messages from the agent, however they arrive (SSE, A2A, a process).
+  def handle_info({:agent, payload}, socket) do
+    {_result, socket} = Live.handle_message(socket, payload)
+    {:noreply, socket}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <.live_component
+      :for={surface <- Session.surfaces(@a2ui)}
+      module={A2UIPhoenix.Surface}
+      id={"surface-" <> surface.id}
+      session={@a2ui}
+      surface_id={surface.id}
+    />
+    """
+  end
+
+  defp send_to_agent(message, socket) do
+    # Deliver `message` (an `action`, `error` or `rendererFunctionResponse`).
+    socket
+  end
 end
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/a2ui_phoenix>.
+Add `priv/static/a2ui_phoenix.js` to the page's scripts so `openUrl` actions
+open their URL, and `priv/static/a2ui_phoenix.css` (or your own styles for the
+`a2ui-*` classes) for layout.
 
+A catalog of your own brings its components as a map:
+
+```heex
+<.live_component module={A2UIPhoenix.Surface} components={%{"Chart" => &chart/1}} ... />
+```
+
+Each component receives `@ctx`, `@node`, `@props` (bindings resolved),
+`@a11y` and `@attrs`; see `A2UIPhoenix.Components`.
+
+## License
+
+Apache-2.0

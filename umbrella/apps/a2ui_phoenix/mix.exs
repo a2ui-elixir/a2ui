@@ -36,7 +36,7 @@ defmodule A2UIPhoenix.MixProject do
       {:phoenix_live_view, "~> 1.2"},
       {:phoenix_html, "~> 4.1"},
       {:plug, "~> 1.20"},
-      {:floki, "~> 0.38", only: :test},
+      {:lazy_html, "~> 0.1.12", only: :test},
       {:excoveralls, "~> 0.18", only: [:test], runtime: false}
     ]
   end

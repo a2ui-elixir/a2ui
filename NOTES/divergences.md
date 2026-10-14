@@ -177,3 +177,43 @@ them or documented as a skip with a reason.
   `RPC.call_renderer_function/3`.
 - **The first surface supplies the call context.** As in Python, `callRendererFunction`
   executes in the data context of the first surface unless `:surface_id` names one.
+
+## Phoenix renderer
+
+The reference renderers (`typescript/web_core/src/universal/basic_catalog`, used by the
+Lit, React and Angular packages) render in the browser. `a2ui_phoenix` renders on the
+server with LiveView; the markup and class names follow the reference components.
+
+- **One session per conversation, owned by the LiveView.** `A2UIPhoenix.Session` pairs
+  the processor with one `NodeResolver` per surface and re-resolves the surfaces a
+  message touched. User input travels from the `A2UIPhoenix.Surface` LiveComponent to
+  the LiveView process as a message, so writes and agent messages are applied in arrival
+  order.
+- **Local UI state lives on the server.** The open tab, whether a modal is open and a
+  choice filter are kept in the LiveComponent by node `ref` (the reference keeps them in
+  the custom element). A node that is replaced starts with fresh state, as a new element
+  would.
+- **A modal opens through a trigger that acts.** In the browser the click on a trigger
+  button bubbles to the trigger wrapper, so the button's action fires and the modal
+  opens. LiveView delivers only the nearest `phx-click`, so an action from a node inside
+  a modal's trigger also opens that modal.
+- **Body text is plain unless the host renders markdown.** The reference renders body
+  text through a markdown renderer. There is no markdown dependency here; the
+  `:markdown` assign of `A2UIPhoenix.Surface` takes `(text -> safe HTML)`, and the host
+  is responsible for sanitising it.
+- **ARIA goes on the component's root element.** As in the reference, `aria-label`
+  comes from an explicit `accessibility.label` only (an inferred label is already the
+  visible text), `aria-live` is set when it is not `"off"` and `aria-hidden` when true.
+  Native controls carry their own roles; a single-choice picker is a `radiogroup`, a
+  multiple one a `group`. An icon without a label is `aria-hidden`; inputs point
+  `aria-describedby` at their check messages.
+- **`openUrl` is executed by the browser.** The catalog function checks the scheme; the
+  session turns a successful `openUrl` call into `{:open_url, url}` and
+  `A2UIPhoenix.Live` pushes it as the `a2ui:open_url` event, which
+  `priv/static/a2ui_phoenix.js` opens in a new tab.
+- **A component whose checks fail does not act.** The reference disables the button;
+  the session also refuses the action (`COMPONENT_INVALID`).
+- **The submitted value is written as the input gives it.** A `TextField` writes the
+  string it holds (also for `number`), a `Slider` writes a number, a `CheckBox` a
+  boolean, a `ChoicePicker` a list, and a `DateTimeInput` combines its date and time
+  inputs with the reference's rules.

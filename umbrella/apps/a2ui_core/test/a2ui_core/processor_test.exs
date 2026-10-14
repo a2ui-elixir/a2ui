@@ -395,6 +395,36 @@ defmodule A2UICore.ProcessorTest do
     end
   end
 
+  describe "set_data/4" do
+    test "a renderer-side write lands in the data model", %{v10: v10} do
+      processor = ready(v10)
+
+      assert {:ok, processor, [{:data_model_updated, "s", "/form/name"}]} =
+               Processor.set_data(processor, "s", "/form/name", "Ada")
+
+      assert {:ok, %{"form" => %{"name" => "Ada"}}} =
+               Surface.get_data(Processor.surface(processor, "s"), "/")
+    end
+
+    test "is not subject to the agent's allowed messages", %{v10: v10} do
+      config = %{Config.strict() | allowed_messages: ["createSurface"]}
+      processor = ready(v10, validation: config)
+
+      assert {:ok, _processor, [{:data_model_updated, "s", "/x"}]} =
+               Processor.set_data(processor, "s", "/x", 1)
+    end
+
+    test "an unknown surface or a forbidden path is an error", %{v10: v10} do
+      processor = ready(v10)
+
+      assert {:error, %Error{message: "Surface not found for message: nope"}} =
+               Processor.set_data(processor, "nope", "/x", 1)
+
+      assert {:error, %Error{category: :data}} =
+               Processor.set_data(processor, "s", "/__proto__/x", 1)
+    end
+  end
+
   describe "process/2 payload shapes" do
     test "lists and wrappers are applied in order", %{v09: v09} do
       processor = Processor.new([v09])

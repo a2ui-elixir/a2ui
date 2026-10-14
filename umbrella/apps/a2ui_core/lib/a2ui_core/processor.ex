@@ -573,6 +573,20 @@ defmodule A2UICore.Processor do
 
   # -- updateDataModel ----------------------------------------------------------
 
+  @doc """
+  Writes `value` at `path` of a surface's data model on the renderer's
+  behalf — user input reaching a two-way binding. It is the same write as
+  an `updateDataModel` message, but not one the agent sent, so the
+  validation configuration's `allowed_messages` does not apply.
+
+  Returns `{:ok, processor, [{:data_model_updated, surface_id, path}]}`,
+  or `{:error, error}` for an unknown surface or an invalid path.
+  """
+  @spec set_data(t(), String.t(), String.t(), term()) ::
+          {:ok, t(), [effect()]} | {:error, Error.t()}
+  def set_data(%__MODULE__{} = processor, surface_id, path, value),
+    do: write_data(processor, surface_id, path, value)
+
   defp update_data_model(processor, %UpdateDataModel{} = operation) do
     path = if operation.path in [nil, ""], do: "/", else: operation.path
     attempt(processor, write_data(processor, operation.surface_id, path, operation.value))
