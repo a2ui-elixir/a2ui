@@ -34,6 +34,7 @@ defmodule A2UIConformance.MixProject do
   defp deps do
     [
       {:a2ui_core, in_umbrella: true},
+      {:a2ui_agent, in_umbrella: true},
       {:yamerl, "~> 0.10"},
       {:jason, "~> 1.4"},
       {:excoveralls, "~> 0.18", only: [:test], runtime: false}

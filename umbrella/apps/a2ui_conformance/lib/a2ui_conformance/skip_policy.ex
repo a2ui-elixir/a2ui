@@ -28,10 +28,13 @@ defmodule A2UIConformance.SkipPolicy do
     version_skip(case) || dispatcher_skip(case) || explicit_skip(case)
   end
 
-  defp version_skip(%Case{protocol_version: version, suite: suite}) do
+  defp version_skip(%Case{protocol_version: version, suite: suite} = case) do
     cond do
       String.ends_with?(suite, "_v0_8.yaml") ->
         {:skip, "protocol v0.8 suite (out of scope)"}
+
+      v08_agent_catalog?(case) ->
+        {:skip, "protocol v0.8 catalog (out of scope)"}
 
       version in A2UICore.Version.supported() ->
         nil
@@ -40,6 +43,19 @@ defmodule A2UIConformance.SkipPolicy do
         {:skip, "unsupported protocol version #{inspect(version)}"}
     end
   end
+
+  # Agent cases name their catalogs by file in `args`; the reference
+  # harness runs them under whatever version the file states.
+  defp v08_agent_catalog?(%Case{scope: "agent" <> _, raw: %{"args" => %{} = args}}) do
+    [args["catalog"] | List.wrap(args["catalogs"])]
+    |> Enum.map(fn
+      %{"catalog" => path} -> path
+      path -> path
+    end)
+    |> Enum.any?(&(is_binary(&1) and String.contains?(&1, ["_v0_8", "_v08"])))
+  end
+
+  defp v08_agent_catalog?(%Case{}), do: false
 
   defp dispatcher_skip(%Case{action: nil}),
     do: {:skip, "case has no action"}

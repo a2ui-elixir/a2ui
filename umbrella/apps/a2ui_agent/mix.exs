@@ -32,6 +32,7 @@ defmodule A2UIAgent.MixProject do
   defp deps do
     [
       {:a2ui_core, in_umbrella: true},
+      {:jason, "~> 1.4"},
       {:excoveralls, "~> 0.18", only: [:test], runtime: false}
     ]
   end
@@ -40,7 +41,7 @@ defmodule A2UIAgent.MixProject do
     [
       name: "a2ui_agent",
       description:
-        "Agent-side A2UI SDK for Elixir — catalog-derived prompt generation, streaming LLM output parsing, message builder.",
+        "Agent-side A2UI SDK for Elixir — catalog negotiation, catalog-derived prompts and validated parsing of streamed LLM output.",
       licenses: ["Apache-2.0"],
       links: %{"GitHub" => @source_url}
     ]

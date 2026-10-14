@@ -19,6 +19,37 @@ defmodule A2UIConformance.HarnessTest do
       assert {:ok, [[%{"name" => "a"}, %{"name" => "b"}]]} =
                Yaml.decode_string("- name: a\n- name: b\n")
     end
+
+    test "a lone surrogate escape in a double-quoted scalar decodes as literal text" do
+      high = <<?\\, ?u>> <> "d83d"
+      low = <<?\\, ?u>> <> "de80"
+
+      yaml = """
+      lone: "Rocket #{high}"
+      pair: "Rocket #{high}#{low}"
+      list: [don't, "Rocket #{high}"]
+      """
+
+      assert {:ok, [doc]} = Yaml.decode_string(yaml)
+
+      assert doc == %{
+               "lone" => "Rocket " <> high,
+               "pair" => "Rocket 🚀",
+               "list" => ["don't", "Rocket " <> high]
+             }
+    end
+
+    test "a single-quoted scalar keeps its quotes and backslashes literal" do
+      high = <<?\\, ?u>> <> "d83d"
+
+      yaml = """
+      input: '{"text": "Rocket #{high}'
+      quoted: 'it''s "x"'
+      """
+
+      assert {:ok, [doc]} = Yaml.decode_string(yaml)
+      assert doc == %{"input" => ~s({"text": "Rocket ) <> high, "quoted" => ~S(it's "x")}
+    end
   end
 
   describe "Case.resolve_protocol_version (reference L132-159)" do
@@ -96,11 +127,11 @@ defmodule A2UIConformance.HarnessTest do
     end
 
     test "agent families: blueprint suites are one area, express and legacy are optional" do
-      assert {:unimplemented, "agent SDK"} =
+      assert {:ok, A2UIConformance.Handlers.AgentCatalogs} =
                Dispatcher.resolve(case_for("agent/resolve_catalogs.yaml", "resolve_catalogs"))
 
       assert {:unimplemented, "agent SDK"} =
-               Dispatcher.resolve(case_for("agent/direct_json/parser.yaml", "parse_chunk"))
+               Dispatcher.resolve(case_for("agent/direct_json/parser.yaml", "fix_payload"))
 
       assert {:optional, _label} =
                Dispatcher.resolve(case_for("agent/express/compiler.yaml", "compile"))
@@ -131,8 +162,8 @@ defmodule A2UIConformance.HarnessTest do
                  })
                )
 
-      assert {:skip, "no handler for action 'parse_chunk' (agent SDK)"} =
-               SkipPolicy.skip_for(case_for("agent/direct_json/x.yaml", "parse_chunk"))
+      assert {:skip, "no handler for action 'fix_payload' (agent SDK)"} =
+               SkipPolicy.skip_for(case_for("agent/direct_json/x.yaml", "fix_payload"))
 
       assert {:skip, "optional family without a handler: " <> _} =
                SkipPolicy.skip_for(case_for("agent/express/x.yaml", "wrap"))

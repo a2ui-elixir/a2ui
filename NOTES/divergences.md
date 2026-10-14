@@ -217,3 +217,32 @@ server with LiveView; the markup and class names follow the reference components
   string it holds (also for `number`), a `Slider` writes a number, a `CheckBox` a
   boolean, a `ChoicePicker` a list, and a `DateTimeInput` combines its date and time
   inputs with the reference's rules.
+
+## Agent SDK
+
+The reference is the Python agent SDK (`python/a2ui_agent`): its catalog providers,
+transformers and resolution, `validate_payload`, and the direct JSON format
+(`inference_formats/direct_json`).
+
+- **Parsers are values.** `Parser.parse_chunk/3` returns the next parser along with the
+  parts, and a format's `parser/1` returns a fresh one, so two parsers never share state
+  (the `parser_state_isolated` cases hold by construction). A response is either wrapped
+  or not: a chunk that says otherwise than the first one raises `ArgumentError`.
+- **Messages stay JSON maps.** `compile` and `parse_response` return the parsed message
+  maps, validated with `A2UIAgent.PayloadValidator`, not typed message models.
+- **A lone surrogate escape reads as U+FFFD.** Python strings can hold an unpaired
+  surrogate from `\uD83D`; an Elixir string cannot. A surrogate pair cut by the end of a
+  streamed chunk still heals before the pair, as in Python.
+- **JSON is written with Jason.** Prompt schemas and decompiled blocks list object keys
+  in Jason's order (sorted for objects of up to 32 keys) rather than in the order the
+  source document had, and non-ASCII characters are written as UTF-8 rather than
+  `\uXXXX` escapes (`json.dumps` defaults to `ensure_ascii=True`).
+- **Pruning messages reads the allowlist once.** `SchemaPruning.prune_messages/2` keeps a
+  definition when one of its properties is named in the allowlist. Python also adds
+  definitions whose properties name a definition added earlier in its iteration, which
+  depends on the document's key order; decoded JSON objects do not keep it.
+- **Capabilities are validated by hand.** Python validates renderer capabilities with
+  pydantic models; `CatalogResolver` checks the same shape and reports the same
+  problems (not a mapping, missing entry, extra keys, ids not a list of strings).
+- **v0.8 catalogs are out of scope.** Agent cases that name a v0.8 catalog file are
+  skipped (invariant 3).

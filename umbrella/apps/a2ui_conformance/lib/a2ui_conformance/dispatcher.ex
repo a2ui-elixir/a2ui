@@ -100,7 +100,32 @@ defmodule A2UIConformance.Dispatcher do
     {"core", "resolve_nodes"} => A2UIConformance.Handlers.ResolveNodes,
     {"core", "accessibility_check"} => A2UIConformance.Handlers.AccessibilityCheck,
     # function RPC
-    {"core", "handle_rpc"} => A2UIConformance.Handlers.HandleRpc
+    {"core", "handle_rpc"} => A2UIConformance.Handlers.HandleRpc,
+    # agent SDK: catalogs
+    {"agent", "provide_catalog"} => A2UIConformance.Handlers.AgentCatalogs,
+    {"agent", "transform_catalog"} => A2UIConformance.Handlers.AgentCatalogs,
+    {"agent", "resolve_catalogs"} => A2UIConformance.Handlers.AgentCatalogs,
+    # agent SDK: inference formats
+    {"agent", "compile"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent", "decompile"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent", "parse_response"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent", "create_format"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent", "create_processor"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/direct_json", "compile"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/direct_json", "decompile"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/direct_json", "generate_prompt_snippet"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/direct_json", "unwrap"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/direct_json", "wrap"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/direct_json", "parse_response"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/direct_json", "parse_chunk"} => A2UIConformance.Handlers.AgentFormats
+  }
+
+  # Inference formats other than direct JSON, which a shared agent suite
+  # names in `args.format` or `args.format_override`.
+  @optional_formats %{
+    "express" => "Express inference format",
+    "elemental" => "Elemental inference format",
+    "atom" => "Atom inference format"
   }
 
   @type resolution ::
@@ -121,13 +146,29 @@ defmodule A2UIConformance.Dispatcher do
       do: :unknown
 
   def resolve(%Case{scope: scope, action: action} = case) when is_binary(action) do
-    case Map.fetch(@handlers, {scope, action}) do
-      {:ok, module} -> {:ok, module}
+    with nil <- optional_format(case),
+         {:ok, module} <- Map.fetch(@handlers, {scope, action}) do
+      {:ok, module}
+    else
+      {:optional, _label} = optional -> optional
       :error -> without_handler(case)
     end
   end
 
   def resolve(%Case{}), do: :unknown
+
+  defp optional_format(%Case{scope: "agent" <> _, action: action, raw: %{"args" => %{} = args}}) do
+    if action in @agent_actions do
+      [args["format"], args["format_override"]]
+      |> Enum.find_value(&Map.get(@optional_formats, &1))
+      |> case do
+        nil -> nil
+        label -> {:optional, label}
+      end
+    end
+  end
+
+  defp optional_format(%Case{}), do: nil
 
   defp without_handler(%Case{scope: "core", action: action}) do
     case Map.fetch(@core_areas, action) do

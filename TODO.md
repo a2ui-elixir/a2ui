@@ -150,16 +150,32 @@ Remaining cases by suite family:
       flow, tabs, the modal sample, inputs, a11y attributes.
 - [x] M8.6 Gate + commit.
 
-### M10 — `a2ui_agent` (blueprint direct_json)
+### M10 — `a2ui_agent` (blueprint direct_json) (agent: 285 tests; conformance: 724 passed, 376 skipped)
 
-- [ ] M10.1 Catalog provider, resolution and transformer (48 cases).
-- [ ] M10.2 direct_json compiler, decompiler and prompt generator (27).
-- [ ] M10.3 Response parser `wrap`/`unwrap`/`parse_response` and
-      multi-catalog formats (36).
-- [ ] M10.4 Request processor and skill (27).
-- [ ] M10.5 Streaming parser (118 `parse_chunk` cases): an incremental
-      scanner as a pure state machine, with the cut-surrogate healing rules.
-- [ ] M10.6 Examples round-trip test + gate + commit.
+- [x] M10.1 Catalog provider, resolution and transformer: 48 of 48
+      (`CatalogProvider`, `CatalogConfig`, `CatalogTransformer`,
+      `CatalogResolver`).
+- [x] M10.2 direct_json compiler, decompiler and prompt generator: 27 of 27
+      (`DirectJson.Prompt`, `SchemaPruning`, `PayloadValidator`; compile is
+      clean + lenient read + `validate_payload`, as upstream has no compiler
+      module).
+- [x] M10.3 Response parser `wrap`/`unwrap`/`parse_response` (17 of 17) and
+      multi-catalog formats (3 of 19; the other 16 use Express).
+- [x] M10.4 Request processor (16 of 23; 7 use Express) and skill (0 of 4,
+      all Express). `Format` behaviour, `RequestProcessor`, `Generator`.
+- [x] M10.5 Streaming parser: 79 of 118 `parse_chunk` cases (39 use v0.8
+      catalogs). `JsonReader` heals cut strings and surrogate pairs;
+      messages already emitted are not validated again.
+- [x] M10.6 Examples round trip: each of the 86 basic-catalog bundles is
+      decompiled into a response and read back whole and streamed.
+      `31_incremental-dashboard` (both versions) is not one valid payload
+      (unreachable placeholders; non-UAX #31 ids in v1.0) and is asserted to
+      fail, as Python's `validate_payload` does. Gate + commit.
+
+Not covered: Express-format cases (`agent/express` 115, plus 27 in the shared
+suites above), `agent/legacy` (94 + 39 v0.8), and the fluent builder and
+macros suites (`agent/builder` 11, `agent/macros` 18; a separate golden-file
+format the harness does not load).
 
 ### M9 — transports
 

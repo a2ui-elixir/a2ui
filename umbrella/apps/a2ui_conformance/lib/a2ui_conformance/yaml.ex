@@ -27,9 +27,11 @@ defmodule A2UIConformance.Yaml do
   # escaped-literal form (`\\\\ud83d` ⇒ the six characters `\\` `u` `d`
   # `8` `3` `d`). That is precisely the healing semantics a
   # streaming parser needs for a JSON string cut mid-escape: emit the
-  # partial escape as literal text until the sequence completes. Paired escapes and valid code points are left
-  # untouched. Block scalars and comments are tracked so quotes inside
-  # them never trigger healing.
+  # partial escape as literal text until the sequence completes. Paired
+  # escapes and valid code points are left untouched. Single-quoted
+  # scalars, block scalars and comments are tracked so quotes inside
+  # them never trigger healing (a backslash in a single-quoted scalar is
+  # literal, so `'"Rocket \\ud83d'` reaches the case unchanged).
 
   # Mappings decode to Elixir maps. yamerl's default (proplists) cannot
   # tell an empty mapping `{}` from an empty sequence `[]`.
@@ -77,7 +79,7 @@ defmodule A2UIConformance.Yaml do
         {line, %{indent: indent_of(line)}}
 
       true ->
-        {scan_line(line, false, ""), nil}
+        {scan_line(line, :plain, ""), nil}
     end
   end
 
@@ -88,54 +90,73 @@ defmodule A2UIConformance.Yaml do
 
   defp indent_of(line), do: line |> String.split(~r/\S/u, parts: 2) |> hd() |> byte_size()
 
-  # In-line scanner: tracks double-quoted scalars; rewrites lone
-  # surrogate `\\uXXXX` escapes inside them. Everything else passes
+  # In-line scanner: tracks double- and single-quoted scalars; rewrites
+  # lone surrogate `\\uXXXX` escapes inside double-quoted ones. In a
+  # single-quoted scalar a backslash is literal (and `"` is just a
+  # character), so nothing there is touched. Everything else passes
   # through byte-for-byte.
-  defp scan_line(<<>>, _in_dq?, acc), do: acc
+  defp scan_line(<<>>, _state, acc), do: acc
 
   # A `#` outside a quoted scalar (at line start or after whitespace)
   # starts a comment — the rest of the line is literal.
-  defp scan_line(<<?#, rest::binary>>, false, acc)
+  defp scan_line(<<?#, rest::binary>>, :plain, acc)
        when acc == "" or acc in [<<" ">>, <<"\t">>] or
               binary_part(acc, byte_size(acc) - 1, 1) in [<<" ">>, <<"\t">>],
        do: acc <> "#" <> rest
 
-  defp scan_line(<<?", rest::binary>>, in_dq?, acc),
-    do: scan_line(rest, not in_dq?, acc <> <<?">>)
+  defp scan_line(<<?', rest::binary>>, :plain, acc) do
+    if scalar_start?(acc),
+      do: scan_line(rest, :sq, acc <> "'"),
+      else: scan_line(rest, :plain, acc <> "'")
+  end
 
-  defp scan_line(<<?\\, ?u, hex::binary-size(4), rest::binary>>, true, acc) do
+  defp scan_line(<<?', ?', rest::binary>>, :sq, acc), do: scan_line(rest, :sq, acc <> "''")
+  defp scan_line(<<?', rest::binary>>, :sq, acc), do: scan_line(rest, :plain, acc <> "'")
+
+  defp scan_line(<<c::binary-size(1), rest::binary>>, :sq, acc),
+    do: scan_line(rest, :sq, acc <> c)
+
+  defp scan_line(<<?", rest::binary>>, :plain, acc), do: scan_line(rest, :dq, acc <> <<?">>)
+  defp scan_line(<<?", rest::binary>>, :dq, acc), do: scan_line(rest, :plain, acc <> <<?">>)
+
+  defp scan_line(<<?\\, ?u, hex::binary-size(4), rest::binary>>, :dq, acc) do
     code = String.to_integer(hex, 16)
 
     cond do
       code not in 0xD800..0xDFFF ->
-        scan_line(rest, true, acc <> "\\u" <> hex)
+        scan_line(rest, :dq, acc <> "\\u" <> hex)
 
       high_surrogate?(code) and paired_low?(rest) ->
         <<low::binary-size(6), rest2::binary>> = rest
-        scan_line(rest2, true, acc <> "\\u" <> hex <> low)
+        scan_line(rest2, :dq, acc <> "\\u" <> hex <> low)
 
       true ->
         # Lone surrogate: escape the backslash so the escape sequence
         # becomes literal text (`\\ud83d` — six characters).
-        scan_line(rest, true, acc <> "\\\\u" <> hex)
+        scan_line(rest, :dq, acc <> "\\\\u" <> hex)
     end
   end
 
-  defp scan_line(<<?\\, ?U, hex::binary-size(8), rest::binary>>, true, acc) do
+  defp scan_line(<<?\\, ?U, hex::binary-size(8), rest::binary>>, :dq, acc) do
     code = String.to_integer(hex, 16)
 
     if code in 0xD800..0xDFFF do
-      scan_line(rest, true, acc <> "\\\\U" <> hex)
+      scan_line(rest, :dq, acc <> "\\\\U" <> hex)
     else
-      scan_line(rest, true, acc <> "\\U" <> hex)
+      scan_line(rest, :dq, acc <> "\\U" <> hex)
     end
   end
 
-  defp scan_line(<<?\\, c::binary-size(1), rest::binary>>, true, acc),
-    do: scan_line(rest, true, acc <> "\\" <> c)
+  defp scan_line(<<?\\, c::binary-size(1), rest::binary>>, :dq, acc),
+    do: scan_line(rest, :dq, acc <> "\\" <> c)
 
-  defp scan_line(<<c::binary-size(1), rest::binary>>, in_dq?, acc),
-    do: scan_line(rest, in_dq?, acc <> c)
+  defp scan_line(<<c::binary-size(1), rest::binary>>, state, acc),
+    do: scan_line(rest, state, acc <> c)
+
+  # A single quote opens a scalar only where a scalar can start: at the
+  # start of the line's content, after `key: ` or `- `, or inside a flow
+  # collection. Elsewhere (`don't`) it is an apostrophe.
+  defp scalar_start?(acc), do: acc =~ ~r/(^\s*|[:-]\s+|[\[{,]\s*)$/
 
   defp high_surrogate?(code), do: code in 0xD800..0xDBFF
 
