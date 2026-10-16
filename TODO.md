@@ -494,6 +494,28 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       the reference examples, the chat with the restaurant agent, and the
       replays.
 
+### M23 — example surfaces (2026-10-16)
+
+- [x] M23.1 The surfaces the example agents send, composed on a few shared
+      patterns (header, section label, record, tiles, actions, status line;
+      `examples/README.md`): the restaurant list as a horizontal list of
+      tiles, the booking form in sections under a header with the
+      restaurant's picture, the confirmation as a summary card, and the ten
+      gallery scenarios.
+- [x] M23.2 Pictures drawn for the examples: each restaurant's dish in SVG
+      (`RestaurantAgent.Pictures`, served at `/images/:id.svg`), the
+      gallery's landscape, avatar and poster, and its clip.
+- [x] M23.3 Renderer layout rules: cards in a horizontal list as tiles of
+      one width (`--a2ui-list-card-width`), a card filled by its layout
+      child, a caption under a heading drawn as its subtitle, busy text with
+      its indicator on its line; the MCP App gets the component's color
+      scheme as its host theme and is told when it changes. The gallery's
+      trip dashboard follows it.
+- [x] M23.4 The terminal client prints a horizontal list of one-line items
+      on one line; the replays recorded again; the site's icon subset holds
+      the icons they use; READMEs, the guide, CHANGELOG; checked in a browser
+      at desktop and phone widths in both themes.
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

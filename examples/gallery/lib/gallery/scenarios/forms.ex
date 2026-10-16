@@ -61,19 +61,22 @@ defmodule Gallery.Scenarios.Forms do
         "children" => [
           "title",
           "hint",
+          "accountLabel",
           "name",
           "username",
           "email",
           "phone",
           "age",
           "password",
+          "planLabel",
           "plan",
           "terms",
-          "submit"
+          "actions"
         ]
       },
       text("title", "## Create an account"),
       text("hint", path("/hint"), %{"variant" => "caption"}),
+      text("accountLabel", "##### Your account"),
       %{
         "id" => "name",
         "component" => "TextField",
@@ -174,6 +177,7 @@ defmodule Gallery.Scenarios.Forms do
           )
         ]
       },
+      text("planLabel", "##### Your plan"),
       %{
         "id" => "plan",
         "component" => "ChoicePicker",
@@ -193,7 +197,8 @@ defmodule Gallery.Scenarios.Forms do
         "label" => "I accept the terms",
         "value" => path("/form/terms"),
         "checks" => [check(path("/form/terms"), "Accept the terms to continue.")]
-      }
+      },
+      %{"id" => "actions", "component" => "Row", "justify" => "end", "children" => ["submit"]}
     ] ++
       button("submit", "Create account", event("signup", %{"form" => path("/form")}), %{
         "variant" => "primary",
@@ -224,7 +229,7 @@ defmodule Gallery.Scenarios.Forms do
       %{
         "id" => "root",
         "component" => "Column",
-        "children" => ["done", "welcome", "contact", "edit"],
+        "children" => ["done", "welcome", "contact", "again"],
         "align" => "center"
       },
       %{"id" => "done", "component" => "Icon", "name" => "check"},
@@ -234,8 +239,10 @@ defmodule Gallery.Scenarios.Forms do
         call("formatString", %{
           "value" =>
             "Your ${/form/plan/0} account is ready. We will write to ${/form/email}${/form/phone}."
-        })
-      )
+        }),
+        %{"variant" => "caption"}
+      ),
+      %{"id" => "again", "component" => "Row", "justify" => "center", "children" => ["edit"]}
     ] ++ button("edit", "Edit my details", event("edit"))
   end
 

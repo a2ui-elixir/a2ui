@@ -106,8 +106,9 @@ defmodule Gallery.Scenarios.CustomCatalog do
         "component" => "List",
         "children" => %{"componentId" => "member", "path" => "/team"}
       },
+      %{"id" => "member", "component" => "Card", "child" => "memberRow"},
       %{
-        "id" => "member",
+        "id" => "memberRow",
         "component" => "Row",
         "align" => "center",
         "children" => ["initials", "who", "status", "rating", "progress"]
@@ -123,7 +124,7 @@ defmodule Gallery.Scenarios.CustomCatalog do
         }
       }),
       %{"id" => "who", "component" => "Column", "weight" => 1, "children" => ["name", "role"]},
-      text("name", path("name")),
+      text("name", call("formatString", %{"value" => "#### ${name}"})),
       text("role", path("role"), %{"variant" => "caption"}),
       widget(%{
         "id" => "status",

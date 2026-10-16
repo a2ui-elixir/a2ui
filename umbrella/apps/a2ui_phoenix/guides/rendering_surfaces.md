@@ -414,6 +414,17 @@ a form does not open in red. A slider sets `--a2ui-slider-fill`, the filled
 part of its track, from its value, and `a2ui_phoenix.js` keeps it in step
 while the slider moves.
 
+### Layout
+
+A few rules make the usual compositions read well without a style of their
+own. Cards in a horizontal list are tiles of one width
+(`--a2ui-list-card-width`, 15rem) and one height, and the list scrolls
+sideways when they do not fit. A card is a column that its layout child
+fills, so a `Column` with `justify: "spaceBetween"` keeps a card's button
+at its bottom. A caption right under a heading in a column is drawn close
+to it, as its subtitle. Text that waits for an agent function shows its
+busy indicator on the same line.
+
 ### Surface themes
 
 A v0.9 surface may carry a theme. `A2UIPhoenix.Surface` sets its
@@ -498,7 +509,9 @@ but the app starts over.
 
 The hook answers the app's handshake, display mode and link requests
 (`http` and `https` only) in the browser, resizes the frame (within 200-3000
-by 100-2000 pixels), and keeps the values the component binds in
+by 100-2000 pixels), gives the app the component's color scheme as the host
+context's `theme` (`light` or `dark`; the system's when the page allows
+both) and tells it when that changes, and keeps the values the component binds in
 `data.paths` in step with the data model. What concerns the surface goes to
 `A2UIPhoenix.Session.mcp_app_request/5`: a tool call the component allows in
 `allowedTools` reaches the agent as an action named after the tool (and runs

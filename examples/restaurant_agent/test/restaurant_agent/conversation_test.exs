@@ -42,7 +42,7 @@ defmodule RestaurantAgent.ConversationTest do
       ask(session, [text("Find Italian restaurants")], "m1")
 
     assert Renderer.surface_ids(session) == ["restaurants-m1"]
-    assert "Pizzeria Napoli" in Renderer.texts(session, "restaurants-m1")
+    assert "#### Pizzeria Napoli" in Renderer.texts(session, "restaurants-m1")
 
     # The second card is Pizzeria Napoli: nearest first.
     {session, [book]} = Renderer.click(session, "restaurants-m1", "Book a table", 1)

@@ -2,8 +2,9 @@ defmodule RestaurantAgent.Restaurants do
   @moduledoc """
   The restaurants the agent knows, and the tables they have free.
 
-  Each restaurant has a picture the agent serves itself
-  (`GET /images/<id>.svg`), so the examples need no network.
+  Each restaurant has a picture of its dish, which the agent serves
+  itself (`GET /images/<id>.svg`, `RestaurantAgent.Pictures`), so the
+  examples need no network; `dish` describes it.
   """
 
   @restaurants [
@@ -15,7 +16,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 412,
       "price" => "$$",
       "distance" => 0.8,
-      "color" => "#c0392b",
+      "dish" => "Spaghetti al pomodoro with basil and parmesan",
       "description" => "Fresh pasta every morning and a wood-fired oven."
     },
     %{
@@ -26,7 +27,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 198,
       "price" => "$$$",
       "distance" => 2.4,
-      "color" => "#8e44ad",
+      "dish" => "Grilled river trout with lemon and herbs",
       "description" => "Northern Italian classics by the river."
     },
     %{
@@ -37,7 +38,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 1033,
       "price" => "$",
       "distance" => 1.1,
-      "color" => "#d35400",
+      "dish" => "A margherita on a wooden board",
       "description" => "Neapolitan pizza, ninety seconds in the oven."
     },
     %{
@@ -48,7 +49,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 640,
       "price" => "$$$",
       "distance" => 1.9,
-      "color" => "#e84393",
+      "dish" => "Maki and salmon nigiri on a slate",
       "description" => "Omakase counter and a quiet garden."
     },
     %{
@@ -59,7 +60,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 377,
       "price" => "$",
       "distance" => 0.5,
-      "color" => "#2d3436",
+      "dish" => "Tonkotsu ramen with chashu and a soft egg",
       "description" => "Tonkotsu broth simmered for eighteen hours."
     },
     %{
@@ -70,7 +71,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 251,
       "price" => "$$",
       "distance" => 3.2,
-      "color" => "#27ae60",
+      "dish" => "Three tacos al pastor with lime",
       "description" => "Tacos al pastor and forty kinds of mezcal."
     },
     %{
@@ -81,7 +82,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 529,
       "price" => "$$",
       "distance" => 1.4,
-      "color" => "#f39c12",
+      "dish" => "A bowl of curry with naan",
       "description" => "Tandoor breads and slow-cooked curries."
     },
     %{
@@ -92,7 +93,7 @@ defmodule RestaurantAgent.Restaurants do
       "reviews" => 143,
       "price" => "$$$",
       "distance" => 2.0,
-      "color" => "#2980b9",
+      "dish" => "Steak frites with herb butter",
       "description" => "Steak frites and a short, honest wine list."
     }
   ]
@@ -166,21 +167,7 @@ defmodule RestaurantAgent.Restaurants do
 
   defp parse_date(other), do: {:error, "Not a date: #{inspect(other)}"}
 
-  @doc "The picture of a restaurant: a plate in its color, with its initials."
+  @doc "The picture of a restaurant (`RestaurantAgent.Pictures`), or `nil` for an unknown id."
   @spec image(String.t()) :: String.t() | nil
-  def image(id) do
-    with %{"name" => name, "color" => color} <- get(id) do
-      initials = name |> String.split() |> Enum.map_join(&String.first/1) |> String.slice(0, 2)
-
-      """
-      <svg xmlns="http://www.w3.org/2000/svg" width="160" height="120" viewBox="0 0 160 120">
-        <rect width="160" height="120" fill="#{color}"/>
-        <circle cx="80" cy="60" r="42" fill="#fff" opacity="0.9"/>
-        <circle cx="80" cy="60" r="30" fill="none" stroke="#{color}" stroke-width="3"/>
-        <text x="80" y="70" font-family="sans-serif" font-size="26" font-weight="bold"
-              text-anchor="middle" fill="#{color}">#{initials}</text>
-      </svg>
-      """
-    end
-  end
+  def image(id), do: if(get(id), do: RestaurantAgent.Pictures.svg(id))
 end

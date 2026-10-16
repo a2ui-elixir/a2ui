@@ -82,16 +82,37 @@ defmodule Gallery.Scenarios.Components do
     ]
   end
 
+  # A small label over a group: a level-5 heading.
+  defp label(id, text), do: text(id, "##### " <> text)
+
   defp media do
-    [
+    List.flatten([
       %{
         "id" => "mediaTab",
         "component" => "Column",
-        "children" => ["textHead", "body", "caption", "icons", "images", "video", "audio", "rule"]
+        "children" => [
+          "typeLabel",
+          "textHead",
+          "body",
+          "caption",
+          "iconLabel",
+          "icons",
+          "imageLabel",
+          "images",
+          "videoLabel",
+          "video",
+          "audioLabel",
+          "audio"
+        ]
       },
-      text("textHead", "### Text"),
-      text("body", "Body text with *emphasis*, **strong** words and a list:\n- one\n- two"),
+      label("typeLabel", "Typography"),
+      text("textHead", "### Notes from the engine room"),
+      text(
+        "body",
+        "Body text with *emphasis*, **strong** words, `code` and a list:\n- one\n- two"
+      ),
       text("caption", "A caption, for the small print.", %{"variant" => "caption"}),
+      label("iconLabel", "Icons"),
       %{
         "id" => "icons",
         "component" => "Row",
@@ -117,12 +138,14 @@ defmodule Gallery.Scenarios.Components do
             "M12 2 L15 9 L22 9 L16.5 13.5 L18.5 21 L12 16.5 L5.5 21 L7.5 13.5 L2 9 L9 9 Z"
         }
       },
+      label("imageLabel", "Images"),
       %{
         "id" => "images",
         "component" => "Row",
         "align" => "end",
-        "children" => ["avatar", "small", "medium"]
+        "children" => ["avatarItem", "smallItem", "mediumItem"]
       },
+      specimen("avatarItem", "avatar", "avatar"),
       %{
         "id" => "avatar",
         "component" => "Image",
@@ -130,46 +153,80 @@ defmodule Gallery.Scenarios.Components do
         "variant" => "avatar",
         "description" => "A person"
       },
+      specimen("smallItem", "small", "smallFeature"),
       %{
         "id" => "small",
         "component" => "Image",
         "url" => "/media/landscape.svg",
         "variant" => "smallFeature",
         "fit" => "cover",
-        "description" => "Hills"
+        "description" => "Mountains at dusk"
       },
+      specimen("mediumItem", "medium", "mediumFeature", %{"weight" => 1}),
       %{
         "id" => "medium",
         "component" => "Image",
         "url" => "/media/landscape.svg",
         "variant" => "mediumFeature",
-        "fit" => "contain",
-        "description" => "Hills and sun"
+        "fit" => "cover",
+        "description" => "Mountains at dusk, a lake below"
       },
+      label("videoLabel", "Video"),
       %{
         "id" => "video",
         "component" => "Video",
         "url" => "/media/clip.webm",
         "posterUrl" => "/media/poster.svg"
       },
+      label("audioLabel", "Audio"),
       %{
         "id" => "audio",
         "component" => "AudioPlayer",
         "url" => "/media/chime.ogg",
         "description" => "A two-note chime"
-      },
-      %{"id" => "rule", "component" => "Divider"}
+      }
+    ])
+  end
+
+  # A specimen: the component `child`, named under it.
+  defp specimen(id, child, name, extra \\ %{}) do
+    [
+      Map.merge(
+        %{
+          "id" => id,
+          "component" => "Column",
+          "align" => "start",
+          "children" => [child, id <> "Name"]
+        },
+        extra
+      ),
+      text(id <> "Name", name, %{"variant" => "caption"})
     ]
   end
 
   defp layout do
+    tiles = [
+      {"t1", "mail", "Inbox", "3 unread"},
+      {"t2", "event", "Calendar", "2 events today"},
+      {"t3", "photo", "Photos", "128 items"},
+      {"t4", "folder", "Files", "All synced"}
+    ]
+
     [
       %{
         "id" => "layoutTab",
         "component" => "Column",
-        "children" => ["rowHead", "spread", "weighted", "listHead", "strip"]
+        "children" => [
+          "rowLabel",
+          "spread",
+          "weighted",
+          "ruleLabel",
+          "rule",
+          "listLabel",
+          "strip"
+        ]
       },
-      text("rowHead", "### Row, Column, Card, Divider"),
+      label("rowLabel", "Row, Column and Card"),
       %{
         "id" => "spread",
         "component" => "Row",
@@ -187,29 +244,36 @@ defmodule Gallery.Scenarios.Components do
         "align" => "center",
         "children" => ["c2a", "c2b"]
       },
-      text("c2a", "Card two"),
+      text("c2a", "#### Card two"),
       text("c2b", "centered", %{"variant" => "caption"}),
       %{"id" => "weighted", "component" => "Row", "children" => ["w1", "w2"]},
       %{"id" => "w1", "component" => "Card", "child" => "w1t", "weight" => 1},
-      text("w1t", "weight 1"),
+      text("w1t", "weight 1", %{"variant" => "caption"}),
       %{"id" => "w2", "component" => "Card", "child" => "w2t", "weight" => 2},
-      text("w2t", "weight 2"),
-      text("listHead", "### List"),
+      text("w2t", "weight 2", %{"variant" => "caption"}),
+      label("ruleLabel", "Divider"),
+      %{"id" => "rule", "component" => "Divider"},
+      label("listLabel", "A horizontal List of cards"),
       %{
         "id" => "strip",
         "component" => "List",
         "direction" => "horizontal",
-        "children" => ["l1", "l2", "l3", "l4"]
-      },
-      %{"id" => "l1", "component" => "Card", "child" => "l1t"},
-      text("l1t", "First"),
-      %{"id" => "l2", "component" => "Card", "child" => "l2t"},
-      text("l2t", "Second"),
-      %{"id" => "l3", "component" => "Card", "child" => "l3t"},
-      text("l3t", "Third"),
-      %{"id" => "l4", "component" => "Card", "child" => "l4t"},
-      text("l4t", "Fourth")
-    ]
+        "children" => Enum.map(tiles, &elem(&1, 0))
+      }
+    ] ++
+      Enum.flat_map(tiles, fn {id, icon, title, detail} ->
+        [
+          %{"id" => id, "component" => "Card", "child" => id <> "Body"},
+          %{
+            "id" => id <> "Body",
+            "component" => "Column",
+            "children" => [id <> "Icon", id <> "Title", id <> "Detail"]
+          },
+          %{"id" => id <> "Icon", "component" => "Icon", "name" => icon},
+          text(id <> "Title", "#### " <> title),
+          text(id <> "Detail", detail, %{"variant" => "caption"})
+        ]
+      end)
   end
 
   defp inputs do
@@ -218,21 +282,25 @@ defmodule Gallery.Scenarios.Components do
         "id" => "inputsTab",
         "component" => "Column",
         "children" => [
+          "fieldsLabel",
           "name",
           "bio",
           "age",
           "secret",
+          "choicesLabel",
           "subscribed",
           "toppings",
           "size",
           "country",
+          "valuesLabel",
           "volume",
           "day",
           "time",
           "when",
-          "echo"
+          "echoCard"
         ]
       },
+      label("fieldsLabel", "Text fields"),
       %{
         "id" => "name",
         "component" => "TextField",
@@ -261,6 +329,7 @@ defmodule Gallery.Scenarios.Components do
         "variant" => "obscured",
         "value" => path("/inputs/secret")
       },
+      label("choicesLabel", "Choices"),
       %{
         "id" => "subscribed",
         "component" => "CheckBox",
@@ -310,6 +379,7 @@ defmodule Gallery.Scenarios.Components do
           ),
         "value" => path("/inputs/country")
       },
+      label("valuesLabel", "Ranges, dates and times"),
       %{
         "id" => "volume",
         "component" => "Slider",
@@ -341,6 +411,14 @@ defmodule Gallery.Scenarios.Components do
         "enableTime" => true,
         "value" => path("/inputs/when")
       },
+      %{"id" => "echoCard", "component" => "Card", "child" => "echoRow"},
+      %{
+        "id" => "echoRow",
+        "component" => "Row",
+        "align" => "center",
+        "children" => ["echoIcon", "echo"]
+      },
+      %{"id" => "echoIcon", "component" => "Icon", "name" => "info"},
       text(
         "echo",
         call("formatString", %{
@@ -348,7 +426,10 @@ defmodule Gallery.Scenarios.Components do
             "The data model now says: ${/inputs/name}, ${/inputs/age}, newsletter ${/inputs/subscribed}, " <>
               "size ${/inputs/size}, volume ${/inputs/volume}, on ${formatDate(value: ${/inputs/when}, format: 'MMM d, HH:mm')}."
         }),
-        %{"accessibility" => %{"live" => "polite", "description" => "What the inputs wrote"}}
+        %{
+          "weight" => 1,
+          "accessibility" => %{"live" => "polite", "description" => "What the inputs wrote"}
+        }
       )
     ]
   end
@@ -358,11 +439,20 @@ defmodule Gallery.Scenarios.Components do
       %{
         "id" => "buttonsTab",
         "component" => "Column",
-        "children" => ["buttonRow", "linkRow", "dialog"]
+        "children" => [
+          "variantLabel",
+          "buttonRow",
+          "callLabel",
+          "linkRow",
+          "modalLabel",
+          "dialog"
+        ]
       },
+      label("variantLabel", "Variants"),
       %{
         "id" => "buttonRow",
         "component" => "Row",
+        "align" => "center",
         "children" => ["plain", "primary", "borderless", "iconOnly"]
       }
     ] ++
@@ -382,6 +472,7 @@ defmodule Gallery.Scenarios.Components do
           "accessibility" => %{"label" => "Star this"}
         },
         %{"id" => "starIcon", "component" => "Icon", "name" => "star"},
+        label("callLabel", "A function call"),
         %{"id" => "linkRow", "component" => "Row", "children" => ["docs"]}
       ] ++
       button(
@@ -391,6 +482,7 @@ defmodule Gallery.Scenarios.Components do
         %{"variant" => "borderless"}
       ) ++
       [
+        label("modalLabel", "Modal"),
         %{
           "id" => "dialog",
           "component" => "Modal",
@@ -400,11 +492,13 @@ defmodule Gallery.Scenarios.Components do
       ] ++
       button("openDialog", "Open a dialog", event("pressed", %{"which" => "dialog"})) ++
       [
-        %{"id" => "dialogBody", "component" => "Card", "child" => "dialogText"},
-        text(
-          "dialogText",
-          "### A modal\nIts content is any component. Press Escape or close it to go back."
-        )
+        %{
+          "id" => "dialogBody",
+          "component" => "Column",
+          "children" => ["dialogTitle", "dialogText"]
+        },
+        text("dialogTitle", "### A modal"),
+        text("dialogText", "Its content is any component. Press Escape or close it to go back.")
       ]
   end
 

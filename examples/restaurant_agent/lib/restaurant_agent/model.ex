@@ -22,9 +22,9 @@ defmodule RestaurantAgent.Model do
   alias RestaurantAgent.{Catalogs, UI}
 
   @doc """
-  The restaurant list as the model writes it in v1.0: a template of
-  `RestaurantCard` macros, each with a `Rating` from the restaurant
-  catalog.
+  The restaurant list as the model writes it in v1.0: a horizontal list
+  repeating a `RestaurantCard` macro over the restaurants, each with a
+  `Rating` from the restaurant catalog.
   """
   @spec list(String.t(), String.t(), [map()], String.t()) :: [map()]
   def list(surface_id, heading, restaurants, base_url) do
@@ -60,7 +60,7 @@ defmodule RestaurantAgent.Model do
             %{
               "id" => "list",
               "component" => "List",
-              "direction" => "vertical",
+              "direction" => "horizontal",
               "children" => %{"componentId" => "card", "path" => "/restaurants"}
             },
             %{
@@ -68,6 +68,7 @@ defmodule RestaurantAgent.Model do
               "component" => "RestaurantCard",
               "name" => %{"@path" => "name"},
               "image" => %{"@path" => "image"},
+              "dish" => %{"@path" => "dish"},
               "details" => %{
                 "@call" => "formatString",
                 "args" => %{

@@ -20,10 +20,10 @@ defmodule RestaurantAgent.UI do
   }
 
   @doc """
-  The list of `restaurants` on a new surface: a card per restaurant,
-  repeated over the data model with a template. Option: `:rating`, show
-  the restaurant catalog's `Rating` (default: in v1.0), else the stars
-  as text.
+  The list of `restaurants` on a new surface: a card per restaurant in a
+  horizontal list, repeated over the data model with a template. Option:
+  `:rating`, show the restaurant catalog's `Rating` (default: in v1.0),
+  else the stars as text.
   """
   @spec list(String.t(), String.t(), [map()], String.t(), String.t(), keyword()) :: [map()]
   def list(surface_id, heading, restaurants, base_url, version, options \\ []) do
@@ -37,32 +37,40 @@ defmodule RestaurantAgent.UI do
             value: bind("rating"),
             label: call("formatString", value: "${reviews} reviews")
           ),
-        else: text(text: call("formatString", value: "${stars} ${rating}"))
+        else: text(text: call("formatString", value: "${stars} ${rating}"), variant: "caption")
+
+    name =
+      if v1?,
+        do: text(text: call("formatString", value: "#### ${name}")),
+        else: text(text: bind("name"), variant: "h4")
 
     card =
       card(
         id: "card",
         child:
-          row(
-            align: "center",
+          column(
+            justify: "spaceBetween",
             children: [
-              image(url: bind("image"), fit: "cover", variant: "smallFeature"),
               column(
-                weight: 1,
                 children: [
-                  text(text: bind("name"), variant: if(v1?, do: "body", else: "h4")),
-                  stars,
+                  image(
+                    url: bind("image"),
+                    description: bind("dish"),
+                    fit: "cover",
+                    variant: "mediumFeature"
+                  ),
+                  name,
                   text(
                     text: call("formatString", value: "${cuisine} · ${price} · ${distance} km"),
                     variant: "caption"
                   ),
-                  button(
-                    id: "book",
-                    variant: "primary",
-                    child: text(text: "Book a table"),
-                    action: event("book", restaurantId: bind("id"), name: bind("name"))
-                  )
+                  stars
                 ]
+              ),
+              button(
+                id: "book",
+                child: text(text: "Book a table"),
+                action: event("book", restaurantId: bind("id"), name: bind("name"))
               )
             ]
           )
@@ -83,7 +91,7 @@ defmodule RestaurantAgent.UI do
                 other: call("formatString", value: "${/count} places nearby, nearest first.")
               )
           ),
-          list(id: "list", direction: "vertical", children: child_list("/restaurants", card))
+          list(id: "list", direction: "horizontal", children: child_list("/restaurants", card))
         ]
       )
 
@@ -99,7 +107,7 @@ defmodule RestaurantAgent.UI do
   @spec item(map(), String.t()) :: map()
   def item(restaurant, base_url) do
     restaurant
-    |> Map.take(~w(id name cuisine rating reviews price distance))
+    |> Map.take(~w(id name cuisine rating reviews price distance dish))
     |> Map.put("image", "#{base_url}/images/#{restaurant["id"]}.svg")
     |> Map.put("stars", stars(restaurant["rating"]))
   end
@@ -110,13 +118,17 @@ defmodule RestaurantAgent.UI do
   end
 
   @doc """
-  The booking form for `restaurant`. Options:
+  The booking form for `restaurant`: a header with its picture, your
+  details, your table, and the booking's summary next to the button.
+  Options:
 
     * `:availability` — show whether a table is free, with the agent
       function `checkAvailability` (protocol v1.0);
     * `:ask_client` — also call the renderer function `clientInfo`, so
       the agent learns the user's time zone (protocol v1.0);
-    * `:today` — the earliest date the form allows.
+    * `:today` — the earliest date the form allows;
+    * `:base_url` — where the agent serves the restaurant's picture; the
+      header has no picture without it.
   """
   @spec booking(String.t(), map(), String.t(), keyword()) :: [map()]
   def booking(surface_id, restaurant, version, options \\ []) do
@@ -125,19 +137,38 @@ defmodule RestaurantAgent.UI do
 
     availability =
       if v1? and options[:availability] do
-        text(
-          id: "availability",
-          accessibility: accessibility(live: "polite"),
-          text:
-            call(
-              "checkAvailability",
-              [
-                restaurant_id: restaurant["id"],
-                date: bind("/booking/date"),
-                party_size: bind("/booking/partySize")
-              ],
-              catalog_id: Catalogs.restaurant_id()
+        row(
+          id: "free",
+          align: "center",
+          children: [
+            icon(id: "freeIcon", name: "event"),
+            text(
+              id: "availability",
+              weight: 1,
+              accessibility: accessibility(live: "polite"),
+              text:
+                call(
+                  "checkAvailability",
+                  [
+                    restaurant_id: restaurant["id"],
+                    date: bind("/booking/date"),
+                    party_size: bind("/booking/partySize")
+                  ],
+                  catalog_id: Catalogs.restaurant_id()
+                )
             )
+          ]
+        )
+      end
+
+    picture =
+      if base_url = options[:base_url] do
+        image(
+          id: "picture",
+          url: "#{base_url}/images/#{restaurant["id"]}.svg",
+          description: restaurant["dish"],
+          fit: "cover",
+          variant: "avatar"
         )
       end
 
@@ -152,8 +183,27 @@ defmodule RestaurantAgent.UI do
         children:
           Enum.reject(
             [
-              heading("Book a table at #{restaurant["name"]}", version),
-              text(id: "about", text: restaurant["description"], variant: "caption"),
+              row(
+                id: "header",
+                align: "center",
+                children:
+                  Enum.reject(
+                    [
+                      picture,
+                      column(
+                        id: "heading",
+                        weight: 1,
+                        children: [
+                          subtitle("title", "Book a table at #{restaurant["name"]}", version),
+                          text(id: "about", text: restaurant["description"], variant: "caption")
+                        ]
+                      )
+                    ],
+                    &is_nil/1
+                  )
+              ),
+              divider(id: "rule"),
+              overline("details", "Your details", version),
               text_field(
                 id: "name",
                 label: "Your name",
@@ -171,6 +221,7 @@ defmodule RestaurantAgent.UI do
                   )
                 ]
               ),
+              overline("table", "Your table", version),
               date_time_input(
                 id: "date",
                 label: "When",
@@ -191,15 +242,6 @@ defmodule RestaurantAgent.UI do
                 min: 1,
                 max: 12
               ),
-              text(
-                id: "guests",
-                text:
-                  call("pluralize",
-                    value: bind("/booking/partySize"),
-                    one: "One guest",
-                    other: call("formatString", value: "${/booking/partySize} guests")
-                  )
-              ),
               choice_picker(
                 id: "seating",
                 label: "Seating",
@@ -219,22 +261,38 @@ defmodule RestaurantAgent.UI do
                 value: bind("/booking/notes"),
                 variant: "longText"
               ),
-              button(
-                id: "submit",
-                variant: "primary",
-                child: text(text: "Confirm booking"),
-                checks: [
-                  check(
-                    call("and",
-                      values: [
-                        call("required", value: bind("/booking/name")),
-                        call("email", value: bind("/booking/email"))
-                      ]
-                    ),
-                    "Fill in your name and email first."
+              row(
+                id: "actions",
+                justify: "spaceBetween",
+                align: "center",
+                children: [
+                  text(
+                    id: "guests",
+                    text:
+                      call("pluralize",
+                        value: bind("/booking/partySize"),
+                        one: "One guest",
+                        other: call("formatString", value: "${/booking/partySize} guests")
+                      )
+                  ),
+                  button(
+                    id: "submit",
+                    variant: "primary",
+                    child: text(text: "Confirm booking"),
+                    checks: [
+                      check(
+                        call("and",
+                          values: [
+                            call("required", value: bind("/booking/name")),
+                            call("email", value: bind("/booking/email"))
+                          ]
+                        ),
+                        "Fill in your name and email first."
+                      )
+                    ],
+                    action: event("submit_booking", booking: bind("/booking"))
                   )
-                ],
-                action: event("submit_booking", booking: bind("/booking"))
+                ]
               )
             ],
             &is_nil/1
@@ -284,7 +342,10 @@ defmodule RestaurantAgent.UI do
     }
   end
 
-  @doc "The confirmation that replaces the form of `surface_id` once the table is booked."
+  @doc """
+  The confirmation that replaces the form of `surface_id` once the table
+  is booked: when, then the party and where the details went.
+  """
   @spec confirmation(String.t(), map(), String.t()) :: [map()]
   def confirmation(surface_id, booking, version) do
     tree =
@@ -292,8 +353,8 @@ defmodule RestaurantAgent.UI do
         id: "root",
         align: "center",
         children: [
-          icon(name: "check"),
-          heading("Table booked", version),
+          icon(id: "booked", name: "check"),
+          subtitle("title", "Table booked", version),
           text(
             id: "when",
             text:
@@ -304,17 +365,43 @@ defmodule RestaurantAgent.UI do
                     "${formatDate(value: ${/booking/date}, format: 'HH:mm')}."
               )
           ),
-          text(
-            id: "party",
-            variant: "caption",
-            text:
-              call("pluralize",
-                value: bind("/booking/partySize"),
-                one: "A table for one.",
-                other: call("formatString", value: "A table for ${/booking/partySize}.")
+          card(
+            id: "summary",
+            child:
+              column(
+                children: [
+                  row(
+                    id: "partyRow",
+                    align: "center",
+                    children: [
+                      icon(id: "partyIcon", name: "person"),
+                      text(
+                        id: "party",
+                        text:
+                          call("pluralize",
+                            value: bind("/booking/partySize"),
+                            one: "A table for one.",
+                            other:
+                              call("formatString", value: "A table for ${/booking/partySize}.")
+                          )
+                      )
+                    ]
+                  ),
+                  row(
+                    id: "mailRow",
+                    align: "center",
+                    children: [
+                      icon(id: "mailIcon", name: "mail"),
+                      text(
+                        id: "mail",
+                        text:
+                          call("formatString", value: "The details went to ${/booking/email}.")
+                      )
+                    ]
+                  )
+                ]
               )
           ),
-          divider(),
           button(id: "done", child: text(text: "Done"), action: event("done"))
         ]
       )
@@ -342,9 +429,17 @@ defmodule RestaurantAgent.UI do
   def delete(surface_id, version),
     do: %{"version" => version, "deleteSurface" => %{"surfaceId" => surface_id}}
 
-  # v1.0 has no heading variants: a heading is Markdown in a Text.
+  # v1.0 has no heading variants: a heading is Markdown in a Text. A
+  # surface's title, the title of a part of it, and the label over a
+  # group of fields.
   defp heading(text, "v1.0"), do: text(id: "title", text: "## " <> text)
   defp heading(text, _v09), do: text(id: "title", text: text, variant: "h3")
+
+  defp subtitle(id, text, "v1.0"), do: text(id: id, text: "### " <> text)
+  defp subtitle(id, text, _v09), do: text(id: id, text: text, variant: "h4")
+
+  defp overline(id, text, "v1.0"), do: text(id: id, text: "##### " <> text)
+  defp overline(id, text, _v09), do: text(id: id, text: text, variant: "h5")
 
   # v1.0 puts the components and the data in createSurface; v0.9
   # follows it with updateComponents and updateDataModel, and themes the

@@ -1,5 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
-  <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#3b5bdb"/><stop offset="1" stop-color="#ae3ec9"/></linearGradient></defs>
-  <rect width="320" height="180" fill="url(#g)"/>
-  <polygon points="140,60 140,120 190,90" fill="#fff" opacity="0.9"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/><stop offset="0.55" stop-color="#4c1d95"/><stop offset="1" stop-color="#0e7490"/>
+    </linearGradient>
+    <radialGradient id="a" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f472b6" stop-opacity="0.75"/><stop offset="1" stop-color="#f472b6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="b" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.7"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bg)"/>
+  <circle cx="190" cy="250" r="190" fill="url(#a)"/>
+  <circle cx="480" cy="90" r="200" fill="url(#b)"/>
+  <circle cx="320" cy="180" r="44" fill="#fff" fill-opacity="0.16" stroke="#fff" stroke-opacity="0.45" stroke-width="1.5"/>
+  <path d="M307 158v44l36-22z" fill="#fff"/>
 </svg>

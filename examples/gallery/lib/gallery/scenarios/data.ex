@@ -104,10 +104,17 @@ defmodule Gallery.Scenarios.Data do
       %{
         "id" => "root",
         "component" => "Column",
-        "children" => ["title", "note", "updated", "summary", "stocks"]
+        "children" => ["title", "note", "status", "stocks"]
       },
       text("title", "## Market watch"),
       text("note", path("/note"), %{"variant" => "caption"}),
+      %{
+        "id" => "status",
+        "component" => "Row",
+        "justify" => "spaceBetween",
+        "align" => "center",
+        "children" => ["summary", "updated"]
+      },
       text(
         "updated",
         call("formatString", %{
@@ -136,26 +143,18 @@ defmodule Gallery.Scenarios.Data do
         "id" => "stockBody",
         "component" => "Row",
         "align" => "center",
-        "children" => ["position", "arrow", "names", "figures", "watch"]
+        "children" => ["position", "names", "figures", "watch"]
       },
       text("position", call("formatString", %{"value" => "#${@index(offset: 1)}"}), %{
         "variant" => "caption"
       }),
-      %{
-        "id" => "arrow",
-        "component" => "Icon",
-        "name" => %{"svgPath" => path("quote/arrow")},
-        "accessibility" => %{
-          "label" => call("formatString", %{"value" => "${quote/change} percent"})
-        }
-      },
       %{
         "id" => "names",
         "component" => "Column",
         "weight" => 1,
         "children" => ["symbol", "name", "tags"]
       },
-      text("symbol", call("formatString", %{"value" => "**${symbol}**"})),
+      text("symbol", call("formatString", %{"value" => "#### ${symbol}"})),
       text("name", path("name"), %{"variant" => "caption"}),
       %{
         "id" => "tags",
@@ -172,10 +171,26 @@ defmodule Gallery.Scenarios.Data do
       },
       text(
         "price",
-        call("formatCurrency", %{"value" => path("quote/price"), "currency" => path("/currency")})
+        call("formatString", %{
+          "value" => "#### ${formatCurrency(value: ${quote/price}, currency: ${/currency})}"
+        })
       ),
+      %{
+        "id" => "change",
+        "component" => "Row",
+        "align" => "center",
+        "children" => ["arrow", "percent"]
+      },
+      %{
+        "id" => "arrow",
+        "component" => "Icon",
+        "name" => %{"svgPath" => path("quote/arrow")},
+        "accessibility" => %{
+          "label" => call("formatString", %{"value" => "${quote/change} percent"})
+        }
+      },
       text(
-        "change",
+        "percent",
         call("formatString", %{
           "value" => "${formatNumber(value: ${quote/change}, decimals: 2)} %"
         }),

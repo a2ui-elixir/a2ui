@@ -40,3 +40,10 @@ First release.
 - Stylesheet: image sizes per variant, dividers, full-width media, a busy
   indicator, Markdown text without outer margins, and a slider whose track
   fills to its value (`--a2ui-slider-fill`).
+- Layout: cards in a horizontal list are tiles of one width
+  (`--a2ui-list-card-width`), a card's layout child fills it, a caption
+  under a heading is drawn as its subtitle, and busy text keeps its
+  indicator on its line.
+- An embedded MCP App gets the component's color scheme as the host
+  context's `theme`, and a `ui/notifications/host-context-changed`
+  notification when it changes.

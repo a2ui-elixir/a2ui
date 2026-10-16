@@ -46,9 +46,13 @@ bubbles, callouts), styled by `priv/static/assets/gallery.css` with the same
 `--a2ui-*` tokens. The gallery sets a few of them (the Geist fonts, bundled
 in `priv/static/assets/fonts` under the SIL Open Font License, and its
 primary color) and the page's `color-scheme`, which the header's switch
-turns to light or dark. Icons are Material Symbols, from Google Fonts. The components of the gallery's own catalogs
-(`Rating`, `Badge`, `Progress`, `Panel`) are styled by
-`priv/static/assets/catalog.css`, with the same tokens.
+turns to light or dark. Icons are Material Symbols, from Google Fonts. The
+components of the gallery's own catalogs (`Rating`, `Badge`, `Progress`,
+`Panel`) are styled by `priv/static/assets/catalog.css`, with the same
+tokens, and the scenarios compose their surfaces with the patterns the
+examples share (`../README.md`). The trip dashboard of the MCP scenario
+(`priv/mcp/trip_dashboard.html`) takes its light or dark theme from the
+host context the renderer sends it.
 
 ## Replays for the landing page
 

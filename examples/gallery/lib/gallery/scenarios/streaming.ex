@@ -61,12 +61,16 @@ defmodule Gallery.Scenarios.Streaming do
         id = String.downcase(day)
 
         [
-          %{"id" => id, "component" => "Card", "child" => id <> "Text"},
+          %{"id" => id, "component" => "Card", "child" => id <> "Day", "weight" => 1},
           %{
-            "id" => id <> "Text",
-            "component" => "Text",
-            "text" => "**#{day}**\n\n#{sky} #{temperature}°"
-          }
+            "id" => id <> "Day",
+            "component" => "Column",
+            "align" => "center",
+            "children" => [id <> "Name", id <> "Sky", id <> "Degrees"]
+          },
+          text(id <> "Name", "##### #{day}"),
+          text(id <> "Sky", "## #{sky}"),
+          text(id <> "Degrees", "### #{temperature}°")
         ]
       end)
 
@@ -82,7 +86,7 @@ defmodule Gallery.Scenarios.Streaming do
           },
           text("title", "## Lisbon, this week"),
           text("summary", path("/summary/text")),
-          %{"id" => "days", "component" => "Row", "justify" => "spaceBetween", "children" => days}
+          %{"id" => "days", "component" => "Row", "children" => days}
         ] ++
           cards ++
           [text("source", "Forecast by the gallery's scripted model.", %{"variant" => "caption"})]

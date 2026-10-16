@@ -146,7 +146,7 @@ defmodule Site.ContentTest do
   end
 
   # The icons in assets/fonts/MaterialSymbolsOutlined-subset.woff2 (see the README).
-  @icon_subset ~w(check)
+  @icon_subset ~w(check event mail person)
 
   test "the replays come from the examples, with their stylesheets and icons" do
     for replay <- Site.Replays.all() do

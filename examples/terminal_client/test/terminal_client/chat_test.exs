@@ -41,6 +41,10 @@ defmodule TerminalClient.ChatTest do
     end
   end
 
+  # The availability line: the agent function's answer, after its icon.
+  defp free?(lines),
+    do: Enum.any?(lines, &String.ends_with?(&1, "A table for 2 is free at 19:30."))
+
   defp booked?(lines) do
     "agent: Done! Your table at Pizzeria Napoli is booked." in lines and
       "Ada, we expect you at Pizzeria Napoli on Saturday, October 17 at 19:30." in lines and
@@ -52,9 +56,9 @@ defmodule TerminalClient.ChatTest do
     {{:ok, _chat}, lines} = chat(url, [transport: "a2a"], @booking)
 
     assert "agent: Here are 3 places. Pick one to book a table." in lines
-    assert "│ ★★★★★ 4.8 · 1033 reviews    │" in lines
-    assert "…" in lines
-    assert "A table for 2 is free at 19:30." in lines
+    assert Enum.any?(lines, &(&1 =~ ~r/\A│ ★★★★★ 4\.8 · 1033 reviews +│\z/))
+    assert Enum.any?(lines, &String.ends_with?(&1, " …"))
+    assert free?(lines)
     assert Enum.any?(lines, &String.starts_with?(&1, "agent: Times are in "))
     assert booked?(lines)
   end
@@ -66,8 +70,8 @@ defmodule TerminalClient.ChatTest do
 
   test "A2A with the model writing Express", %{url: url} do
     {{:ok, _chat}, lines} = chat(url, [transport: "express"], @booking)
-    assert "│ ★★★★★ 4.8                   │" in lines or Enum.any?(lines, &(&1 =~ "★★★★★ 4.8"))
-    refute "A table for 2 is free at 19:30." in lines
+    assert Enum.any?(lines, &(&1 =~ "★★★★★ 4.8"))
+    refute free?(lines)
     assert booked?(lines)
   end
 
@@ -79,14 +83,14 @@ defmodule TerminalClient.ChatTest do
 
   test "WebSocket", %{url: url} do
     {{:ok, _chat}, lines} = chat(url, [transport: "ws"], @booking)
-    assert "A table for 2 is free at 19:30." in lines
+    assert free?(lines)
     assert booked?(lines)
   end
 
   test "MCP and AG-UI carry the actions, and no function calls", %{url: url} do
     for transport <- ["mcp", "agui"] do
       {{:ok, _chat}, lines} = chat(url, [transport: transport], @booking)
-      refute "…" in lines
+      refute Enum.any?(lines, &String.ends_with?(&1, " …"))
       assert booked?(lines), "#{transport}: #{Enum.join(lines, "\n")}"
     end
   end

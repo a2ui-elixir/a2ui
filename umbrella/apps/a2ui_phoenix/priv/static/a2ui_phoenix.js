@@ -227,6 +227,17 @@
         this.observer = new ResizeObserver(() => this.hostContextChanged());
         this.observer.observe(this.el);
       }
+
+      // The theme follows the page: a new color-scheme on its root (a
+      // theme switch), or the system's.
+      this.onThemeChange = () => this.hostContextChanged();
+      this.media = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+      if (this.media && this.media.addEventListener) this.media.addEventListener("change", this.onThemeChange);
+
+      if (typeof MutationObserver === "function" && document.documentElement) {
+        this.themeObserver = new MutationObserver(this.onThemeChange);
+        this.themeObserver.observe(document.documentElement, {attributes: true});
+      }
     },
 
     updated() {
@@ -238,6 +249,8 @@
     destroyed() {
       window.removeEventListener("message", this.onMessage);
       if (this.observer) this.observer.disconnect();
+      if (this.themeObserver) this.themeObserver.disconnect();
+      if (this.media && this.media.removeEventListener) this.media.removeEventListener("change", this.onThemeChange);
       clearTimeout(this.resizeTimer);
     },
 
@@ -354,12 +367,24 @@
       }
     },
 
+    // The theme the component is drawn in: its color-scheme (light, dark,
+    // or both, which follows the system), as the stylesheet's colors do.
+    theme() {
+      const prefersDark = Boolean(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      if (typeof window.getComputedStyle !== "function") return prefersDark ? "dark" : "light";
+
+      const schemes = String(window.getComputedStyle(this.el).colorScheme || "normal").split(/\s+/);
+      const light = schemes.includes("light");
+      const dark = schemes.includes("dark");
+      if (light && dark) return prefersDark ? "dark" : "light";
+      return dark ? "dark" : "light";
+    },
+
     hostContext() {
       const rect = this.el.getBoundingClientRect();
-      const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 
       return {
-        theme: dark ? "dark" : "light",
+        theme: this.theme(),
         displayMode: "inline",
         availableDisplayModes: ["inline"],
         containerDimensions: {width: rect.width, height: rect.height},

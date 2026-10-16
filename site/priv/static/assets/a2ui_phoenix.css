@@ -205,7 +205,16 @@
   scroll-snap-align: start;
 }
 
+/* Cards side by side in a horizontal list are tiles of one width and
+   height. */
+.a2ui-list-horizontal > .a2ui-list-item > .a2ui-card {
+  width: var(--a2ui-list-card-width, 15rem);
+  height: 100%;
+}
+
 .a2ui-card {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   padding: var(--a2ui-card-padding, var(--a2ui-spacing-l));
   margin: var(--a2ui-card-margin, 0);
@@ -214,6 +223,12 @@
   background: var(--a2ui-color-surface);
   box-shadow: var(--a2ui-card-box-shadow, var(--a2ui-shadow-s));
   color: var(--a2ui-color-on-surface);
+}
+
+/* A layout inside a card fills it: a Column can spread its children over
+   a card stretched to its neighbours' height. */
+.a2ui-card > :is(.a2ui-column, .a2ui-row) {
+  flex: 1 1 auto;
 }
 
 .a2ui-divider {
@@ -248,6 +263,11 @@
 .a2ui-text-caption {
   color: var(--a2ui-text-caption-color, var(--a2ui-color-muted));
   font-size: var(--a2ui-font-size-s);
+}
+
+/* A caption right under a heading reads as its subtitle. */
+.a2ui-column > .a2ui-text:has(> :is(h1, h2, h3, h4, h5, h6):last-child) + .a2ui-text-caption {
+  margin-top: calc(var(--a2ui-spacing-s) - var(--a2ui-column-gap, var(--a2ui-gap)));
 }
 
 /* Markdown, and the v0.9 heading variants. */
@@ -1194,6 +1214,11 @@ textarea.a2ui-input {
   border-radius: 50%;
   vertical-align: -0.1em;
   animation: a2ui-spin 0.75s linear infinite;
+}
+
+/* A busy Text keeps the spinner on its line. */
+.a2ui-text[aria-busy="true"] > :where(p):only-child {
+  display: inline;
 }
 
 /* -- MCP Apps ----------------------------------------------------------------- */

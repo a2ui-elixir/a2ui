@@ -62,14 +62,19 @@ defmodule TerminalClient.Text do
     end
   end
 
-  defp draw(%Node{type: type, props: props}, resolver) when type in ["Column", "Card", "List"] do
+  defp draw(%Node{type: type, props: props}, resolver) when type in ["Column", "Card"] do
     lines = child(resolver, props["children"] || props["child"])
+    if type == "Card", do: box(lines), else: lines
+  end
 
-    cond do
-      type == "Card" -> box(lines)
-      type == "List" and props["direction"] == "horizontal" -> [Enum.join(lines, "  ")]
-      true -> lines
-    end
+  # A horizontal list of one-line items (tags) shares a line; items of
+  # several lines (cards) stack.
+  defp draw(%Node{type: "List", props: props}, resolver) do
+    parts = Enum.map(List.wrap(props["children"]), &child(resolver, &1))
+
+    if props["direction"] == "horizontal" and Enum.all?(parts, &(length(&1) <= 1)),
+      do: [parts |> List.flatten() |> Enum.join("  ")],
+      else: List.flatten(parts)
   end
 
   defp draw(%Node{type: "Row", props: props}, resolver) do

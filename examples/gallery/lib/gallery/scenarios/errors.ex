@@ -50,7 +50,11 @@ defmodule Gallery.Scenarios.Errors do
       create("main",
         data: %{"status" => "Nothing reported yet. Press a button above."},
         components: [
-          %{"id" => "root", "component" => "Column", "children" => ["title", "intro", "status"]},
+          %{
+            "id" => "root",
+            "component" => "Column",
+            "children" => ["title", "intro", "statusCard"]
+          },
           text("title", "## Errors and recovery"),
           text(
             "intro",
@@ -58,7 +62,18 @@ defmodule Gallery.Scenarios.Errors do
               "and reports the error to the agent; the Messages tab shows both sides.",
             %{"variant" => "caption"}
           ),
-          text("status", path("/status"), %{"accessibility" => %{"live" => "polite"}})
+          %{"id" => "statusCard", "component" => "Card", "child" => "statusRow"},
+          %{
+            "id" => "statusRow",
+            "component" => "Row",
+            "align" => "center",
+            "children" => ["statusIcon", "status"]
+          },
+          %{"id" => "statusIcon", "component" => "Icon", "name" => "info"},
+          text("status", path("/status"), %{
+            "weight" => 1,
+            "accessibility" => %{"live" => "polite"}
+          })
         ]
       )
     ]
@@ -102,7 +117,7 @@ defmodule Gallery.Scenarios.Errors do
          %{
            "id" => "root",
            "component" => "Column",
-           "children" => ["title", "intro", "status", "loopA"]
+           "children" => ["title", "intro", "statusCard", "loopA"]
          },
          %{"id" => "loopA", "component" => "Column", "children" => ["loopB"]},
          %{"id" => "loopB", "component" => "Column", "children" => ["loopA"]}
@@ -119,7 +134,7 @@ defmodule Gallery.Scenarios.Errors do
          %{
            "id" => "root",
            "component" => "Column",
-           "children" => ["title", "intro", "status", "later"]
+           "children" => ["title", "intro", "statusCard", "later"]
          }
        ])},
       {1_500,
@@ -166,7 +181,7 @@ defmodule Gallery.Scenarios.Errors do
            %{
              "id" => "root",
              "component" => "Column",
-             "children" => ["title", "intro", "status", "passive"]
+             "children" => ["title", "intro", "statusCard", "passive"]
            },
            text("passive", call("openUrl", %{"url" => "https://a2ui.org"}))
          ])
@@ -183,7 +198,7 @@ defmodule Gallery.Scenarios.Errors do
            %{
              "id" => "root",
              "component" => "Column",
-             "children" => ["title", "intro", "status", "failing"]
+             "children" => ["title", "intro", "statusCard", "failing"]
            },
            text("failing", call("formatNumber", %{"value" => path("/status")}))
          ])

@@ -17,9 +17,16 @@ defmodule Gallery.Scenarios.MCP do
 
   @mcp "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"
 
+  # What the app's frame shows before the dashboard opens, in the system
+  # colors of its color scheme.
   @waiting """
-  <!DOCTYPE html><html><body style="font: 14px system-ui, sans-serif; color: #5b6475; margin: 14px">
-  Press <b>Open the trip dashboard</b> to load the MCP App from its UI resource.
+  <!DOCTYPE html><html><head><style>
+  :root { color-scheme: light dark; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: Canvas; color: GrayText; }
+  p { max-width: 300px; margin: 0; padding: 16px; text-align: center; }
+  b { color: CanvasText; font-weight: 600; }
+  </style></head><body>
+  <p>Press <b>Open the trip dashboard</b> to load the MCP App from its UI resource.</p>
   </body></html>
   """
 
@@ -50,6 +57,9 @@ defmodule Gallery.Scenarios.MCP do
 
   @trip %{"city" => "Lisbon", "days" => 3, "notes" => ""}
 
+  # A sun, for Icon's svgPath.
+  @sun "M11 1h2v4h-2zM11 19h2v4h-2zM1 11h4v2H1zM19 11h4v2h-4zM4.2 5.6l1.4-1.4 2.8 2.8-1.4 1.4zM15.6 17l1.4-1.4 2.8 2.8-1.4 1.4zM4.2 18.4l2.8-2.8 1.4 1.4-2.8 2.8zM15.6 7l2.8-2.8 1.4 1.4-2.8 2.8zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10z"
+
   def messages do
     [
       create("travel",
@@ -79,7 +89,7 @@ defmodule Gallery.Scenarios.MCP do
       %{
         "id" => "root",
         "component" => "Column",
-        "children" => ["title", "intro", "city", "buttons", "weather", "plan", "context", "app"]
+        "children" => ["title", "intro", "city", "buttons", "trip", "context", "app"]
       },
       text("title", "## Trip planner"),
       text(
@@ -94,7 +104,12 @@ defmodule Gallery.Scenarios.MCP do
         "label" => "City",
         "value" => path("/trip/city")
       },
-      %{"id" => "buttons", "component" => "Row", "children" => ["getWeather", "openDashboard"]}
+      %{
+        "id" => "buttons",
+        "component" => "Row",
+        "align" => "center",
+        "children" => ["getWeather", "openDashboard"]
+      }
     ] ++
       button(
         "getWeather",
@@ -108,12 +123,36 @@ defmodule Gallery.Scenarios.MCP do
         %{"variant" => "primary"}
       ) ++
       [
-        text("weather", path("/weather/summary"), %{"accessibility" => %{"live" => "polite"}}),
+        %{"id" => "trip", "component" => "Card", "child" => "tripLines"},
+        %{
+          "id" => "tripLines",
+          "component" => "Column",
+          "children" => ["weatherLine", "planLine"]
+        },
+        %{
+          "id" => "weatherLine",
+          "component" => "Row",
+          "align" => "center",
+          "children" => ["weatherIcon", "weather"]
+        },
+        %{"id" => "weatherIcon", "component" => "Icon", "name" => %{"svgPath" => @sun}},
+        text("weather", path("/weather/summary"), %{
+          "weight" => 1,
+          "accessibility" => %{"live" => "polite"}
+        }),
+        %{
+          "id" => "planLine",
+          "component" => "Row",
+          "align" => "center",
+          "children" => ["planIcon", "plan"]
+        },
+        %{"id" => "planIcon", "component" => "Icon", "name" => "locationOn"},
         text(
           "plan",
           call("formatString", %{
             "value" => "Planned: ${/trip/days} days in ${/trip/city}. ${/trip/notes}"
-          })
+          }),
+          %{"weight" => 1}
         ),
         text(
           "context",

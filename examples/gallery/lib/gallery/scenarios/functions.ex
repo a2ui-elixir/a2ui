@@ -73,18 +73,7 @@ defmodule Gallery.Scenarios.Functions do
       %{
         "id" => "root",
         "component" => "Column",
-        "children" => [
-          "title",
-          "intro",
-          "zip",
-          "city",
-          "people",
-          "availability",
-          "estimate",
-          "reserve",
-          "reservation",
-          "client"
-        ]
+        "children" => ["title", "intro", "cityCard", "tableCard", "slowCard", "actions", "client"]
       },
       text("title", "## Functions"),
       text(
@@ -92,43 +81,83 @@ defmodule Gallery.Scenarios.Functions do
         "The renderer runs the basic catalog's functions. It sends the others to the agent, " <>
           "and the text stays busy until the answer comes. Try 10115, 1100 or 99999.",
         %{"variant" => "caption"}
-      ),
-      %{
-        "id" => "zip",
-        "component" => "TextField",
-        "label" => "Postcode",
-        "value" => path("/zip")
-      },
-      # No catalog declares lookupCity: the call goes to the agent.
-      text("city", call("lookupCity", %{"zip" => path("/zip")}), %{
-        "accessibility" => %{"label" => "City", "live" => "polite"}
-      }),
-      %{
-        "id" => "people",
-        "component" => "Slider",
-        "label" => "People",
-        "min" => 1,
-        "max" => 12,
-        "value" => path("/people")
-      },
-      # The restaurant catalog declares checkAvailability for the agent to run.
-      text(
-        "availability",
-        %{
-          "@call" => "checkAvailability",
-          "catalogId" => @restaurant,
-          "args" => %{
-            "restaurantId" => "lisboa",
-            "date" => path("/date"),
-            "partySize" => path("/people")
-          }
-        },
-        %{"accessibility" => %{"live" => "polite"}}
-      ),
-      text("estimate", call("formatString", %{"value" => "Waiting time: ${slowEstimate()}"}), %{
-        "variant" => "caption"
-      })
+      )
     ] ++
+      demo(
+        "city",
+        "Look up a city",
+        "lookupCity: no catalog declares it, so the call goes to the agent.",
+        [
+          %{
+            "id" => "zip",
+            "component" => "TextField",
+            "label" => "Postcode",
+            "value" => path("/zip")
+          },
+          answer(
+            "cityLine",
+            "locationOn",
+            text("city", call("lookupCity", %{"zip" => path("/zip")}), %{
+              "accessibility" => %{"label" => "City", "live" => "polite"}
+            })
+          )
+        ]
+      ) ++
+      demo(
+        "table",
+        "Check a table",
+        "checkAvailability: the restaurant catalog declares it for the agent to run.",
+        [
+          %{
+            "id" => "people",
+            "component" => "Slider",
+            "label" => "People",
+            "min" => 1,
+            "max" => 12,
+            "value" => path("/people")
+          },
+          answer(
+            "tableLine",
+            "event",
+            text(
+              "availability",
+              %{
+                "@call" => "checkAvailability",
+                "catalogId" => @restaurant,
+                "args" => %{
+                  "restaurantId" => "lisboa",
+                  "date" => path("/date"),
+                  "partySize" => path("/people")
+                }
+              },
+              %{"accessibility" => %{"live" => "polite"}}
+            )
+          )
+        ]
+      ) ++
+      demo(
+        "slow",
+        "Wait for an answer",
+        "slowEstimate: the agent never answers, so the call times out.",
+        [
+          answer(
+            "slowLine",
+            "refresh",
+            text(
+              "estimate",
+              call("formatString", %{"value" => "Waiting time: ${slowEstimate()}"})
+            )
+          )
+        ]
+      ) ++
+      [
+        %{
+          "id" => "actions",
+          "component" => "Row",
+          "align" => "center",
+          "children" => ["reserve", "reservation"]
+        }
+      ] ++
       button(
         "reserve",
         "Reserve a table",
@@ -139,9 +168,53 @@ defmodule Gallery.Scenarios.Functions do
         %{"variant" => "primary"}
       ) ++
       [
-        text("reservation", path("/reservation")),
+        text("reservation", path("/reservation"), %{"weight" => 1}),
         text("client", path("/client"), %{"variant" => "caption"})
       ]
+  end
+
+  # A card that shows one function: its name and what it does, then the
+  # components that use it.
+  defp demo(id, title, about, body) do
+    body = List.flatten(body)
+
+    [
+      %{"id" => id <> "Card", "component" => "Card", "child" => id <> "Body"},
+      %{
+        "id" => id <> "Body",
+        "component" => "Column",
+        "children" => [id <> "Title", id <> "About" | Enum.map(top_level(body), & &1["id"])]
+      },
+      text(id <> "Title", "#### " <> title),
+      text(id <> "About", about, %{"variant" => "caption"})
+    ] ++ body
+  end
+
+  # A result line: an icon, then the text that shows the answer.
+  defp answer(id, icon, line) do
+    [
+      %{
+        "id" => id,
+        "component" => "Row",
+        "align" => "center",
+        "children" => [id <> "Icon", line["id"]]
+      },
+      %{"id" => id <> "Icon", "component" => "Icon", "name" => icon},
+      Map.put(line, "weight", 1)
+    ]
+  end
+
+  # The components a demo lists as its own children: the first of each
+  # group (a field, or an answer's row).
+  defp top_level(components) do
+    nested =
+      for %{"children" => children} <- components,
+          is_list(children),
+          child <- children,
+          into: MapSet.new(),
+          do: child
+
+    Enum.reject(components, &MapSet.member?(nested, &1["id"]))
   end
 
   # -- calls from the renderer ------------------------------------------------------

@@ -49,6 +49,25 @@ the repository's README (`reference/a2ui`, or `A2UI_REFERENCE_ROOT`).
 The tests start what they need: the terminal client's and the gallery's start
 the restaurant agent in process on a free port.
 
+## How the surfaces are composed
+
+The agents compose every surface from the basic catalog with the same few
+patterns, so the examples look like one product; `a2ui_phoenix.css` draws
+the components.
+
+| Pattern | How | Where |
+|---|---|---|
+| Header | A title (`## Title`; `h3` in v0.9) with a caption right under it, which the renderer draws as its subtitle; after an `avatar` Image, in a Row aligned to the center, when the surface is about one thing | every surface; the booking form |
+| Section label | `##### Label` (`h5` in v0.9), a small uppercase label over a group of fields | the booking form, the sign-up form, the component gallery |
+| Record | A Card holding a Row aligned to the center: a leading Icon or Image, a Column of weight 1 (a `####` name over a caption), then the value or the action | the inbox, the market watch, the team board, the library |
+| Tiles | Cards in a horizontal List (the renderer gives them one width and lets the list scroll), or Cards of weight 1 in a Row | the restaurants, the forecast, the component gallery |
+| Actions | The buttons of a form in a Row at its end, aligned to the end; one primary button per surface, the others default or borderless | every form |
+| Status line | An Icon and a Text of weight 1, in a Row aligned to the center | the table's availability, the answers of agent functions, the errors scenario |
+
+The pictures are drawn for the examples: each restaurant's dish
+(`RestaurantAgent.Pictures`, SVG) and the gallery's media in
+`gallery/priv/static/media` (SVG, and a clip rendered with ffmpeg).
+
 ## What is exercised where
 
 | Feature | Where |

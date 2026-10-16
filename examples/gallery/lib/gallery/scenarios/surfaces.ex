@@ -29,9 +29,9 @@ defmodule Gallery.Scenarios.Surfaces do
     ]
 
   @messages [
-    %{"from" => "Grace", "subject" => "Lunch on Friday?", "read" => false},
-    %{"from" => "Alan", "subject" => "The machine works", "read" => true},
-    %{"from" => "Ada", "subject" => "Notes on the engine", "read" => true}
+    %{"from" => "Grace", "subject" => "Lunch on Friday?", "time" => "09:41", "read" => false},
+    %{"from" => "Alan", "subject" => "The machine works", "time" => "Yesterday", "read" => true},
+    %{"from" => "Ada", "subject" => "Notes on the engine", "time" => "Mon", "read" => true}
   ]
 
   def messages do
@@ -67,9 +67,22 @@ defmodule Gallery.Scenarios.Surfaces do
         "children" => %{"componentId" => "message", "path" => "/messages"}
       },
       message_row("message"),
-      text("from", call("formatString", %{"value" => "**${from}**"})),
-      text("subject", path("subject"), %{"weight" => 1}),
-      %{"id" => "actions", "component" => "Row", "children" => ["compose", "help"]}
+      %{"id" => "avatar", "component" => "Icon", "name" => "accountCircle"},
+      %{
+        "id" => "lines",
+        "component" => "Column",
+        "weight" => 1,
+        "children" => ["from", "subject"]
+      },
+      text("from", call("formatString", %{"value" => "#### ${from}"})),
+      text("subject", path("subject"), %{"variant" => "caption"}),
+      text("time", path("time"), %{"variant" => "caption"}),
+      %{
+        "id" => "actions",
+        "component" => "Row",
+        "align" => "center",
+        "children" => ["compose", "help"]
+      }
     ] ++
       button(
         "compose",
@@ -90,7 +103,7 @@ defmodule Gallery.Scenarios.Surfaces do
       "id" => id,
       "component" => "Row",
       "align" => "center",
-      "children" => ["from", "subject"]
+      "children" => ["avatar", "lines", "time"]
     }
 
   defp compose do
@@ -98,9 +111,12 @@ defmodule Gallery.Scenarios.Surfaces do
       %{
         "id" => "root",
         "component" => "Column",
-        "children" => ["title", "to", "subject", "body", "buttons"]
+        "children" => ["title", "hint", "to", "subject", "body", "buttons"]
       },
       text("title", "## New message"),
+      text("hint", "The agent closes this surface once the message is sent.", %{
+        "variant" => "caption"
+      }),
       %{"id" => "to", "component" => "TextField", "label" => "To", "value" => path("/draft/to")},
       %{
         "id" => "subject",
@@ -174,7 +190,13 @@ defmodule Gallery.Scenarios.Surfaces do
   # many messages it holds and appends at the end.
   def reply(%{"action" => %{"name" => "send", "context" => %{"draft" => draft}}}, data_models) do
     count = data_models |> get_in(["inbox", "messages"]) |> List.wrap() |> length()
-    sent = %{"from" => "Me → #{draft["to"]}", "subject" => draft["subject"], "read" => true}
+
+    sent = %{
+      "from" => "Me → #{draft["to"]}",
+      "subject" => draft["subject"],
+      "time" => "Now",
+      "read" => true
+    }
 
     [
       {200, {:text, "Sent \"#{draft["subject"]}\"."}},

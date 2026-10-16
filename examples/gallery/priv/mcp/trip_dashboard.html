@@ -4,33 +4,82 @@
 <meta charset="utf-8">
 <title>Trip dashboard</title>
 <style>
-  body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 14px; color: #1f2430; background: #fbfcfe; }
-  h2 { margin: 0 0 2px; font-size: 17px; }
-  .muted { color: #5b6475; font-size: 12px; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-  button { font: inherit; padding: 5px 11px; border-radius: 6px; border: 1px solid #3b5bdb; background: #fff; color: #3b5bdb; cursor: pointer; }
-  button.danger { border-color: #b42318; color: #b42318; }
-  .panel { padding: 8px 10px; border-radius: 8px; background: #eef3ff; margin-top: 6px; }
-  #log { font: 12px ui-monospace, monospace; color: #5b6475; white-space: pre-wrap; margin-top: 10px; max-height: 120px; overflow: auto; }
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --text: #18181b;
+    --muted: #61616d;
+    --line: #e6e6eb;
+    --tile: #f6f6f8;
+    --accent: #6e56cf;
+    --on-accent: #ffffff;
+    --accent-soft: rgba(110, 86, 207, 0.1);
+    --danger: #d92d20;
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #141418;
+    --text: #ececf1;
+    --muted: #a1a1ad;
+    --line: #2a2a33;
+    --tile: #1c1c22;
+    --accent: #a78bfa;
+    --on-accent: #141418;
+    --accent-soft: rgba(167, 139, 250, 0.14);
+    --danger: #f97066;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 18px; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; }
+  .mark { display: grid; flex: none; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); }
+  h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+  .muted { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 16px 0; }
+  .tile { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--tile); }
+  .label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { height: 34px; padding: 0 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; transition: background-color 0.15s; }
+  button:hover { background: var(--tile); }
+  button.primary { border-color: transparent; background: var(--accent); color: var(--on-accent); }
+  button.primary:hover { background: var(--accent); filter: brightness(1.06); }
+  button.danger { border-color: transparent; background: transparent; color: var(--danger); }
+  #log { margin-top: 14px; padding: 10px 12px; max-height: 120px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre-wrap; }
+  #log:empty { display: none; }
 </style>
 </head>
 <body>
-  <h2 id="title">Trip dashboard</h2>
-  <div class="muted">An MCP App in the renderer's sandbox. It reads and writes /trip, calls tools and host functions, and talks to the agent.</div>
+  <header>
+    <div class="mark" aria-hidden="true">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+    </div>
+    <div>
+      <h2 id="title">Trip dashboard</h2>
+      <p class="muted">An MCP App in the renderer's sandbox: it reads and writes /trip, calls tools and host functions, and talks to the agent.</p>
+    </div>
+  </header>
+  <div class="tiles">
+    <div class="tile"><span class="label">Trip</span><span id="trip">Waiting for the host…</span></div>
+    <div class="tile"><span class="label">Weather</span><span id="forecast">No forecast yet.</span></div>
+  </div>
   <div class="row">
     <button id="more">+1 day</button>
     <button id="less">−1 day</button>
     <button id="weather">Refresh the weather</button>
-    <button id="ask">Ask the agent for ideas</button>
+    <button id="ask" class="primary">Ask the agent for ideas</button>
     <button id="forbidden" class="danger">Delete the trip</button>
   </div>
-  <div class="panel" id="trip">Waiting for the host…</div>
-  <div class="panel" id="forecast">No forecast yet.</div>
   <div id="log"></div>
 <script>
   let nextId = 1;
   const pending = new Map();
   let trip = {};
+
+  // The host says which theme it draws in; until it does, the system's.
+  const applyTheme = (theme) => {
+    if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  };
+  applyTheme(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
   const send = (message) => window.parent.postMessage(message, "*");
   const notify = (method, params) => send({jsonrpc: "2.0", method, params});
@@ -77,6 +126,7 @@
         appInfo: {name: "Trip dashboard", version: "1.0.0"},
         appCapabilities: {}
       });
+      applyTheme(reply.result && reply.result.hostContext && reply.result.hostContext.theme);
       notify("ui/notifications/initialized", {});
       log("connected to " + ((reply.result && reply.result.hostInfo && reply.result.hostInfo.name) || "host"));
       notify("ui/notifications/size-changed", {height: document.body.scrollHeight + 16});
@@ -91,6 +141,8 @@
         showTrip();
       }
       log("data " + key + (subpath || "") + " = " + JSON.stringify(value));
+    } else if (message.method === "ui/notifications/host-context-changed") {
+      applyTheme((message.params || {}).theme);
     } else if (message.method === "ui/notifications/tool-result") {
       log("the tool result that opened me: " + textOf(message.params));
     }

@@ -20,10 +20,12 @@ fixes (the tests and the landing page's replays fix 2026-10-16).
 ## The conversation
 
 1. Ask for a cuisine: "Find Italian restaurants" (Italian, Japanese, Mexican,
-   Indian and French places are known). The agent answers with a list built
-   with the `RestaurantCard` component macro, which shows the restaurant
-   catalog's `Rating`.
-2. "Book a table" opens a form. It asks the agent whether a table is free with
+   Indian and French places are known). The agent answers with a horizontal
+   list of cards built with the `RestaurantCard` component macro: the
+   restaurant's dish, its name and details, the restaurant catalog's
+   `Rating`, and a Book button.
+2. "Book a table" opens a form, under a header with the restaurant's picture.
+   It asks the agent whether a table is free with
    the agent function `checkAvailability` (the renderer sends
    `callAgentFunction`), and the agent asks the renderer for its time zone with
    the renderer function `clientInfo` (`callRendererFunction`).
@@ -44,7 +46,7 @@ when the renderer only supports v0.9.
 | `GET /events?q=…` | Plain server-sent events, one A2UI message each, resumable with `Last-Event-ID`. |
 | `GET /ws` | WebSocket: JSON frames in both directions. |
 | `GET /prompt` | The system prompt the agent gives its model (`?format=express`, `?version=v0.9`). |
-| `GET /images/:id.svg` | The restaurants' pictures. |
+| `GET /images/:id.svg` | Each restaurant's dish, drawn in SVG (`RestaurantAgent.Pictures`). |
 
 The renderer states its capabilities with every message: in A2A, in the
 message metadata as `a2uiRendererCapabilities`. Without them the agent
@@ -80,6 +82,7 @@ client (`../README.md`).
 | `RestaurantAgent.Catalogs` | The catalogs the agent offers (basic and restaurant), the `RestaurantCard` macro, and the prompt generators. |
 | `RestaurantAgent.Model` | The scripted model: what it writes for each turn, in direct JSON or Express, and how it streams. |
 | `RestaurantAgent.UI` | Surfaces built in code with `A2UIAgent.Builder`: the booking form, the confirmation, the v0.9 list. |
+| `RestaurantAgent.Restaurants`, `Pictures` | The restaurants, the tables they have free, and their pictures. |
 | `RestaurantAgent.Turn` | One turn of the conversation, shared by every transport: text, actions, function calls and responses. |
 | `RestaurantAgent.Agent`, `ExpressAgent` | The A2A agents (`A2UIAgent.A2A.Agent`). |
 | `RestaurantAgent.MCPServer`, `AGUIServer`, `Socket`, `Turns` | The other transports. |

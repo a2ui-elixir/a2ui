@@ -38,6 +38,7 @@ page's own, and styles no component.
 
 A replay that shows an icon the subset lacks fails the tests. The subset comes
 from the Google Fonts CSS API with the icons' names, for example
-`https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&icon_names=check`;
+`https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&icon_names=check,event,mail,person`
+(the names in alphabetical order);
 the stylesheet it returns links the font file. Add the new name to the list in
 `test/site/content_test.exs`.

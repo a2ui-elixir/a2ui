@@ -363,6 +363,23 @@ test("the host context follows the container once the app is initialized", () =>
   ]);
 });
 
+test("the theme is the component's color scheme, the system's when it has both", () => {
+  const env = browser();
+  const {hook} = mount(env);
+
+  for (const [scheme, prefersDark, theme] of [
+    ["dark", false, "dark"],
+    ["light", true, "light"],
+    ["light dark", true, "dark"],
+    ["light dark", false, "light"],
+    ["normal", true, "light"],
+  ]) {
+    env.window.getComputedStyle = () => ({colorScheme: scheme});
+    env.window.matchMedia = () => ({matches: prefersDark});
+    assert.equal(hook.theme(), theme, `${scheme}, system dark: ${prefersDark}`);
+  }
+});
+
 test("destroying the hook stops listening", () => {
   const env = browser();
   const {hook} = mount(env);
