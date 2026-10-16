@@ -86,6 +86,48 @@ defmodule SiteWeb.PageTest do
     for {name, shows} <- Content.scenarios(), do: assert(examples =~ name <> " " <> plain(shows))
   end
 
+  test "the replay player shows the first step of the first replay", %{doc: doc} do
+    replays = Site.Replays.all()
+    [first | _] = replays
+    step = hd(first["steps"])
+
+    tabs =
+      doc |> LazyHTML.query(".replay-tabs [role=tab]") |> Enum.map(&squish(LazyHTML.text(&1)))
+
+    assert tabs == Enum.map(replays, & &1["title"])
+    assert text(doc, "[data-replay-source]") == first["source"]
+    assert text(doc, "[data-replay-caption]") == step["caption"]
+    assert text(doc, "[data-replay-next-label]") == step["next"]["text"]
+
+    chat = text(doc, "[data-replay-chat]")
+    assert chat =~ step["user"]
+    assert chat =~ step["said"]
+
+    for {id, html} <- step["surfaces"] do
+      figure = LazyHTML.query(doc, ~s([data-replay-chat] [data-surface="#{id}"] .replay-stage))
+      surface = LazyHTML.from_fragment(html)
+      assert text(figure, ".a2ui-surface") == squish(LazyHTML.text(surface))
+    end
+
+    kinds = doc |> LazyHTML.query("[data-replay-log] .log-kind") |> Enum.map(&LazyHTML.text/1)
+    assert kinds == Enum.map(step["entries"], & &1["kind"])
+
+    for entry <- step["entries"] do
+      assert text(doc, "[data-replay-log]") =~
+               squish(Jason.encode!(entry["message"], pretty: true))
+    end
+  end
+
+  test "the page holds every replay, in a script nothing can end early", %{doc: doc} do
+    [script] = doc |> LazyHTML.query("script#replay-data") |> Enum.to_list()
+    json = LazyHTML.text(script)
+
+    refute json =~ "<"
+
+    assert Jason.decode!(json) ==
+             Application.app_dir(:site, "priv/replays.json") |> File.read!() |> Jason.decode!()
+  end
+
   test "the conformance report adds up", %{doc: doc} do
     report = text(doc, "#conformance")
 
@@ -141,7 +183,8 @@ defmodule SiteWeb.PageTest do
     fonts = for [_, url] <- Regex.scan(~r/url\("(fonts\/[^"]+)"\)/, css), do: "assets/" <> url
 
     assert "assets/site.css" in links
-    assert length(fonts) == 2
+    assert "assets/a2ui_phoenix.css" in links
+    assert length(fonts) == 3
 
     for path <- links ++ fonts do
       refute String.starts_with?(path, "/"),
@@ -156,6 +199,8 @@ defmodule SiteWeb.PageTest do
           {"/assets/site.css", "text/css"},
           {"/assets/site.js", "text/javascript"},
           {"/assets/fonts/Geist-Variable.woff2", "font/woff2"},
+          {"/assets/a2ui_phoenix.css", "text/css"},
+          {"/assets/fonts/MaterialSymbolsOutlined-subset.woff2", "font/woff2"},
           {"/favicon.svg", "image/svg+xml"}
         ] do
       conn = get(build_conn(), path)

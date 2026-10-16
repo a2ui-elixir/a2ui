@@ -35,3 +35,19 @@ mix test
 A scenario is a module implementing `Gallery.Scenario` (`lib/gallery/scenarios`):
 the agent's first messages, its replies to what the renderer sends, and its
 controls.
+
+## Replays for the landing page
+
+The landing page (`../../site`) is static, so it plays recordings instead of
+running the gallery. `mix gallery.replays` makes them: it runs the restaurant
+agent's booking conversation (over A2A, in process), the Streaming scenario
+and the Forms scenario against an `A2UIPhoenix.Session`, renders every surface
+with `A2UIPhoenix.Surface` after each step, and writes the steps with the
+messages that crossed to `../../site/priv/replays.json`, next to a copy of the
+renderer's stylesheet (`--site DIR` writes elsewhere). The recorder lives in
+`test/support/replays` and the task runs in the test environment, where the
+restaurant agent is a dependency.
+
+`mix test` checks that the site holds a fresh recording: a change to the
+agent, a scenario or the renderer that shows in a replay fails until the
+replays are recorded again.

@@ -44,7 +44,16 @@ defmodule SiteWeb.Components do
     "flask" =>
       ~S(<path d="M9 3h6"/><path d="M10 3v6L4.6 18.4A2 2 0 0 0 6.3 21.5h11.4a2 2 0 0 0 1.7-3.1L14 9V3"/><path d="M7.4 15h9.2"/>),
     "drop" =>
-      ~S(<path d="M12 2.5c3.6 4.6 6.5 8.4 6.5 12a6.5 6.5 0 0 1-13 0c0-3.6 2.9-7.4 6.5-12Z"/>)
+      ~S(<path d="M12 2.5c3.6 4.6 6.5 8.4 6.5 12a6.5 6.5 0 0 1-13 0c0-3.6 2.9-7.4 6.5-12Z"/>),
+    "chat" =>
+      ~S(<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3.8V16H5.5A1.5 1.5 0 0 1 4 14.5v-9Z"/><path d="M8 9h8M8 12h5"/>),
+    "stream" => ~S(<path d="M4 6h9"/><path d="M4 10h14"/><path d="M4 14h7"/><path d="M4 18h11"/>),
+    "form" =>
+      ~S(<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M7 8.5h6"/><rect x="7" y="11.5" width="10" height="3.5" rx="1"/><path d="M7 18h3"/>),
+    "back" => ~S(<path d="m14.5 6-6 6 6 6"/>),
+    "next" => ~S(<path d="m9.5 6 6 6-6 6"/>),
+    "play" => ~S(<path d="M7.5 5v14l11-7-11-7Z"/>),
+    "pause" => ~S(<path d="M8.5 5.5v13M15.5 5.5v13"/>)
   }
 
   @doc "The names of the available icons."

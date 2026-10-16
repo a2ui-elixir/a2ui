@@ -38,6 +38,15 @@ defmodule Gallery.Scenarios.Streaming do
 
   def messages, do: []
   def start, do: stream(0, @chunk_ms)
+
+  @doc "The model's answer as `start/0` streams it: `{at_ms, chunk}` for each chunk."
+  def chunks_at do
+    answer()
+    |> chunks()
+    |> Enum.with_index(1)
+    |> Enum.map(fn {chunk, index} -> {index * @chunk_ms, chunk} end)
+  end
+
   def script, do: answer() <> "\n\n--- The same answer in Express ---\n\n" <> express_answer()
 
   defp parser_catalogs, do: [Gallery.Catalogs.basic("v1.0")]

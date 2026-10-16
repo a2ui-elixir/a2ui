@@ -30,7 +30,9 @@ run them and which features each one exercises.
 `site/` is the project's landing page, a small Phoenix application
 (`mix phx.server`, port 4040) that `mix site.build` exports as static files
 for any host. What it says about the packages is tested against this
-repository; `site/README.md` has the details.
+repository, and its Examples section plays recorded runs of the examples
+(`mix gallery.replays` in `examples/gallery`); `site/README.md` has the
+details.
 
 ## Conformance
 

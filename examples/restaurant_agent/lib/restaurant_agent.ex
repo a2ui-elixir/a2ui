@@ -15,4 +15,11 @@ defmodule RestaurantAgent do
   @doc "The URL the agent is reachable at, for links in its messages and card."
   @spec base_url() :: String.t()
   def base_url, do: Application.get_env(:restaurant_agent, :public_url, "http://127.0.0.1:4001")
+
+  @doc """
+  The day bookings start from: `config :restaurant_agent, today: ~D[...]`
+  when set (the tests and the recorded replays fix it), today otherwise.
+  """
+  @spec today() :: Date.t()
+  def today, do: Application.get_env(:restaurant_agent, :today) || Date.utc_today()
 end

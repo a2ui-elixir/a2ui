@@ -118,7 +118,7 @@ defmodule RestaurantAgent.Turn do
           UI.booking("booking-" <> turn.turn_id, restaurant, turn.version,
             availability: calls? and turn.format == :direct_json,
             ask_client: calls?,
-            today: turn.today || Date.utc_today()
+            today: turn.today || RestaurantAgent.today()
           )
 
         %{text: "Let's book a table at #{restaurant["name"]}.", messages: messages}

@@ -121,7 +121,7 @@ defmodule RestaurantAgent.UI do
   @spec booking(String.t(), map(), String.t(), keyword()) :: [map()]
   def booking(surface_id, restaurant, version, options \\ []) do
     v1? = version == "v1.0"
-    today = Keyword.get(options, :today, Date.utc_today())
+    today = Keyword.get_lazy(options, :today, &RestaurantAgent.today/0)
 
     availability =
       if v1? and options[:availability] do

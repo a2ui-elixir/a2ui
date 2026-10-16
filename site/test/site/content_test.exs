@@ -145,6 +145,35 @@ defmodule Site.ContentTest do
     |> String.trim()
   end
 
+  # The icons in assets/fonts/MaterialSymbolsOutlined-subset.woff2 (see the README).
+  @icon_subset ~w(check)
+
+  test "the replays come from the examples, with the renderer's stylesheet and icons" do
+    for replay <- Site.Replays.all() do
+      assert File.dir?(Path.join(@root, replay["source"])), replay["source"]
+    end
+
+    stylesheet = "umbrella/apps/a2ui_phoenix/priv/static/a2ui_phoenix.css"
+
+    assert File.read!(Path.join(@root, "site/priv/static/assets/a2ui_phoenix.css")) ==
+             File.read!(Path.join(@root, stylesheet)),
+           "the renderer's stylesheet changed: run mix gallery.replays in examples/gallery"
+
+    html =
+      for replay <- Site.Replays.all(),
+          step <- replay["steps"],
+          {_id, html} <- step["surfaces"] || [],
+          do: html
+
+    icons =
+      for page <- html,
+          [_, name] <- Regex.scan(~r/class="material-icons[^"]*"[^>]*>([^<]+)</, page),
+          uniq: true,
+          do: String.trim(name)
+
+    assert icons -- @icon_subset == [], "the icon font has no #{inspect(icons -- @icon_subset)}"
+  end
+
   test "the hero's message names seven components, four bindings and one action" do
     assert SiteWeb.PageHTML.hero_counts() == %{components: 7, bindings: 4, actions: 1}
   end

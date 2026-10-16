@@ -17,6 +17,16 @@
   font-display: swap;
 }
 
+/* The icons A2UI surfaces use (Icon draws Material Symbols ligatures):
+   a subset holding the ones the replays show. */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  src: url("fonts/MaterialSymbolsOutlined-subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   color-scheme: light;
   --bg: #ffffff;
@@ -34,6 +44,7 @@
   --accent-2: #0891b2;
   --accent-soft: rgba(109, 40, 217, 0.07);
   --accent-line: rgba(109, 40, 217, 0.28);
+  --on-accent: #ffffff;
   --green: #059669;
   --green-soft: rgba(5, 150, 105, 0.1);
   --red: #dc2626;
@@ -105,6 +116,7 @@
     --accent-2: #22d3ee;
     --accent-soft: rgba(167, 139, 250, 0.1);
     --accent-line: rgba(167, 139, 250, 0.35);
+    --on-accent: #0b0b10;
     --green: #34d399;
     --green-soft: rgba(52, 211, 153, 0.12);
     --red: #f87171;
@@ -152,6 +164,7 @@
   --accent-2: #22d3ee;
   --accent-soft: rgba(167, 139, 250, 0.1);
   --accent-line: rgba(167, 139, 250, 0.35);
+  --on-accent: #0b0b10;
   --green: #34d399;
   --green-soft: rgba(52, 211, 153, 0.12);
   --red: #f87171;
@@ -2958,6 +2971,815 @@ html:not(.js) .demo-replay {
 
 .scenario code {
   white-space: normal;
+}
+
+/* Replays: recorded runs of the examples, played step by step */
+
+.replay-head .cell {
+  padding: 14px var(--pad);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.replay-head .mono {
+  color: var(--text);
+}
+
+.replay {
+  margin: 0 calc(-1 * var(--pad));
+  padding: 40px var(--pad);
+  border-top: 1px solid var(--line);
+  background-color: var(--bg-soft);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.replay-window {
+  display: flex;
+  flex-direction: column;
+}
+
+.replay-bar {
+  gap: 14px;
+  padding-right: 14px;
+}
+
+.replay-tabs {
+  display: flex;
+  align-self: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.replay-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.replay-tabs [role="tab"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: 500 12px/1 var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.replay-tabs [role="tab"]:first-child {
+  border-left: 1px solid var(--line);
+}
+
+.replay-tabs [role="tab"]:hover {
+  color: var(--text);
+}
+
+.replay-tabs [role="tab"][aria-selected="true"] {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.replay-tabs [role="tab"] .icon {
+  color: var(--accent);
+}
+
+.replay-source {
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--faint);
+  font: 500 12px/1 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-summary {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.replay-body {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 620px;
+}
+
+.replay-main,
+.replay-side,
+.replay-messages {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.replay-chat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-soft);
+  scrollbar-width: thin;
+}
+
+.chat-item {
+  flex: none;
+  margin: 0;
+}
+
+.chat-who {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--faint);
+  font: 500 12px/1 var(--font-mono);
+}
+
+.chat-user,
+.chat-action {
+  align-self: flex-end;
+  max-width: 80%;
+  text-align: right;
+}
+
+.chat-agent {
+  align-self: flex-start;
+  max-width: 85%;
+}
+
+.chat-item > p {
+  display: inline-block;
+  padding: 9px 14px;
+  border-radius: 14px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.chat-user > p {
+  border-bottom-right-radius: 4px;
+  background: var(--button-bg);
+  color: var(--button-text);
+}
+
+.chat-agent > p {
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.chat-action > p {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  border: 1px dashed var(--accent-line);
+  border-bottom-right-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.chat-action code {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.chat-surface {
+  align-self: stretch;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+
+.chat-surface figcaption {
+  display: flex;
+  gap: 8px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+  font: 500 12px/1 var(--font-mono);
+}
+
+.chat-surface figcaption span {
+  color: var(--faint);
+}
+
+.chat-surface.is-changed {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
+}
+
+.chat-deleted {
+  align-self: center;
+  display: inline-flex;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px dashed var(--line-2);
+  border-radius: 999px;
+  color: var(--muted);
+  font: 500 12px/1 var(--font-mono);
+}
+
+.chat-deleted span {
+  color: var(--red);
+}
+
+.chat-typing > p {
+  display: inline-flex;
+  gap: 5px;
+  padding: 14px 16px;
+}
+
+.chat-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+  animation: replay-typing 1s ease-in-out infinite;
+}
+
+.chat-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes replay-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* A surface as the renderer drew it: a2ui_phoenix.css with its --a2ui-*
+   properties taken from the page's theme. */
+
+.replay-stage {
+  --a2ui-font-family: var(--font-sans);
+  --a2ui-color-on-background: var(--text);
+  --a2ui-color-surface: var(--panel);
+  --a2ui-color-border: var(--line-2);
+  --a2ui-color-primary: var(--accent);
+  --a2ui-color-on-primary: var(--on-accent);
+  --a2ui-color-error: var(--red);
+  --a2ui-text-caption-color: var(--muted);
+  --a2ui-card-border-radius: 10px;
+  --a2ui-font-size-xs: 0.8125rem;
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.replay-stage .a2ui-text h2 {
+  font-size: 1.125rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.replay-stage .a2ui-card {
+  padding: 12px;
+}
+
+.replay-stage .a2ui-image.smallFeature {
+  border-radius: 8px;
+}
+
+.replay-stage .a2ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 550;
+  transition: transform 0.15s var(--ease), box-shadow 0.2s, opacity 0.2s;
+}
+
+.replay-stage .a2ui-button.primary {
+  color: var(--a2ui-color-on-primary);
+}
+
+.replay-stage label,
+.replay-stage .a2ui-date-time-label,
+.replay-stage .a2ui-choice-picker-label {
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 550;
+}
+
+.replay-stage .a2ui-textfield,
+.replay-stage .a2ui-date-time-input {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.replay-stage textarea.a2ui-textfield {
+  min-height: 64px;
+  resize: none;
+}
+
+.replay-stage .a2ui-textfield.invalid {
+  border-color: var(--red);
+}
+
+.replay-stage .a2ui-date-time-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.replay-stage .a2ui-slider-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.replay-stage .a2ui-slider-value {
+  color: var(--accent);
+  font: 600 0.875rem/1 var(--font-mono);
+}
+
+.replay-stage .a2ui-slider,
+.replay-stage input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.replay-stage .a2ui-slider {
+  width: 100%;
+}
+
+.replay-stage .a2ui-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 450;
+}
+
+.replay-stage .a2ui-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.replay-stage .a2ui-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease), box-shadow 0.2s;
+}
+
+.replay-stage .a2ui-chip.selected {
+  border-color: transparent;
+  background: var(--a2ui-color-primary);
+  color: var(--a2ui-color-on-primary);
+}
+
+.replay-stage .material-icons {
+  display: inline-block;
+  color: var(--green);
+  font-family: "Material Symbols Outlined";
+  font-size: 32px;
+  font-style: normal;
+  font-weight: normal;
+  font-feature-settings: "liga";
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+/* A component the agent has not sent yet. */
+
+.replay-stage .a2ui-placeholder.a2ui-pending {
+  min-width: 48px;
+  min-height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--chip), var(--line-2), var(--chip)) 0 0 / 200% 100%;
+  animation: replay-pending 1.2s linear infinite;
+}
+
+@keyframes replay-pending {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* The restaurant catalog's Rating, drawn as the gallery draws it. */
+
+.replay-stage .rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.replay-stage .rating .stars {
+  color: #f59f00;
+  letter-spacing: 0.05em;
+}
+
+.replay-stage .rating .stars .empty {
+  color: var(--line-2);
+}
+
+.replay-stage .rating-label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* What the user does next, and doing it. */
+
+.replay-stage .replay-hint {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  animation: replay-hint 1.6s ease-in-out infinite;
+}
+
+.replay-stage .replay-press {
+  transform: scale(0.95);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.replay-stage .replay-typing {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@keyframes replay-hint {
+  50% {
+    outline-color: var(--accent-line);
+    outline-offset: 5px;
+  }
+}
+
+/* The inspector: the model's output and the messages. */
+
+.replay-side {
+  border-left: 1px solid var(--code-line);
+  background: var(--code-bg);
+  color: var(--code-text);
+}
+
+.replay-side .ide-tabs {
+  border-bottom-color: var(--code-line);
+  background: var(--code-bar);
+}
+
+.replay-side .ide-tab {
+  border-right-color: var(--code-line);
+  color: var(--code-muted);
+}
+
+.replay-side .ide-tab.is-active {
+  color: #fff;
+  box-shadow: inset 0 -2px 0 #a78bfa;
+}
+
+.replay-side .ide-tab .icon {
+  color: #a78bfa;
+}
+
+.replay-side .ide-tab-meta {
+  color: var(--code-muted);
+}
+
+.replay-stream {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  border-bottom: 1px solid var(--code-line);
+}
+
+.replay-stream[hidden] {
+  display: none;
+}
+
+.replay-stream-text {
+  height: 190px;
+  margin: 0;
+  padding: 12px 14px;
+  overflow-y: auto;
+  color: var(--code-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  scrollbar-width: thin;
+}
+
+.replay-stream-text mark {
+  border-radius: 2px;
+  background: rgba(167, 139, 250, 0.25);
+  color: #fff;
+}
+
+.replay-messages {
+  flex: 1;
+}
+
+.replay-log {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.log-entry {
+  border-bottom: 1px solid var(--code-line);
+  transition: opacity 0.2s;
+}
+
+.log-entry:not(.is-current) {
+  opacity: 0.6;
+}
+
+.log-entry:not(.is-current):hover,
+.log-entry:not(.is-current):focus-within {
+  opacity: 1;
+}
+
+.log-entry summary {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: var(--code-text);
+  font: 500 12px/1.3 var(--font-mono);
+  list-style: none;
+  cursor: pointer;
+}
+
+.log-entry summary::-webkit-details-marker {
+  display: none;
+}
+
+.log-entry summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--code-muted);
+  border-bottom: 1.5px solid var(--code-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.2s;
+}
+
+.log-entry details[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+.log-entry.is-current summary {
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.log-from {
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.from-agent .log-from {
+  background: rgba(167, 139, 250, 0.16);
+  color: #c4b5fd;
+}
+
+.from-renderer .log-from {
+  background: rgba(52, 211, 153, 0.14);
+  color: #6ee7b7;
+}
+
+.log-kind {
+  color: #fff;
+}
+
+.log-note {
+  overflow: hidden;
+  color: var(--code-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-entry pre {
+  max-height: 260px;
+  margin: 0;
+  padding: 4px 14px 14px;
+  overflow: auto;
+  color: var(--code-text);
+  font-size: 12px;
+  line-height: 1.6;
+  scrollbar-width: thin;
+}
+
+/* The caption and the controls. */
+
+.replay-foot {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.replay-caption {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 3em;
+  color: var(--text-2);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.replay-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.replay-icon-button {
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+.replay-icon-button[hidden] {
+  display: none;
+}
+
+.replay-icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.replay-position {
+  min-width: 88px;
+  color: var(--muted);
+  font: 500 12px/1 var(--font-mono);
+  text-align: center;
+}
+
+.replay-next {
+  max-width: 300px;
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.replay-next > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.replay-next .icon {
+  display: none;
+}
+
+.replay-next[data-mode="next"] .replay-icon-next,
+.replay-next[data-mode="play"] .replay-icon-play,
+.replay-next[data-mode="pause"] .replay-icon-pause,
+.replay-next[data-mode="again"] .replay-icon-again {
+  display: block;
+}
+
+html:not(.js) .replay-tabs [role="tab"]:not([aria-selected="true"]),
+html:not(.js) .replay-controls {
+  display: none;
+}
+
+.replay-apps {
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 1060px) {
+  .replay-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    height: auto;
+  }
+
+  .replay-chat {
+    flex: none;
+    height: 540px;
+  }
+
+  .replay-side {
+    border-top: 1px solid var(--code-line);
+    border-left: 0;
+  }
+
+  .replay-log {
+    flex: none;
+    height: 320px;
+  }
+
+  .replay-stream-text {
+    height: 150px;
+  }
+}
+
+@media (max-width: 640px) {
+  .replay {
+    padding: 24px var(--pad);
+  }
+
+  .replay-chat {
+    height: 480px;
+    padding: 14px;
+  }
+
+  .replay-stage {
+    padding: 12px;
+  }
+
+  .replay-source {
+    display: none;
+  }
+
+  .replay-summary {
+    padding: 10px 14px;
+  }
+
+  .replay-foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .replay-caption {
+    min-height: 4.5em;
+  }
+
+  .replay-position {
+    min-width: 0;
+    margin-right: auto;
+  }
+
+  .replay-next {
+    flex: 1;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .replay-stage .replay-hint,
+  .replay-stage .a2ui-placeholder,
+  .chat-typing i {
+    animation: none;
+  }
 }
 
 /* Conformance */

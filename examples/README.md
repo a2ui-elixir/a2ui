@@ -43,7 +43,7 @@ the repository's README (`reference/a2ui`, or `A2UI_REFERENCE_ROOT`).
 ```bash
 (cd examples/restaurant_agent && mix test)   # every transport, a full booking through a real renderer session
 (cd examples/terminal_client && mix test)    # the renderer, and a chat over each transport against the agent
-(cd examples/gallery && mix test)            # every scenario, every reference example, and the chat against a live agent
+(cd examples/gallery && mix test)            # every scenario, every reference example, the chat against a live agent, the landing page's replays
 ```
 
 The tests start what they need: the terminal client's and the gallery's start

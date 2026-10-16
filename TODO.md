@@ -444,6 +444,27 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       `site`, whose export is kept as an artifact. Checked in a browser at
       phone, tablet and desktop widths, both themes, reduced motion.
 
+### M21 — replays of the examples on the landing page (2026-10-16)
+
+- [x] M21.1 `mix gallery.replays` (`examples/gallery/test/support/replays`):
+      runs the restaurant agent's booking conversation over A2A in process,
+      and the gallery's streaming and forms scenarios, against an
+      `A2UIPhoenix.Session`; after each step it renders every surface with
+      `A2UIPhoenix.Surface` and keeps the messages that crossed. Writes
+      `site/priv/replays.json` and copies `a2ui_phoenix.css` into the site.
+- [x] M21.2 The Examples section plays them: tabs per replay, the
+      conversation with the surfaces as the renderer drew them, the messages
+      with their JSON, the model's output for the streamed answer, a caption
+      per step, and the user's moves acted out (typing, clicks, the agent at
+      work). The first step is rendered on the server; the page reads
+      without the script.
+- [x] M21.3 Tests: the gallery checks that the site holds a fresh recording
+      and that every move's target is on its step's surfaces; the site
+      checks the player, the embedded data, the copied stylesheet and the
+      icons. The restaurant agent takes its first booking day from
+      `config :restaurant_agent, today:` (the tests' dates no longer depend
+      on the day they run).
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

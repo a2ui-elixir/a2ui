@@ -6,6 +6,6 @@ config :gallery, GalleryWeb.Endpoint,
   server: false
 
 config :gallery, tick_ms: 50, delay_scale: 0.05, agent_timeout_ms: 400
-config :restaurant_agent, server: false, chunk_delay_ms: 0
+config :restaurant_agent, server: false, chunk_delay_ms: 0, today: ~D[2026-10-16]
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime

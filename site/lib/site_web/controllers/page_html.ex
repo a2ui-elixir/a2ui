@@ -2,7 +2,7 @@ defmodule SiteWeb.PageHTML do
   @moduledoc "The landing page (`page_html/home.html.heex`) and what it computes from `Site.Content`."
   use SiteWeb, :html
 
-  alias Site.Content
+  alias Site.{Content, Replays}
   alias SiteWeb.Code
 
   embed_templates "page_html/*"
@@ -248,4 +248,90 @@ defmodule SiteWeb.PageHTML do
     </div>
     """
   end
+
+  @doc "What the replay player shows before it plays: the first step of the first replay."
+  def first_replay_view, do: Replays.view(hd(Replays.all()), 0)
+
+  @doc "The icon on a replay's tab."
+  def replay_icon(replay) do
+    case replay["id"] do
+      "streaming" -> "stream"
+      "forms" -> "form"
+      _conversation -> "chat"
+    end
+  end
+
+  @doc "Where a step is in its replay."
+  def replay_position(view, replay) do
+    unit = if replay["autoplay"], do: "chunk", else: "step"
+    "#{unit} #{view.index + 1} / #{view.count}"
+  end
+
+  @doc "How many of a view's messages came from the agent and from the renderer."
+  def replay_counts(view) do
+    from = Enum.frequencies_by(view.entries, fn {entry, _step} -> entry["dir"] end)
+    "agent #{from["in"] || 0} · renderer #{from["out"] || 0}"
+  end
+
+  @doc "The label of the player's main button at a step."
+  def replay_next_text(view, replay) do
+    cond do
+      replay["autoplay"] -> "Play the stream"
+      view.next -> view.next["text"]
+      true -> "Start again"
+    end
+  end
+
+  @doc "A replay's conversation at a step: what is said, the user's actions, the surfaces."
+  attr :view, :map, required: true
+
+  def replay_chat(assigns) do
+    ~H"""
+    <%= for item <- @view.chat do %>
+      <%= case item.type do %>
+        <% :user -> %>
+          <div class="chat-item chat-user">
+            <span class="chat-who">you</span><p>{item.text}</p>
+          </div>
+        <% :agent -> %>
+          <div class="chat-item chat-agent">
+            <span class="chat-who">agent</span><p>{item.text}</p>
+          </div>
+        <% :action -> %>
+          <div class="chat-item chat-action">
+            <span class="chat-who">you</span>
+            <p>{item.label}<code>action: {item.name}</code></p>
+          </div>
+        <% :surface -> %>
+          <figure class="chat-item chat-surface" data-surface={item.id}>
+            <figcaption><span>surface</span>{item.id}</figcaption>
+            <div class="replay-stage">{Phoenix.HTML.raw(@view.surfaces[item.id])}</div>
+          </figure>
+        <% :deleted -> %>
+          <p class="chat-item chat-deleted"><span>deleteSurface</span>{item.id}</p>
+      <% end %>
+    <% end %>
+    """
+  end
+
+  @doc "A message in the replay's log: who sent it, its kind, and the message itself."
+  attr :entry, :map, required: true
+  attr :current, :boolean, default: false
+
+  def replay_entry(assigns) do
+    ~H"""
+    <li class={["log-entry", "from-" <> sender(@entry), @current && "is-current"]}>
+      <details open={@current}>
+        <summary>
+          <span class="log-from">{sender(@entry)}</span>
+          <span class="log-kind">{@entry["kind"]}</span>
+          <span class="log-note">{@entry["note"]}</span>
+        </summary>
+        <pre><code>{Code.highlight(Jason.encode!(@entry["message"], pretty: true), :json)}</code></pre>
+      </details>
+    </li>
+    """
+  end
+
+  defp sender(entry), do: if(entry["dir"] == "in", do: "agent", else: "renderer")
 end

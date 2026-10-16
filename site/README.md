@@ -20,12 +20,20 @@ static host, under any path, or opened from disk.
 | Path | |
 |---|---|
 | `lib/site/content.ex` | Everything the page says: packages, features, catalog, transports, figures, examples, code samples. |
+| `priv/replays.json`, `lib/site/replays.ex` | The recorded runs of the examples that the Examples section plays. `mix gallery.replays` in `examples/gallery` writes the file; the gallery's tests fail when it is not a fresh recording. |
 | `lib/site_web/controllers/page_html/home.html.heex` | The page. |
 | `lib/site_web/components.ex` | Icons, component wireframes, section headings, code panels. |
 | `lib/site_web/code.ex` | The syntax highlighter for the code samples. |
 | `lib/site/static.ex`, `lib/mix/tasks/site.build.ex` | The static export. |
-| `priv/static/assets/` | The stylesheet (light and dark themes), the script and the Geist fonts (SIL Open Font License, `fonts/LICENSE-OFL.txt`). |
+| `priv/static/assets/` | The stylesheet (light and dark themes), the script, the Geist fonts (SIL Open Font License, `fonts/LICENSE-OFL.txt`), the renderer's stylesheet `a2ui_phoenix.css` (copied by `mix gallery.replays`) and a subset of Material Symbols with the icons the replays show (Apache License 2.0, `fonts/LICENSE-Apache-2.0.txt`). |
 
 The script only enhances the page: the theme switch, the code tabs, the copy
-buttons, the replay of the opening animation and the data model it binds.
-Without it, every section and every code sample is still there.
+buttons, the replay of the opening animation and the data model it binds, and
+the player of the recorded runs. Without it, every section and every code
+sample is still there, and the player shows its first step.
+
+A replay that shows an icon the subset lacks fails the tests. The subset comes
+from the Google Fonts CSS API with the icons' names, for example
+`https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&icon_names=check`;
+the stylesheet it returns links the font file. Add the new name to the list in
+`test/site/content_test.exs`.

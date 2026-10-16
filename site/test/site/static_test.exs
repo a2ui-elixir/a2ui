@@ -16,7 +16,7 @@ defmodule Site.StaticTest do
     written = Site.Static.build(dir)
 
     for path <-
-          ~w(index.html assets/site.css assets/site.js assets/fonts/Geist-Variable.woff2 assets/fonts/GeistMono-Variable.woff2 assets/fonts/LICENSE-OFL.txt favicon.svg robots.txt) do
+          ~w(index.html assets/site.css assets/site.js assets/a2ui_phoenix.css assets/fonts/Geist-Variable.woff2 assets/fonts/GeistMono-Variable.woff2 assets/fonts/LICENSE-OFL.txt assets/fonts/MaterialSymbolsOutlined-subset.woff2 assets/fonts/LICENSE-Apache-2.0.txt favicon.svg robots.txt) do
       assert path in written
       assert File.regular?(Path.join(dir, path))
     end

@@ -1,7 +1,8 @@
 import Config
 
 # `server: false` keeps the HTTP server down (tests start their own);
-# `chunk_delay_ms` paces the streamed answers like a model writing them.
+# `chunk_delay_ms` paces the streamed answers like a model writing them;
+# `today` fixes the day bookings start from (the tests' dates).
 config :restaurant_agent,
   server: true,
   port: 4001,
@@ -11,6 +12,6 @@ config :restaurant_agent,
 config :logger, :default_formatter, format: "$time [$level] $message\n"
 
 if config_env() == :test do
-  config :restaurant_agent, server: false, chunk_delay_ms: 0
+  config :restaurant_agent, server: false, chunk_delay_ms: 0, today: ~D[2026-10-16]
   config :logger, level: :warning
 end

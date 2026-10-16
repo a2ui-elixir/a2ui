@@ -14,6 +14,9 @@ mix run --no-halt        # http://127.0.0.1:4001; PORT and PUBLIC_URL override
 mix test
 ```
 
+Bookings start from today, or from the day `config :restaurant_agent, today:`
+fixes (the tests and the landing page's replays fix 2026-10-16).
+
 ## The conversation
 
 1. Ask for a cuisine: "Find Italian restaurants" (Italian, Japanese, Mexican,

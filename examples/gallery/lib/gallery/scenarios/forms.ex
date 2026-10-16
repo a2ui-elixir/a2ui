@@ -233,7 +233,7 @@ defmodule Gallery.Scenarios.Forms do
         "contact",
         call("formatString", %{
           "value" =>
-            "Your ${/form/plan} account is ready. We will write to ${/form/email}${/form/phone}."
+            "Your ${/form/plan/0} account is ready. We will write to ${/form/email}${/form/phone}."
         })
       )
     ] ++ button("edit", "Edit my details", event("edit"))

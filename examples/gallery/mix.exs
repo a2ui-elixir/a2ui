@@ -12,6 +12,8 @@ defmodule Gallery.MixProject do
     ]
   end
 
+  def cli, do: [preferred_envs: ["gallery.replays": :test]]
+
   def application do
     [mod: {Gallery.Application, []}, extra_applications: [:logger, :runtime_tools]]
   end

@@ -543,10 +543,136 @@
     <section class="sec" id="examples" aria-labelledby="examples-title">
       <.section_heading id="examples-title" number="07" eyebrow="Examples">
         <:title>Three apps to run and read</:title>
-        In <code>examples/</code>: an agent, a LiveView gallery and a terminal renderer that talk to each other, each with its README and tests.
+        In <code>examples/</code>: an agent, a LiveView gallery and a terminal renderer that talk to each other, each with its README and tests. Below, three of their runs, recorded.
       </.section_heading>
 
-      <div class="cells cells-3">
+      <% replays = Site.Replays.all() %>
+      <% first = hd(replays) %>
+      <% view = first_replay_view() %>
+      <div class="cells replay-head">
+        <p class="cell">
+          <span class="mono">mix gallery.replays</span>
+          — the agents and <code>A2UIPhoenix</code>
+          run for real; every surface below is the HTML the renderer drew at that step
+        </p>
+      </div>
+      <div class="replay" data-replays>
+        <div class="ide replay-window">
+          <div class="ide-bar replay-bar">
+            <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <div class="replay-tabs" role="tablist" aria-label="Recorded runs">
+              <button
+                :for={{replay, index} <- Enum.with_index(replays)}
+                type="button"
+                role="tab"
+                id={"replay-tab-" <> replay["id"]}
+                aria-controls="replay-panel"
+                aria-selected={to_string(index == 0)}
+                tabindex={if index == 0, do: "0", else: "-1"}
+                data-replay-tab={index}
+              >
+                <.icon name={replay_icon(replay)} class="icon icon-xs" />{replay["title"]}
+              </button>
+            </div>
+            <span class="replay-source" data-replay-source>{first["source"]}</span>
+          </div>
+          <p class="replay-summary" data-replay-summary>{first["summary"]}</p>
+          <div
+            class="replay-body"
+            id="replay-panel"
+            role="tabpanel"
+            aria-labelledby={"replay-tab-" <> first["id"]}
+          >
+            <div class="replay-main">
+              <div class="ide-tabs">
+                <span class="ide-tab is-active">
+                  <.icon name="chat" class="icon icon-xs" /> conversation
+                </span>
+                <span class="ide-tab-meta">rendered by A2UIPhoenix</span>
+              </div>
+              <div class="replay-chat" data-replay-chat>
+                <.replay_chat view={view} />
+              </div>
+            </div>
+            <div class="replay-side">
+              <div class="replay-stream" data-replay-stream hidden>
+                <div class="ide-tabs">
+                  <span class="ide-tab is-active">
+                    <.icon name="stream" class="icon icon-xs" /> model output
+                  </span>
+                  <span class="ide-tab-meta" data-replay-clock></span>
+                </div>
+                <pre class="replay-stream-text" data-replay-stream-text></pre>
+              </div>
+              <div class="replay-messages">
+                <div class="ide-tabs">
+                  <span class="ide-tab is-active">
+                    <.icon name="data" class="icon icon-xs" /> messages
+                  </span>
+                  <span class="ide-tab-meta" data-replay-counts>{replay_counts(view)}</span>
+                </div>
+                <ol class="replay-log" data-replay-log aria-label="Messages so far">
+                  <.replay_entry
+                    :for={{entry, at} <- view.entries}
+                    entry={entry}
+                    current={at == view.index}
+                  />
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="replay-foot">
+            <p class="replay-caption" data-replay-caption aria-live="polite">{view.caption}</p>
+            <div class="replay-controls">
+              <button
+                type="button"
+                class="ide-button replay-icon-button"
+                data-replay-restart
+                aria-label="Start again"
+              >
+                <.icon name="replay" class="icon icon-sm" />
+              </button>
+              <button
+                type="button"
+                class="ide-button replay-icon-button"
+                data-replay-back
+                aria-label="Previous step"
+              >
+                <.icon name="back" class="icon icon-sm" />
+              </button>
+              <button
+                type="button"
+                class="ide-button replay-icon-button"
+                data-replay-forward
+                aria-label="Next chunk"
+                hidden
+              >
+                <.icon name="next" class="icon icon-sm" />
+              </button>
+              <span class="replay-position" data-replay-position>
+                {replay_position(view, first)}
+              </span>
+              <button
+                type="button"
+                class="button button-primary button-sm replay-next"
+                data-replay-next
+                data-mode="next"
+              >
+                <span data-replay-next-label>{replay_next_text(view, first)}</span>
+                <.icon name="next" class="icon icon-sm replay-icon-next" />
+                <.icon name="play" class="icon icon-sm replay-icon-play" />
+                <.icon name="pause" class="icon icon-sm replay-icon-pause" />
+                <.icon name="replay" class="icon icon-sm replay-icon-again" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <script type="application/json" id="replay-data">
+          <%= Phoenix.HTML.raw(Site.Replays.json()) %>
+        </script>
+      </div>
+
+      <div class="cells cells-3 replay-apps">
         <article :for={example <- Content.examples()} class="cell example" data-reveal>
           <header class="tile-head">
             <span class="tile-icon"><.icon name={example.icon} /></span>
