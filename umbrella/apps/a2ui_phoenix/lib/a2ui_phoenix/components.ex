@@ -17,7 +17,8 @@ defmodule A2UIPhoenix.Components do
     * `@attrs` — the global attributes for the component's root element:
       its DOM id, `data-a2ui-id`, and the ARIA attributes the component
       declared (`aria-label` for an explicit label, `aria-description`,
-      `aria-live` when not `"off"`, `aria-hidden` when hidden).
+      `aria-live` when not `"off"`, `aria-hidden` when hidden), and
+      `aria-busy` while a property waits for an agent function.
 
   A component renders its children with `child/1` and its failed checks
   with `validation_errors/1`.
@@ -81,7 +82,8 @@ defmodule A2UIPhoenix.Components do
         "aria-label" => if(explicit_label?, do: a11y.label),
         "aria-description" => a11y.description,
         "aria-live" => if(a11y.live != "off", do: a11y.live),
-        "aria-hidden" => if(a11y.hidden, do: "true")
+        "aria-hidden" => if(a11y.hidden, do: "true"),
+        "aria-busy" => if(node.busy, do: "true")
       }
     }
   end

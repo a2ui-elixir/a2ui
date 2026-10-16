@@ -299,7 +299,7 @@ defmodule A2UIPhoenix.SurfaceTest do
           surface(
             "main",
             [
-              %{"id" => "root", "component" => "Column", "children" => ["volume", "when"]},
+              %{"id" => "root", "component" => "Column", "children" => ["volume", "when", "at"]},
               %{
                 "id" => "volume",
                 "component" => "Slider",
@@ -310,11 +310,18 @@ defmodule A2UIPhoenix.SurfaceTest do
               %{
                 "id" => "when",
                 "component" => "DateTimeInput",
+                "enableDate" => true,
                 "enableTime" => true,
                 "value" => %{"@path" => "/when"}
+              },
+              %{
+                "id" => "at",
+                "component" => "DateTimeInput",
+                "enableTime" => true,
+                "value" => %{"@path" => "/at"}
               }
             ],
-            %{"volume" => 2, "when" => ""}
+            %{"volume" => 2, "when" => "", "at" => "12:00"}
           )
         )
 
@@ -326,6 +333,11 @@ defmodule A2UIPhoenix.SurfaceTest do
       change(view, "main", input(view, "when", "time"), "time", "08:15")
       assert view |> element("input[type=date][value='2026-10-14']") |> has_element?()
       assert view |> element("input[type=time][value='08:15']") |> has_element?()
+
+      # A time-only input picks no date, and writes the time alone.
+      refute view |> by_id("at") |> render() =~ ~s(type="date")
+      change(view, "main", input(view, "at", "time"), "time", "13:45")
+      assert view |> element("input[type=time][value='13:45']") |> has_element?()
     end
   end
 
@@ -448,6 +460,111 @@ defmodule A2UIPhoenix.SurfaceTest do
       assert view |> element("input##{input_id}[aria-invalid=true]") |> has_element?()
       [_, described_by] = Regex.run(~r/aria-describedby="([^"]+)"/, html)
       assert view |> element("##{described_by}", "Required.") |> has_element?()
+    end
+  end
+
+  describe "agent functions" do
+    test "a busy node waits for the agent, and the timer rejects a call it never answers" do
+      {view, _html} =
+        start(
+          surface(
+            "main",
+            [
+              %{
+                "id" => "root",
+                "component" => "Text",
+                "text" => %{"@call" => "lookupCity", "args" => %{"zip" => "10115"}}
+              }
+            ]
+          ),
+          %{"agent_timeout" => 50}
+        )
+
+      assert view |> by_id("root") |> render() =~ ~s(aria-busy="true")
+      assert_receive {:effect, {:agent_call_sent, "call-1", 50}}
+
+      assert_receive {:effect,
+                      {:rpc_settled, "call-1", {:error, %A2UICore.Error{code: "TIMEOUT"}}}}
+
+      assert_receive {:effect, {:diagnostic, "main", :error, %{code: "TIMEOUT"}}}
+      refute view |> by_id("root") |> render() =~ "aria-busy"
+    end
+
+    test "the response fills the property in" do
+      {view, _html} =
+        start(
+          surface("main", [
+            %{
+              "id" => "root",
+              "component" => "Text",
+              "text" => %{"@call" => "lookupCity", "args" => %{}}
+            }
+          ])
+        )
+
+      assert %{"callAgentFunction" => %{"functionCallId" => "call-1"}} = sent()
+
+      send(
+        view.pid,
+        {:agent,
+         %{
+           "version" => "v1.0",
+           "agentFunctionResponse" => %{"functionCallId" => "call-1", "value" => "Berlin"}
+         }}
+      )
+
+      assert_receive {:handled, :ok}
+      html = view |> by_id("root") |> render()
+      assert html =~ "Berlin"
+      refute html =~ "aria-busy"
+    end
+  end
+
+  describe "theme" do
+    test "a v0.9 theme colors the surface and says who made it" do
+      {_view, html} =
+        start([
+          %{
+            "version" => "v0.9",
+            "createSurface" => %{
+              "surfaceId" => "themed",
+              "catalogId" => "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+              "theme" => %{
+                "primaryColor" => "#00BFFF",
+                "iconUrl" => "https://example.com/bot.png",
+                "agentDisplayName" => "Weather Bot"
+              }
+            }
+          },
+          %{
+            "version" => "v0.9",
+            "updateComponents" => %{
+              "surfaceId" => "themed",
+              "components" => [%{"id" => "root", "component" => "Text", "text" => "Sunny"}]
+            }
+          }
+        ])
+
+      assert html =~ ~s(style="--a2ui-color-primary: #00BFFF")
+      assert html =~ ~s(<img src="https://example.com/bot.png" alt=""/>)
+      assert html =~ "Weather Bot"
+    end
+
+    test "values that are not a color or an http URL are left out" do
+      {_view, html} =
+        start([
+          %{
+            "version" => "v0.9",
+            "createSurface" => %{
+              "surfaceId" => "themed",
+              "catalogId" => "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+              "theme" => %{"primaryColor" => "red; x: y", "iconUrl" => "javascript:alert(1)"}
+            }
+          }
+        ])
+
+      refute html =~ "--a2ui-color-primary"
+      refute html =~ "a2ui-surface-attribution"
     end
   end
 

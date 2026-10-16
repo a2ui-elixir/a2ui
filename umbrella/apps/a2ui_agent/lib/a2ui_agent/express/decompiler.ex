@@ -43,18 +43,26 @@ defmodule A2UIAgent.Express.Decompiler do
   @doc """
   Decompiles `messages` (a list, or one message). A component or
   function the catalogs do not define is a `:validation` error.
+
+  With several catalogs, a component that names no `catalogId` belongs to
+  its surface's catalog, which the surface's `createSurface` names. For
+  messages that update surfaces created earlier, pass those surfaces'
+  catalogs as the `:surface_catalogs` option, a map of catalog ids by
+  surface id.
   """
-  @spec decompile(Catalogs.t(), [map()] | map()) :: {:ok, String.t()} | {:error, Error.t()}
-  def decompile(%Catalogs{} = catalogs, messages) do
-    {:ok, decompile!(catalogs, List.wrap(messages))}
+  @spec decompile(Catalogs.t(), [map()] | map(), keyword()) ::
+          {:ok, String.t()} | {:error, Error.t()}
+  def decompile(%Catalogs{} = catalogs, messages, options \\ []) do
+    known = Map.new(Keyword.get(options, :surface_catalogs, %{}))
+    {:ok, decompile!(catalogs, List.wrap(messages), known)}
   rescue
     failure in Failure -> {:error, Failure.to_error(failure)}
   end
 
-  defp decompile!(catalogs, messages) do
+  defp decompile!(catalogs, messages, known) do
     {blocks, _calls} =
       messages
-      |> coalesce()
+      |> coalesce(known)
       |> Enum.with_index()
       |> Enum.flat_map_reduce(0, fn {item, index}, calls ->
         cond do
@@ -84,7 +92,7 @@ defmodule A2UIAgent.Express.Decompiler do
   # -- coalescing --------------------------------------------------------------------
 
   # Each item: %{message, operation, surface_id, surface_catalog_id}.
-  defp coalesce(messages) do
+  defp coalesce(messages, known) do
     {result, _open} =
       Enum.reduce(messages, {[], %{}}, fn message, {result, open} ->
         coalesce_step(message, result, open)
@@ -93,7 +101,7 @@ defmodule A2UIAgent.Express.Decompiler do
     {items, _seen} =
       result
       |> Enum.reverse()
-      |> Enum.map_reduce(%{}, fn {message, operation, surface_id}, seen ->
+      |> Enum.map_reduce(known, fn {message, operation, surface_id}, seen ->
         seen = track_catalog(seen, message, operation, surface_id)
 
         item = %{

@@ -11,7 +11,8 @@ defmodule A2UIPhoenix.Test.HostLive do
   # (render body text through A2UIPhoenix.Test.CustomComponents.markdown/1),
   # "silent" (no callbacks), "mcp" (tool results by name: adds the v1.0 MCP
   # catalog and an A2UIPhoenix.Test.FakeMCP client), "mcp_sandbox" (the
-  # sandbox proxy URL).
+  # sandbox proxy URL), "agent_timeout" (the timeout of agent function
+  # calls, in milliseconds).
 
   use Phoenix.LiveView
 
@@ -27,7 +28,7 @@ defmodule A2UIPhoenix.Test.HostLive do
   @impl true
   def mount(_params, params, socket) do
     test = params["test"]
-    session = new_session(test, params["mcp"])
+    session = new_session(test, params["mcp"], params["agent_timeout"])
 
     socket =
       socket
@@ -48,10 +49,14 @@ defmodule A2UIPhoenix.Test.HostLive do
     {:ok, socket}
   end
 
-  defp new_session(_test, nil),
-    do: Session.new([Basic.catalog("v1.0"), Basic.catalog("v0.9.1")], clock: &now/0)
+  defp new_session(_test, nil, timeout),
+    do:
+      Session.new([Basic.catalog("v1.0"), Basic.catalog("v0.9.1")],
+        clock: &now/0,
+        default_timeout_ms: timeout || 30_000
+      )
 
-  defp new_session(test, results) do
+  defp new_session(test, results, _timeout) do
     client = {FakeMCP, %{test: test, results: results}}
     catalogs = [Basic.catalog("v1.0"), MCP.catalog("v1.0", client: client)]
     Session.new(catalogs, clock: &now/0, mcp_client: client)

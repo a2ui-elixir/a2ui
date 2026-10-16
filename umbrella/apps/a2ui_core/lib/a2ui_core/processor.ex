@@ -277,10 +277,12 @@ defmodule A2UICore.Processor do
   defp dispatch(processor, %CallRendererFunction{} = operation, options) do
     surface = operation.surface_id && surface(processor, operation.surface_id)
 
+    activated? = options[:user_activated] == true
+
     response =
       RPC.call_renderer_function(processor.rpc, operation,
-        context: surface && DataContext.for_surface(surface),
-        user_activated: options[:user_activated] == true
+        context: surface && DataContext.for_surface(surface, user_activated: activated?),
+        user_activated: activated?
       )
 
     {:ok, processor, [{:rpc_response, response}]}

@@ -157,12 +157,16 @@ report
 #=> }
 ```
 
+A validation error also names the field that failed, as a JSON Pointer into
+the message that carried it, such as `"path" => "/components/0/text"`.
+
 | Effect | What the host does |
 |---|---|
-| `{:send, message}` | delivers `message` (`action`, `error`, `rendererFunctionResponse`) to the agent |
+| `{:send, message}` | delivers `message` (`action`, `error`, `callAgentFunction`, `rendererFunctionResponse`) to the agent |
 | `{:open_url, url}` | opens `url` in the browser |
-| `{:diagnostic, surface_id, level, payload}` | logs a problem found while resolving (an unknown component type, a binding to a missing path) |
-| `{:surface_created, id}` and the other processor effects | nothing required; see `A2UICore.Processor` |
+| `{:agent_call_sent, call_id, timeout_ms}` | times the call it just sent, and calls `Session.timeout_agent_call/2` when the time is up (see [Agent functions](#agent-functions)) |
+| `{:diagnostic, surface_id, level, payload}` | logs a problem found while resolving (an unknown component type, a binding to a missing path) or an agent function call that failed |
+| `{:rpc_settled, call_id, outcome}`, `{:surface_created, id}` and the other processor effects | nothing required; see `A2UICore.Processor` |
 
 ## In a LiveView
 
@@ -244,6 +248,97 @@ Over A2A these travel in the message metadata, as `a2uiRendererCapabilities`
 and `a2uiRendererDataModel` (`a2uiClientCapabilities` and
 `a2uiClientDataModel` in protocol v0.9).
 
+## Agent functions
+
+In protocol v1.0 a component can use a function the renderer does not run:
+one that no catalog of the surface declares, or one that its catalog declares
+without an implementation, for the agent to run. The session sends such a
+call to the agent as a `callAgentFunction` message, and the component waits
+for the answer: the property is `nil` and the node is busy, which
+`A2UIPhoenix.Surface` marks with `aria-busy="true"`.
+
+```elixir
+alias A2UICore.Resolution.NodeResolver
+alias A2UIPhoenix.{Components, Session}
+
+basic = A2UICore.Catalog.Basic.catalog("v1.0")
+session = Session.new([basic], default_timeout_ms: 5_000)
+
+{:ok, session, effects} =
+  Session.handle_message(session, [
+    %{
+      "version" => "v1.0",
+      "createSurface" => %{"surfaceId" => "main", "catalogId" => basic.catalog_id}
+    },
+    %{
+      "version" => "v1.0",
+      "updateComponents" => %{
+        "surfaceId" => "main",
+        "components" => [
+          %{
+            "id" => "root",
+            "component" => "Text",
+            "text" => %{"@call" => "lookupCity", "args" => %{"zip" => "75001"}}
+          }
+        ]
+      }
+    }
+  ])
+
+Enum.drop(effects, 2)
+#=> [
+#=>   {:send,
+#=>    %{
+#=>      "version" => "v1.0",
+#=>      "callAgentFunction" => %{
+#=>        "surfaceId" => "main",
+#=>        "functionCallId" => "call-1",
+#=>        "callFunction" => %{"@call" => "lookupCity", "args" => %{"zip" => "75001"}}
+#=>      }
+#=>    }},
+#=>   {:agent_call_sent, "call-1", 5000}
+#=> ]
+
+session |> Session.resolver("main") |> NodeResolver.root() |> Map.fetch!(:busy)
+#=> true
+```
+
+The agent's `agentFunctionResponse` settles the call, and the surface is
+resolved again with the value:
+
+```elixir
+{:ok, session, [{:rpc_settled, "call-1", {:ok, "Paris"}}]} =
+  Session.handle_message(session, %{
+    "version" => "v1.0",
+    "agentFunctionResponse" => %{"functionCallId" => "call-1", "value" => "Paris"}
+  })
+
+session |> Session.resolver("main") |> NodeResolver.root() |> Components.props()
+#=> %{"text" => "Paris"}
+```
+
+`{:agent_call_sent, call_id, timeout_ms}` asks the host to time the call:
+`A2UIPhoenix.Live` starts a timer and, when it fires, calls
+`A2UIPhoenix.Session.timeout_agent_call/2`, which fails the call with
+`TIMEOUT` if no answer came. A call that fails leaves the property `nil` and
+is reported as a `{:diagnostic, surface_id, :error, payload}` effect. The
+call a function-call action makes is sent every time the action runs, and its
+answer is not kept.
+
+Functions the renderer does run follow their catalog's rules: a function
+reserved for the agent (`allowedCallers: "agentOnly"`) is never run from a
+component, and one that needs a user gesture (`requiresUserActivation`, as
+`openUrl` does) runs from an action only. Elsewhere either is an expression
+error, reported as a diagnostic.
+
+## Themes
+
+A v0.9 surface may carry a theme. `A2UIPhoenix.Surface` sets its
+`primaryColor` (a `#rrggbb` color) as the `--a2ui-color-primary` custom
+property of the surface, which the stylesheet uses for primary buttons and
+active states, and shows the agent's `agentDisplayName` and `iconUrl` (an
+`http` or `https` URL) above the surface. Protocol v1.0 has no surface theme.
+
 ## MCP tools and apps
 
 The A2UI MCP catalog lets a surface call
@@ -310,6 +405,13 @@ plug Plug.Static,
 
 For stronger isolation, serve the page from an origin of its own and pass its
 URL as the `mcp_sandbox` assign of `A2UIPhoenix.Surface`.
+
+A browser reloads an iframe that moves in the document, and a LiveView patch
+moves an element when an element without an id appears before it. Keep what
+you render before your surfaces stable (render a container that is sometimes
+empty rather than one that comes and goes, and give containers ids): when an
+app's frame does reload, the hook connects it again and sends it the state,
+but the app starts over.
 
 The hook answers the app's handshake, display mode and link requests
 (`http` and `https` only) in the browser, resizes the frame (within 200-3000

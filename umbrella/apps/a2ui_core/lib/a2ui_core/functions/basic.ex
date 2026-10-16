@@ -324,8 +324,13 @@ defmodule A2UICore.Functions.Basic do
   defp render_date(utc, _offset, format, formatter, locale, false),
     do: formatter.date(utc, format, locale: locale)
 
+  # Python's `datetime.fromisoformat`: a date, optionally followed by a
+  # separator and `HH[:MM[:SS[.ffffff]]]` and an offset. Elixir's parsers
+  # need the seconds, so the missing parts are filled in first.
+  @iso_timestamp ~r/\A(?<date>\d{4}-\d{2}-\d{2})(?:.(?<hour>\d{2})(?::(?<minute>\d{2})(?::(?<second>\d{2})(?<fraction>\.\d{1,6})?)?)?(?<offset>Z|[+-]\d{2}:\d{2})?)?\z/u
+
   defp parse_date(text) do
-    text = String.replace(text, ~r/\A[\x00-\x20]+/, "")
+    text = text |> String.replace(~r/\A[\x00-\x20]+/, "") |> complete_time()
 
     case DateTime.from_iso8601(text) do
       {:ok, utc, offset} ->
@@ -333,6 +338,18 @@ defmodule A2UICore.Functions.Basic do
 
       {:error, _reason} ->
         naive_or_date(text)
+    end
+  end
+
+  defp complete_time(text) do
+    case Regex.named_captures(@iso_timestamp, text) do
+      %{"hour" => hour} = parts when hour != "" ->
+        minute = if parts["minute"] == "", do: "00", else: parts["minute"]
+        second = if parts["second"] == "", do: "00", else: parts["second"]
+        "#{parts["date"]}T#{hour}:#{minute}:#{second}#{parts["fraction"]}#{parts["offset"]}"
+
+      _date_or_other ->
+        text
     end
   end
 

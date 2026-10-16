@@ -67,17 +67,19 @@ end
 defmodule A2UIAgent.Builder.FunctionCall do
   @moduledoc """
   A call of a catalog function, written as `{"call": name, "args": args}`
-  (`"@call"` from v1.0). Made by `A2UIAgent.Builder.call/3`.
+  (`"@call"` from v1.0, with the `"catalogId"` it names). Made by
+  `A2UIAgent.Builder.call/3`.
   """
 
   @moduledoc since: "0.1.0"
 
   @enforce_keys [:call]
-  defstruct [:call, :return_type, args: %{}]
+  defstruct [:call, :return_type, :catalog_id, args: %{}]
 
   @type t :: %__MODULE__{
           call: String.t(),
           args: %{optional(String.t()) => term()},
-          return_type: String.t() | nil
+          return_type: String.t() | nil,
+          catalog_id: String.t() | nil
         }
 end

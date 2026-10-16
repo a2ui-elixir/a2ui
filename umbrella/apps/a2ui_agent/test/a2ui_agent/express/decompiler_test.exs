@@ -403,6 +403,23 @@ defmodule A2UIAgent.Express.DecompilerTest do
       assert {:error, %Error{message: message}} = Decompiler.decompile(multi, messages)
       assert message =~ "Component 'Badge' names no catalogId, and its surface has no catalog."
     end
+
+    test "an update to a surface created earlier takes its catalog from the option",
+         %{multi: multi} do
+      update = %{
+        "version" => "v1.0",
+        "updateComponents" => %{
+          "surfaceId" => "s1",
+          "components" => [%{"id" => "root", "component" => "Badge"}]
+        }
+      }
+
+      assert {:error, %Error{}} = Decompiler.decompile(multi, [update])
+
+      assert {:ok, ~s|surface("s1", update=true)
+root = Badge()|} =
+               Decompiler.decompile(multi, [update], surface_catalogs: %{"s1" => "urn:a"})
+    end
   end
 
   describe "unusual messages" do

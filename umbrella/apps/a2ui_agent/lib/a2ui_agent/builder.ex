@@ -142,14 +142,30 @@ defmodule A2UIAgent.Builder do
 
   @doc """
   A call of the catalog function `name`. `args` follow the key rules of
-  properties. Option: `:return_type`, written as `returnType`.
+  properties. Options: `:return_type`, written as `returnType`, and
+  `:catalog_id`, the catalog the call runs in when it is not the
+  surface's default, written as `catalogId` from protocol v1.0 (before
+  it a call always runs in the surface's catalog, and the option is left
+  out).
+
+      iex> import A2UIAgent.Builder.Basic
+      iex> text(id: "root", text: A2UIAgent.Builder.call("shout", [value: "hi"], catalog_id: "https://example.com/c.json"))
+      ...> |> A2UIAgent.Builder.flatten()
+      [
+        %{
+          "id" => "root",
+          "component" => "Text",
+          "text" => %{"@call" => "shout", "args" => %{"value" => "hi"}, "catalogId" => "https://example.com/c.json"}
+        }
+      ]
   """
   @spec call(String.t(), props(), keyword()) :: FunctionCall.t()
   def call(name, args \\ [], options \\ []) when is_binary(name) do
     %FunctionCall{
       call: name,
       args: Map.new(pairs(args, &wire_key/1)),
-      return_type: options[:return_type]
+      return_type: options[:return_type],
+      catalog_id: options[:catalog_id]
     }
   end
 
@@ -374,9 +390,10 @@ defmodule A2UIAgent.Builder do
   defp write(%FunctionCall{} = call, state, context) do
     {args, state} = write(call.args, state, context)
     json = %{context.keys.call => call.call, "args" => args}
+    json = if call.return_type, do: Map.put(json, "returnType", call.return_type), else: json
 
-    if call.return_type,
-      do: {Map.put(json, "returnType", call.return_type), state},
+    if call.catalog_id && context.keys.call == "@call",
+      do: {Map.put(json, "catalogId", call.catalog_id), state},
       else: {json, state}
   end
 

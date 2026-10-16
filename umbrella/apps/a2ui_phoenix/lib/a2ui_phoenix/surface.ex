@@ -15,6 +15,11 @@ defmodule A2UIPhoenix.Surface do
   `A2UIPhoenix.Components.MCP.components/0`; `:markdown` and
   `:mcp_sandbox` — see `A2UIPhoenix.Context`.
 
+  A surface created with a theme (protocol v0.9) shows it: `primaryColor`
+  becomes the `--a2ui-color-primary` custom property of the surface, and
+  `iconUrl` and `agentDisplayName` are shown above it, to say which agent
+  made it.
+
   The component owns the surface's local UI state: the open tab, whether a
   modal is open, a choice filter. Input that concerns the agent is sent to
   the LiveView process, which owns the session:
@@ -90,10 +95,17 @@ defmodule A2UIPhoenix.Surface do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :root, assigns.resolver && NodeResolver.root(assigns.resolver))
+    assigns =
+      assigns
+      |> assign(:root, assigns.resolver && NodeResolver.root(assigns.resolver))
+      |> assign(:theme, theme(assigns.surface))
 
     ~H"""
-    <div id={@id} class="a2ui-surface" data-a2ui-surface={@surface_id}>
+    <div id={@id} class="a2ui-surface" data-a2ui-surface={@surface_id} style={@theme.style}>
+      <header :if={@theme.icon || @theme.name} class="a2ui-surface-attribution">
+        <img :if={@theme.icon} src={@theme.icon} alt="" />
+        <span :if={@theme.name}>{@theme.name}</span>
+      </header>
       <form
         :if={@root}
         id={"#{@id}-form"}
@@ -106,6 +118,24 @@ defmodule A2UIPhoenix.Surface do
       </form>
     </div>
     """
+  end
+
+  # Only a six-digit hex color (the basic catalog's pattern) reaches the
+  # style attribute, and only an http(s) URL the image.
+  defp theme(surface) do
+    theme = (surface && surface.theme) || %{}
+    color = theme["primaryColor"]
+    icon = theme["iconUrl"]
+    name = theme["agentDisplayName"]
+
+    %{
+      style:
+        if(is_binary(color) and Regex.match?(~r/\A#[0-9a-fA-F]{6}\z/, color),
+          do: "--a2ui-color-primary: #{color}"
+        ),
+      icon: if(is_binary(icon) and Regex.match?(~r/\Ahttps?:\/\//i, icon), do: icon),
+      name: if(is_binary(name) and name != "", do: name)
+    }
   end
 
   @impl true

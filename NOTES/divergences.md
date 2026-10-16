@@ -10,7 +10,11 @@ them or documented as a skip with a reason.
   `FormatChecker`, so `format: "uri"` never fails there; the upstream spec test runner
   uses ajv with ajv-formats, which does assert it. `A2UICore.Schema.validate/3` takes
   `formats: :assert` for the latter; the spec-case replay uses it (one case,
-  `openUrl: Invalid URL format (not a URI)`, depends on it).
+  `openUrl: Invalid URL format (not a URI)`, depends on it). One consequence, shared
+  with the Python SDK: a literal string in `DateTimeInput`'s `min` or `max` fails
+  validation, because the basic catalog requires it to match exactly one of the
+  `date`, `time` and `date-time` formats, and without assertion it matches all three.
+  A binding (`{"@path": "/today"}`) passes; the examples bind it.
 - **Regular expressions are ECMA-262's.** Schema patterns and the basic catalog's
   `regex` function read `\d`, `\w` and `\b` as ASCII, `\s` as ECMA-262's white space,
   `.` as anything but a line terminator, and accept `\u` escapes and ECMA-262's
@@ -78,6 +82,23 @@ them or documented as a skip with a reason.
   `{:warning, %{code: "MISSING_DATA_BINDING", …}}`, once per path per call.
 - **Template parsing counts characters.** The 10 000-character limit applies to
   codepoints, not bytes (as in Python, unlike JavaScript's UTF-16 length).
+- **Date patterns are quoted as TR35 says.** The basic catalog defines `formatDate`'s
+  `format` as a Unicode TR35 pattern, and its own example
+  (`30_live-invitation-builder.json`) writes `'at'` for the word "at". Text in single
+  quotes is literal and `''` is a quote. The Python, TypeScript and Dart formatters
+  replace tokens everywhere, so `'at'` comes out as `'PMt'`. No conformance case quotes
+  text.
+- **Who may call a function, inside the renderer.** A function bound to a property or a
+  check, or called from an action, is refused with an `EXPRESSION_ERROR` when its
+  catalog reserves it for the agent (`allowedCallers: "agentOnly"`), and when it
+  requires a user gesture (`requiresUserActivation`, as `openUrl` does) outside an
+  action, as the protocol requires and the Dart SDK does. Python checks both only for
+  `callRendererFunction`.
+- **System functions in templates.** `${@index(offset: 1)}` parses as a call to
+  `@index`, as in the protocol's own `@index` example and the Dart parser. Python and
+  TypeScript stop at the `@` and report trailing characters. As in Dart, a bare `@`,
+  `@` followed by a non-letter, or an uncalled `${@index}` is a parse error. No
+  conformance case uses `@` in a template.
 
 ## Processor and validation
 
@@ -226,6 +247,13 @@ transformers and resolution, `validate_payload`, and the direct JSON format
   to 32 keys). Non-ASCII characters are written as UTF-8 rather than `\uXXXX` escapes
   (`json.dumps` defaults to `ensure_ascii=True`; the TypeScript and Dart SDKs write
   UTF-8 as well).
+- **Decompiled messages are written in the protocol's order.** A map has no insertion
+  order, so `DirectJson.Parser.decompile/1` writes each message map in the order the
+  schemas list its keys (`A2UICore.KeyOrder.message/1`): `version` first, `surfaceId`
+  first in the body, `id` and `component` first in a component. Python writes its dicts
+  in their own order and its message models in field order, which is the same order.
+  Sorted keys would put `components` before `surfaceId` and hold a streamed message
+  back until it is complete.
 - **Pruning messages reads the allowlist once.** `SchemaPruning.prune_messages/2` keeps a
   definition when one of its properties is named in the allowlist. Python also adds
   definitions whose properties name a definition added earlier in its iteration, which

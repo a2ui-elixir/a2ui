@@ -32,3 +32,12 @@ First release.
 - MCP and AG-UI: the values an MCP server returns and reads for A2UI
   (`A2UIAgent.MCP`), and AG-UI activity snapshots, events and user actions
   (`A2UIAgent.AGUI`).
+- `A2UIAgent.Builder.call/3` takes `:catalog_id`, for a call into another
+  catalog (v1.0).
+- `A2UIAgent.DirectJson.Parser.decompile/1` writes each message's keys in the
+  protocol's order, so that decompiled text streams component by component.
+- Express, as in the Python SDK: a single data assignment to a nested path
+  compiles to an update of that path; several assignments, or one to a
+  top-level key, compile to one root update that merges them.
+  `A2UIAgent.Express.Parser.decompile/3` takes `:surface_catalogs`, for
+  updates to surfaces created earlier.

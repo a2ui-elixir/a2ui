@@ -29,7 +29,7 @@ defmodule A2UIAgent.DirectJson.Parser do
 
   alias A2UIAgent.{Catalogs, PayloadValidator}
   alias A2UIAgent.DirectJson.JsonReader
-  alias A2UICore.{Catalog, Error}
+  alias A2UICore.{Catalog, Error, KeyOrder}
 
   @moduledoc since: "0.1.0"
 
@@ -178,10 +178,15 @@ defmodule A2UIAgent.DirectJson.Parser do
 
   @doc """
   Writes messages back out as the pretty-printed JSON a model would have
-  emitted.
+  emitted, each message's keys in the protocol's order
+  (`A2UICore.KeyOrder.message/1`). Text in that order streams:
+  `parse_chunk/3` can pass a message on as soon as its `surfaceId` has
+  arrived, and a component list one component at a time.
   """
   @spec decompile([map()] | map()) :: String.t()
-  def decompile(messages) when is_list(messages), do: Jason.encode!(messages, pretty: true)
+  def decompile(messages) when is_list(messages),
+    do: messages |> Enum.map(&KeyOrder.message/1) |> Jason.encode!(pretty: true)
+
   def decompile(message) when is_map(message), do: decompile([message])
 
   @doc """

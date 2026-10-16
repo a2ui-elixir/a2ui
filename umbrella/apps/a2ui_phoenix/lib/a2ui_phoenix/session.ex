@@ -16,14 +16,31 @@ defmodule A2UIPhoenix.Session do
       `{:components_updated, id, component_ids}`,
       `{:data_model_updated, id, path}` — as the processor reports them;
     * `{:rpc_settled, call_id, outcome}` — a pending agent call settled;
+    * `{:agent_call_sent, call_id, timeout_ms}` — a `callAgentFunction`
+      message went out in a `{:send, message}` effect; the host starts a
+      timer for it and calls `timeout_agent_call/2` when it fires
+      (`timeout_ms` is `nil` for a call without a timeout);
     * `{:diagnostic, surface_id, :error | :warning, payload}` — what the
       resolver found while resolving or invoking (an unknown component
-      type, a cyclic reference, a binding that does not resolve).
+      type, a cyclic reference, a binding that does not resolve), and
+      agent function calls that failed.
 
   Agent messages go through `handle_message/3`; user input goes through
   `write/5` (a two-way binding) and `invoke/4` (an action); the requests
   of an embedded MCP App (the MCP catalog's `McpApp`) go through
   `mcp_app_request/5`.
+
+  ## Agent functions
+
+  In protocol v1.0 a function call that no catalog of the surface can
+  run locally is sent to the agent as a `callAgentFunction` message: a
+  call the catalog it resolves to does not declare, or declares without
+  an implementation. A property that uses such a call is `nil`, and its
+  node busy, until the agent's `agentFunctionResponse` arrives through
+  `handle_message/3`; the surface is then resolved again with the value.
+  A call that fails (an error response, a timeout) leaves the property
+  `nil` and is reported as a diagnostic. The call a function-call action
+  makes is sent each time the action runs.
 
       session = A2UIPhoenix.Session.new([A2UICore.Catalog.Basic.catalog("v1.0")])
       {:ok, session, _effects} = A2UIPhoenix.Session.handle_message(session, message)
@@ -40,14 +57,20 @@ defmodule A2UIPhoenix.Session do
   @moduledoc since: "0.1.0"
 
   @enforce_keys [:processor]
-  defstruct processor: nil, resolvers: %{}, version: "v1.0", clock: nil, mcp_client: nil
+  defstruct processor: nil,
+            resolvers: %{},
+            version: "v1.0",
+            clock: nil,
+            mcp_client: nil,
+            agent_calls: %{}
 
   @type t :: %__MODULE__{
           processor: Processor.t(),
           resolvers: %{optional(String.t()) => NodeResolver.t()},
           version: String.t(),
           clock: (-> DateTime.t()) | nil,
-          mcp_client: A2UICore.MCP.Client.t() | nil
+          mcp_client: A2UICore.MCP.Client.t() | nil,
+          agent_calls: %{optional(String.t()) => {String.t(), term()}}
         }
 
   @typedoc """
@@ -59,6 +82,7 @@ defmodule A2UIPhoenix.Session do
   @type effect ::
           {:send, map()}
           | {:open_url, String.t()}
+          | {:agent_call_sent, String.t(), number() | nil}
           | {:diagnostic, String.t(), :error | :warning, map()}
           | Processor.effect()
 
@@ -133,7 +157,8 @@ defmodule A2UIPhoenix.Session do
     case Processor.process(session.processor, payload, options) do
       {:ok, processor, effects} ->
         {session, notes} = sync(%{session | processor: processor}, effects)
-        {:ok, session, outbound(effects) ++ notes}
+        {session, settled} = settle_agent_calls(session, effects)
+        {:ok, session, outbound(effects) ++ notes ++ settled}
 
       {:error, error, processor} ->
         session = %{session | processor: processor}
@@ -165,7 +190,7 @@ defmodule A2UIPhoenix.Session do
     options =
       cond do
         error.code in @validation_codes and is_binary(surface_id) ->
-          [surface_id: surface_id, path: error.path || "/"]
+          [surface_id: surface_id, path: failed_field(error, payload, surface_id)]
 
         is_binary(error.function_call_id) ->
           [function_call_id: error.function_call_id]
@@ -183,6 +208,59 @@ defmodule A2UIPhoenix.Session do
       ],
       else: []
   end
+
+  # The JSON Pointer of the field that failed validation, within the
+  # message that carried it (`/components/0/text`): from the first detail
+  # that names a component of the payload, else the error's own pointer,
+  # else the root.
+  defp failed_field(%Error{} = error, payload, surface_id) do
+    components =
+      payload
+      |> payload_messages()
+      |> Enum.flat_map(&message_components(&1, surface_id))
+
+    Enum.find_value(error.details, fn detail -> component_pointer(detail.path, components) end) ||
+      if(is_binary(error.path) and String.starts_with?(error.path, "/"),
+        do: error.path,
+        else: "/"
+      )
+  end
+
+  defp message_components(%{} = message, surface_id) do
+    for {key, %{"surfaceId" => ^surface_id, "components" => components}} <- message,
+        key in ["createSurface", "updateComponents"],
+        is_list(components),
+        {%{"id" => id}, index} <- Enum.with_index(components),
+        is_binary(id),
+        do: {id, index}
+  end
+
+  defp message_components(_other, _surface_id), do: []
+
+  # Detail paths read `components.<id>.<property>…`; the longest id that
+  # fits wins, and its last place in the payload.
+  defp component_pointer("components." <> rest, components) do
+    components
+    |> Enum.filter(fn {id, _index} -> rest == id or String.starts_with?(rest, id <> ".") end)
+    |> Enum.max_by(fn {id, index} -> {byte_size(id), index} end, fn -> nil end)
+    |> case do
+      nil ->
+        nil
+
+      {id, index} ->
+        property =
+          rest
+          |> binary_part(byte_size(id), byte_size(rest) - byte_size(id))
+          |> String.split(".", trim: true)
+          |> Enum.map_join(&("/" <> pointer_token(&1)))
+
+        "/components/#{index}" <> property
+    end
+  end
+
+  defp component_pointer(_path, _components), do: nil
+
+  defp pointer_token(token), do: token |> String.replace("~", "~0") |> String.replace("/", "~1")
 
   # The surface a payload is about, when it is about exactly one.
   defp payload_surface(payload) do
@@ -279,6 +357,22 @@ defmodule A2UIPhoenix.Session do
         {:ok, session, effects} -> {session, effects}
         {:error, _error, session, effects} -> {session, effects}
       end
+    end
+  end
+
+  defp apply_interaction(session, surface_id, {:agent_call, %{action: true} = request}),
+    do: start_agent_call(session, surface_id, nil, request.call)
+
+  defp apply_interaction(session, surface_id, {:agent_call, %{key: key, call: call}}) do
+    case resolver(session, surface_id) do
+      %NodeResolver{agent_calls: calls} = resolver when not is_map_key(calls, key) ->
+        resolvers =
+          Map.put(session.resolvers, surface_id, NodeResolver.track_agent_call(resolver, key))
+
+        start_agent_call(%{session | resolvers: resolvers}, surface_id, key, call)
+
+      _known ->
+        {session, []}
     end
   end
 
@@ -557,6 +651,88 @@ defmodule A2UIPhoenix.Session do
   defp describe(%{__exception__: true} = exception), do: Exception.message(exception)
   defp describe(reason), do: inspect(reason)
 
+  # -- agent functions ------------------------------------------------------------
+
+  @doc """
+  Rejects the pending agent call `call_id` with `TIMEOUT`, for the timer
+  the host started on `{:agent_call_sent, call_id, timeout_ms}`. A call
+  that has settled in the meantime is left alone.
+  """
+  @spec timeout_agent_call(t(), String.t()) :: {:ok, t(), [effect()]}
+  def timeout_agent_call(%__MODULE__{} = session, call_id) when is_binary(call_id) do
+    {processor, effects} = Processor.timeout_agent_call(session.processor, call_id)
+    {session, settled} = settle_agent_calls(%{session | processor: processor}, effects)
+    {:ok, session, effects ++ settled}
+  end
+
+  # Sends `call` to the agent for a property (`key`) or an action (`nil`).
+  defp start_agent_call(session, surface_id, key, call) do
+    version = surface_version(session, surface_id)
+
+    case Processor.call_agent_function(session.processor, surface_id, call, version: version) do
+      {:ok, processor, message} ->
+        call_id = message["callAgentFunction"]["functionCallId"]
+        timeout = Processor.agent_call_timeout(processor, call_id)
+        calls = Map.put(session.agent_calls, call_id, {surface_id, key})
+        session = %{session | processor: processor, agent_calls: calls}
+        {session, [{:send, message}, {:agent_call_sent, call_id, timeout}]}
+
+      {:error, %Error{} = error} ->
+        settle_call(session, surface_id, key, {:error, failure(error)})
+    end
+  end
+
+  # Hands the outcome of each settled call to the tree that needs it.
+  defp settle_agent_calls(session, effects) do
+    Enum.reduce(effects, {session, []}, fn
+      {:rpc_settled, call_id, outcome}, {session, notes} ->
+        {session, more} = settle_agent_call(session, call_id, outcome)
+        {session, notes ++ more}
+
+      _other, acc ->
+        acc
+    end)
+  end
+
+  defp settle_agent_call(session, call_id, outcome) do
+    case Map.pop(session.agent_calls, call_id) do
+      {{surface_id, key}, calls} ->
+        outcome = with {:error, error} <- outcome, do: {:error, failure(error)}
+        settle_call(%{session | agent_calls: calls}, surface_id, key, outcome)
+
+      {nil, _calls} ->
+        {session, []}
+    end
+  end
+
+  defp settle_call(session, surface_id, key, outcome) do
+    report =
+      case outcome do
+        {:error, payload} -> [{:diagnostic, surface_id, :error, payload}]
+        {:ok, _value} -> []
+      end
+
+    case {key, resolver(session, surface_id)} do
+      {nil, _resolver} ->
+        {session, report}
+
+      {_key, nil} ->
+        {session, []}
+
+      {key, resolver} ->
+        resolver = NodeResolver.settle_agent_call(resolver, key, outcome)
+        session = %{session | resolvers: Map.put(session.resolvers, surface_id, resolver)}
+        {session, notes} = refresh(surface_id, {session, []})
+        {session, report ++ notes}
+    end
+  end
+
+  defp failure(%Error{} = error) do
+    %{code: error.code, message: error.message, function_call_id: error.function_call_id}
+  end
+
+  defp failure(%{} = error), do: error
+
   # -- lifecycle ----------------------------------------------------------------
 
   @doc """
@@ -566,7 +742,7 @@ defmodule A2UIPhoenix.Session do
   @spec dispose(t()) :: {t(), [effect()]}
   def dispose(%__MODULE__{} = session) do
     {processor, effects} = Processor.dispose(session.processor)
-    {%{session | processor: processor, resolvers: %{}}, effects}
+    {%{session | processor: processor, resolvers: %{}, agent_calls: %{}}, effects}
   end
 
   # -- resolution ---------------------------------------------------------------
@@ -604,7 +780,19 @@ defmodule A2UIPhoenix.Session do
               level in [:error, :warning],
               do: {:diagnostic, id, level, payload}
 
-        {%{session | resolvers: Map.put(session.resolvers, id, resolver)}, notes ++ diagnostics}
+        session = %{session | resolvers: Map.put(session.resolvers, id, resolver)}
+
+        {session, calls} =
+          Enum.reduce(notifications, {session, []}, fn
+            {:agent_call, %{key: key, call: call}}, {session, effects} ->
+              {session, more} = start_agent_call(session, id, key, call)
+              {session, effects ++ more}
+
+            _other, acc ->
+              acc
+          end)
+
+        {session, notes ++ diagnostics ++ calls}
     end
   end
 

@@ -35,3 +35,15 @@ First release.
   a host-provided `A2UICore.MCP.Client`, and the v0.9 data functions, with
   `A2UICore.JMESPath` behind `jmespath`. Functions can return data model writes
   and A2UI messages as effects, which reach the renderer from actions.
+- Agent functions (v1.0): a function call that no catalog of the surface can
+  run locally is routed to the agent (`DataContext`'s `:agent_calls`), and the
+  node resolver keeps the calls it sent, their answers, and which nodes wait
+  on one (`Node.busy`).
+- Who may call a function, inside the renderer: functions reserved for the
+  agent (`allowedCallers: "agentOnly"`), and functions that need a user gesture
+  (`requiresUserActivation`) outside an action, are expression errors.
+- `formatString` templates call system functions (`${@index(offset: 1)}`);
+  `formatDate` reads timestamps without seconds, as `fromisoformat` does, and
+  takes text in single quotes literally, as TR35 patterns do.
+- `A2UICore.KeyOrder.message/1` orders a message's keys as the protocol's
+  schemas list them.

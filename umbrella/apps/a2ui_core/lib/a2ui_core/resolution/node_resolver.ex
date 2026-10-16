@@ -41,6 +41,20 @@ defmodule A2UICore.Resolution.NodeResolver do
   `write/4` and `invoke/5` are the interaction half: they say which path
   a write reaches and which events and calls an action produces, from
   the surface as it is *now*.
+
+  ## Agent functions
+
+  From v1.0 a function call that the surface's catalogs cannot run
+  locally is the agent's (see
+  [Agent functions](A2UICore.Resolution.DataContext.html#module-agent-functions)).
+  The resolver keeps what it knows of those calls in `agent_calls`.
+  When a property needs a call it has not seen, `update/2` marks the
+  call pending and reports `{:agent_call, %{key: key, call: call}}`: the
+  renderer sends `call` to the agent and later hands the outcome to
+  `settle_agent_call/3`, then calls `update/2` again. Until then the
+  property is `nil` and its node is `busy`. Settled calls are kept for
+  the properties and actions that use them again; past 256 calls, the
+  settled ones no property uses are forgotten.
   """
 
   alias A2UICore.{Catalog, Error}
@@ -56,6 +70,7 @@ defmodule A2UICore.Resolution.NodeResolver do
             edges: %{},
             next_ref: 1,
             reported: MapSet.new(),
+            agent_calls: %{},
             disposed?: false
 
   @type t :: %__MODULE__{
@@ -65,6 +80,7 @@ defmodule A2UICore.Resolution.NodeResolver do
           edges: %{optional(String.t()) => pos_integer()},
           next_ref: pos_integer(),
           reported: MapSet.t(),
+          agent_calls: %{optional(term()) => DataContext.agent_call_state()},
           disposed?: boolean()
         }
 
@@ -73,11 +89,14 @@ defmodule A2UICore.Resolution.NodeResolver do
           | {:node_updated, pos_integer()}
           | {:node_destroyed, pos_integer()}
           | {:error | :warning, map()}
+          | {:agent_call, map()}
 
   @type interaction ::
           {:action_event, map()}
           | {:error | :warning, map()}
-          | {:write | :messages, map()}
+          | {:write | :messages | :agent_call, map()}
+
+  @max_agent_calls 256
 
   @id_escapes %{"~" => "~0", "#" => "~1", "[" => "~2", "]" => "~3", ">" => "~4", "@" => "~5"}
 
@@ -106,7 +125,9 @@ defmodule A2UICore.Resolution.NodeResolver do
       nodes: %{},
       edges: %{},
       conditions: MapSet.new(),
-      notes: []
+      notes: [],
+      agent_calls: previous.agent_calls,
+      used_calls: MapSet.new()
     }
 
     {build, root} = build_root(build)
@@ -122,11 +143,46 @@ defmodule A2UICore.Resolution.NodeResolver do
         nodes: build.nodes,
         edges: build.edges,
         next_ref: build.next_ref,
-        reported: build.conditions
+        reported: build.conditions,
+        agent_calls: kept_calls(build)
     }
 
     {resolver, Enum.reverse(build.notes) ++ destroyed}
   end
+
+  # Past the limit, settled calls that no property uses are forgotten;
+  # calls in flight are always kept.
+  defp kept_calls(%{agent_calls: calls} = build) when map_size(calls) > @max_agent_calls do
+    Map.filter(calls, fn {key, state} ->
+      state == :pending or MapSet.member?(build.used_calls, key)
+    end)
+  end
+
+  defp kept_calls(build), do: build.agent_calls
+
+  @doc """
+  Records the outcome of the agent function call `key` (from an
+  `{:agent_call, %{key: key}}` notification): `{:ok, value}` or
+  `{:error, payload}`. Call `update/2` afterwards to resolve the
+  properties that use it. A call the resolver no longer knows is
+  ignored.
+  """
+  @spec settle_agent_call(t(), term(), {:ok, term()} | {:error, map()}) :: t()
+  def settle_agent_call(%__MODULE__{agent_calls: calls} = resolver, key, outcome)
+      when elem(outcome, 0) in [:ok, :error] do
+    if Map.has_key?(calls, key),
+      do: %{resolver | agent_calls: Map.put(calls, key, outcome)},
+      else: resolver
+  end
+
+  @doc """
+  Marks the agent function call `key` as sent, so that properties that
+  use it wait for its outcome instead of reporting it again; for the
+  calls an action's interactions ask for (`invoke/5`).
+  """
+  @spec track_agent_call(t(), term()) :: t()
+  def track_agent_call(%__MODULE__{agent_calls: calls} = resolver, key),
+    do: %{resolver | agent_calls: Map.put_new(calls, key, :pending)}
 
   @doc """
   Destroys every node and stops the resolver; further updates do
@@ -239,7 +295,7 @@ defmodule A2UICore.Resolution.NodeResolver do
     with {:ok, node} <- fetch_node(resolver, ref) do
       case Map.get(node.props, property) do
         %Action{definition: definition} ->
-          {:ok, run_action(surface, node, definition, now)}
+          {:ok, run_action(resolver, surface, node, definition, now)}
 
         _not_an_action ->
           {:error,
@@ -252,8 +308,14 @@ defmodule A2UICore.Resolution.NodeResolver do
     end
   end
 
-  defp run_action(surface, node, definition, now) do
-    context = DataContext.for_surface(surface, path: node.data_path)
+  defp run_action(resolver, surface, node, definition, now) do
+    context =
+      DataContext.for_surface(surface,
+        path: node.data_path,
+        agent_calls: {:send, resolver.agent_calls},
+        user_activated: true
+      )
+
     {resolved, effects} = DataContext.resolve_action(context, definition)
 
     case Surface.dispatch_action(surface, resolved, node.component_id, now) do
@@ -335,7 +397,7 @@ defmodule A2UICore.Resolution.NodeResolver do
   # otherwise a fresh one takes the position.
   defp claim(build, edge, model, kind, existing) do
     if reusable?(existing, edge, model, kind) do
-      {build, %Node{existing | props: %{}, children: []}, true}
+      {build, %Node{existing | props: %{}, children: [], busy: false}, true}
     else
       ref = build.next_ref
 
@@ -368,7 +430,7 @@ defmodule A2UICore.Resolution.NodeResolver do
     note =
       case previous do
         false -> {:node_created, node.ref}
-        %Node{props: props} when props == node.props -> nil
+        %Node{props: props, busy: busy} when props == node.props and busy == node.busy -> nil
         %Node{} -> {:node_updated, node.ref}
       end
 
@@ -438,12 +500,48 @@ defmodule A2UICore.Resolution.NodeResolver do
     report(build, key, located, level)
   end
 
+  # The agent calls a node's properties make: a call not seen before is
+  # marked pending and reported; the node is busy while one is pending.
+  defp track_calls(build, effects) do
+    Enum.reduce(effects, {build, false}, fn
+      {:agent_call, %{key: key} = request}, {build, busy} ->
+        build = %{build | used_calls: MapSet.put(build.used_calls, key)}
+
+        case Map.fetch(build.agent_calls, key) do
+          {:ok, :pending} ->
+            {build, true}
+
+          {:ok, _settled} ->
+            {build, busy}
+
+          :error ->
+            build = %{
+              build
+              | agent_calls: Map.put(build.agent_calls, key, :pending),
+                notes: [{:agent_call, Map.take(request, [:key, :call])} | build.notes]
+            }
+
+            {build, true}
+        end
+
+      _other, acc ->
+        acc
+    end)
+  end
+
   # -- props and children -------------------------------------------------------
 
   defp resolve_children(build, %Node{} = node, model, catalog, ancestors) do
-    context = DataContext.for_surface(build.surface, path: node.data_path)
+    context =
+      DataContext.for_surface(build.surface,
+        path: node.data_path,
+        agent_calls: build.agent_calls
+      )
+
     {bound, effects} = Binder.bind(context, model, catalog, wrap: true)
     build = Enum.reduce(effects, build, &report_effect(&2, node, &1))
+    {build, busy} = track_calls(build, effects)
+    node = %Node{node | busy: busy}
 
     state = %{
       build: build,

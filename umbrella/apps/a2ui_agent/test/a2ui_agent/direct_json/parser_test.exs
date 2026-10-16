@@ -106,6 +106,38 @@ defmodule A2UIAgent.DirectJson.ParserTest do
     assert Parser.wrap_decompiled_blocks(["[1]", "[2]"]) == "<a2ui-json>\n[1]\n[2]\n</a2ui-json>"
   end
 
+  test "decompiled messages stream component by component", %{parser: parser} do
+    components = [
+      %{"children" => ["a", "b"], "component" => "Column", "id" => "root"},
+      %{"text" => "First", "component" => "Text", "id" => "a"},
+      %{"text" => "Second", "component" => "Text", "id" => "b"}
+    ]
+
+    messages = [
+      %{
+        "createSurface" => %{"catalogId" => basic().catalog_id, "surfaceId" => "s"},
+        "version" => "v1.0"
+      },
+      %{
+        "updateComponents" => %{"components" => components, "surfaceId" => "s"},
+        "version" => "v1.0"
+      }
+    ]
+
+    text = Parser.wrap_decompiled_blocks([Parser.decompile(messages)])
+    assert text =~ ~s("version": "v1.0",\n    "createSurface")
+
+    chunks = text |> String.graphemes() |> Enum.chunk_every(16) |> Enum.map(&Enum.join/1)
+
+    counts =
+      for parts <- stream(parser, chunks),
+          {:a2ui, emitted} <- parts,
+          %{"updateComponents" => %{"components" => list}} <- emitted,
+          do: length(list)
+
+    assert counts == [1, 2, 3]
+  end
+
   describe "parse_response/3" do
     test "compiles every block in order", %{parser: parser} do
       content = "Here it is.\n" <> block(surface()) <> "\nDone."

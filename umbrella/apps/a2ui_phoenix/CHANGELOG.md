@@ -19,3 +19,16 @@ First release.
 - `A2UIPhoenix.Plug.SSE`: A2UI messages streamed as server-sent events,
   with event ids, a reconnection delay and the client's `Last-Event-ID` for
   resuming a stream.
+- Agent functions: a call the surface cannot run goes to the agent as
+  `callAgentFunction`, its answer is applied when it arrives, and a call that
+  fails or times out (`A2UIPhoenix.Session.timeout_agent_call/2`, timed by
+  `A2UIPhoenix.Live`) is reported as a diagnostic. A component waiting for an
+  answer has `aria-busy="true"`.
+- The v0.9 surface theme: `primaryColor` sets `--a2ui-color-primary`, and the
+  agent's name and icon are shown above the surface.
+- A validation error reported to the agent names the field that failed, as
+  a JSON Pointer into the message (`/components/0/text`).
+- `DateTimeInput` shows a date unless only the time is enabled
+  (`A2UIPhoenix.Inputs.date_enabled?/1`).
+- Stylesheet: image sizes per variant, dividers, full-width media, a busy
+  indicator, and Markdown text without outer margins.

@@ -6,6 +6,22 @@
   color: var(--a2ui-color-on-background, inherit);
 }
 
+.a2ui-surface-attribution {
+  display: flex;
+  align-items: center;
+  gap: var(--a2ui-spacing-s, 0.25rem);
+  margin-bottom: var(--a2ui-spacing-s, 0.25rem);
+  font-size: var(--a2ui-font-size-xs, 0.75rem);
+  color: var(--a2ui-text-caption-color, #666);
+}
+
+.a2ui-surface-attribution img {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .a2ui-row,
 .a2ui-column,
 .a2ui-list {
@@ -42,13 +58,47 @@
   margin: 0;
 }
 
+/* Markdown blocks keep their spacing between them, not around the text. */
+.a2ui-text > :first-child {
+  margin-top: 0;
+}
+
+.a2ui-text > :last-child {
+  margin-bottom: 0;
+}
+
 .a2ui-text.caption {
   font-size: var(--a2ui-font-size-xs, 0.75rem);
   color: var(--a2ui-text-caption-color, #666);
 }
 
+/* Image sizes follow the basic catalog's implementation guide. */
 .a2ui-image {
+  display: block;
   max-width: 100%;
+  flex-shrink: 0;
+}
+
+.a2ui-image.smallFeature {
+  width: 100px;
+  height: 100px;
+}
+
+.a2ui-image.mediumFeature,
+.a2ui-image.default {
+  width: 100%;
+  max-width: 300px;
+  height: 200px;
+}
+
+.a2ui-image.largeFeature {
+  width: 100%;
+  max-height: 400px;
+}
+
+.a2ui-image.header {
+  width: 100%;
+  height: 200px;
 }
 
 .a2ui-image.icon {
@@ -68,11 +118,30 @@
   fill: currentColor;
 }
 
-.a2ui-divider.vertical {
+.a2ui-divider {
   align-self: stretch;
+  width: 100%;
+  height: 0;
+  margin: var(--a2ui-spacing-s, 0.25rem) 0;
+  border: 0;
+  border-top: var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc);
+}
+
+.a2ui-divider.vertical {
   width: 0;
   height: auto;
   margin: 0;
+  border-top: 0;
+  border-left: var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc);
+}
+
+.a2ui-video-container,
+.a2ui-video {
+  width: 100%;
+}
+
+.a2ui-audio {
+  width: 100%;
 }
 
 .a2ui-button {
@@ -212,4 +281,28 @@ input.invalid {
   height: 100%;
   border: 0;
   background: #fff;
+}
+
+/* A node whose property waits for an agent function (aria-busy). */
+.a2ui-surface [aria-busy="true"]:not(.a2ui-placeholder) {
+  opacity: 0.6;
+}
+
+.a2ui-surface [aria-busy="true"]:not(.a2ui-placeholder)::after {
+  content: "";
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-left: 0.4em;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: a2ui-spin 0.8s linear infinite;
+}
+
+@keyframes a2ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -231,6 +231,13 @@ defmodule A2UICore.Functions.BasicTest do
       assert value!("v1.0", "formatString", args, ctx) == "Total: 1,234.5"
     end
 
+    test "@index gives a template's position in its list" do
+      scope = "v1.0" |> context(%{"items" => ["a", "b", "c"]}) |> DataContext.nested("items/2", 2)
+
+      args = %{"value" => "#${@index(offset: 1)}: ${.}"}
+      assert value!("v1.0", "formatString", args, scope) == "#3: c"
+    end
+
     test "missing bindings render empty and surface a warning" do
       ctx = context("v0.9", %{})
 
@@ -320,6 +327,31 @@ defmodule A2UICore.Functions.BasicTest do
 
       assert value!("v0.9", "formatDate", %{"value" => "2026-08-26", "format" => "HH:mm"}) ==
                "00:00"
+    end
+
+    test "the time may stop at the hour or the minute, as a date-time input writes it" do
+      format = "yyyy-MM-dd HH:mm:ss"
+
+      assert value!("v1.0", "formatDate", %{"value" => "2026-10-17T19:30", "format" => format}) ==
+               "2026-10-17 19:30:00"
+
+      assert value!("v1.0", "formatDate", %{"value" => "2026-10-17 19:30", "format" => format}) ==
+               "2026-10-17 19:30:00"
+
+      assert value!("v1.0", "formatDate", %{"value" => "2026-10-17T19", "format" => format}) ==
+               "2026-10-17 19:00:00"
+
+      assert value!("v0.9", "formatDate", %{
+               "value" => "2026-10-17T19:30+02:00",
+               "format" => format
+             }) == "2026-10-17 17:30:00"
+
+      assert value!("v1.0", "formatDate", %{
+               "value" => "2026-10-17T19:30:05.25Z",
+               "format" => format
+             }) == "2026-10-17 19:30:05"
+
+      assert value!("v1.0", "formatDate", %{"value" => "2026-10-17Tx", "format" => format}) == ""
     end
 
     test "leading whitespace is ignored" do

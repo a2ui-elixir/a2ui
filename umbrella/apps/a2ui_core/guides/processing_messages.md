@@ -455,6 +455,14 @@ If the timer fires first, `A2UICore.Processor.timeout_agent_call/2` settles
 the call with a `TIMEOUT` error. `A2UICore.Processor.cancel_agent_call/3` and
 `A2UICore.Processor.dispose/1` settle pending calls with `CANCELLED`.
 
+Surfaces make such calls themselves: a component can use a function that no
+catalog of its surface runs, one the catalog does not declare or declares
+without an implementation. Resolved with `A2UICore.Resolution.NodeResolver`,
+such a call comes back as an `{:agent_call, ...}` notification, the node is
+busy until `A2UICore.Resolution.NodeResolver.settle_agent_call/3` brings the
+answer, and the property then takes its value (see "Agent functions" in its
+documentation). `A2UIPhoenix.Session` does all of this for a LiveView.
+
 ## Capabilities
 
 The renderer tells the agent which catalogs it supports:

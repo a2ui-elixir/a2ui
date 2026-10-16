@@ -16,6 +16,15 @@ Each package has a README and a guide under `umbrella/apps/*/guides`.
 invariants and commands, and `NOTES/` the research and the deliberate
 divergences from the reference implementations.
 
+## Examples
+
+`examples/` holds three applications that use the packages together: a
+restaurant-finder agent served over A2A, MCP, AG-UI, server-sent events and
+WebSocket; a Phoenix LiveView gallery whose scenarios cover the protocol,
+with the upstream example surfaces and a live chat with that agent; and a
+renderer that draws surfaces in the terminal. `examples/README.md` says how to
+run them and which features each one exercises.
+
 ## Conformance
 
 Of the 1144 upstream cases at the pinned commit (`SPEC_PIN`), 946 run and all

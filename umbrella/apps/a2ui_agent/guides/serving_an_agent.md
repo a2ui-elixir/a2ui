@@ -439,6 +439,10 @@ send = Button(send_child, _, Event("send", {name: $/name}))
 send_child = Text("Send")
 ```
 
+An update to a surface created in an earlier turn carries no catalog id. With
+several catalogs, pass the catalog of each such surface:
+`decompile(parser, messages, surface_catalogs: %{"form" => catalog_id})`.
+
 Express reads arguments in the order the catalog document declares them, so
 a catalog must be read with its key order kept. `A2UICore.Catalog.Basic`,
 `A2UIAgent.CatalogConfig.from_path/2` and `A2UIAgent.CatalogProvider` keep
@@ -506,6 +510,9 @@ hd(components)
 Enum.at(components, 1)["variant"]
 #=> "body"
 ```
+
+`A2UIAgent.Builder.call/3` writes a function call, and from v1.0 takes
+`catalog_id:` for a function of a catalog other than the surface's.
 
 `A2UIAgent.Builder.messages/2` puts a tree in messages for a surface: a
 `createSurface` when it is given a catalog id, the `updateComponents`, and

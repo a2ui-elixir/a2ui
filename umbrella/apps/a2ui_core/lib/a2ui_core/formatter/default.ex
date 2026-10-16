@@ -14,6 +14,12 @@ defmodule A2UICore.Formatter.Default do
       "$99.99"
       iex> A2UICore.Formatter.Default.date(~U[2026-08-26 12:00:00Z], "MMM d, yyyy", [])
       "Aug 26, 2026"
+
+  Date patterns are Unicode TR35 patterns: text in single quotes is
+  literal and `''` is a quote.
+
+      iex> A2UICore.Formatter.Default.date(~U[2026-08-26 19:30:00Z], "EEEE 'at' h:mm a", [])
+      "Wednesday at 7:30 PM"
   """
 
   @behaviour A2UICore.Formatter
@@ -79,18 +85,21 @@ defmodule A2UICore.Formatter.Default do
         _opts
       )
       when is_binary(format) do
-    weekday = Date.day_of_week(Date.new!(year, month, day)) - 1
+    parts = %{
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second,
+      weekday: Date.day_of_week(Date.new!(year, month, day)) - 1
+    }
 
-    Regex.replace(@date_tokens, format, fn token ->
-      date_token(token, %{
-        year: year,
-        month: month,
-        day: day,
-        hour: hour,
-        minute: minute,
-        second: second,
-        weekday: weekday
-      })
+    format
+    |> pattern_segments([])
+    |> Enum.map_join(fn
+      {:literal, text} -> text
+      {:pattern, text} -> Regex.replace(@date_tokens, text, &date_token(&1, parts))
     end)
   end
 
@@ -100,6 +109,35 @@ defmodule A2UICore.Formatter.Default do
   end
 
   # -- dates -----------------------------------------------------------------
+
+  # TR35 quoting: text between single quotes is literal, and two single
+  # quotes are one quote, inside quoted text or out. An unclosed quote
+  # runs to the end.
+  defp pattern_segments("", acc), do: Enum.reverse(acc)
+  defp pattern_segments("''" <> rest, acc), do: pattern_segments(rest, [{:literal, "'"} | acc])
+
+  defp pattern_segments("'" <> rest, acc) do
+    {text, rest} = quoted(rest, "")
+    pattern_segments(rest, [{:literal, text} | acc])
+  end
+
+  defp pattern_segments(format, acc) do
+    case :binary.match(format, "'") do
+      {at, _length} ->
+        pattern_segments(binary_part(format, at, byte_size(format) - at), [
+          {:pattern, binary_part(format, 0, at)} | acc
+        ])
+
+      :nomatch ->
+        Enum.reverse([{:pattern, format} | acc])
+    end
+  end
+
+  defp quoted("", text), do: {text, ""}
+  defp quoted("''" <> rest, text), do: quoted(rest, text <> "'")
+  defp quoted("'" <> rest, text), do: {text, rest}
+
+  defp quoted(<<char::utf8, rest::binary>>, text), do: quoted(rest, text <> <<char::utf8>>)
 
   defp date_token("yyyy", parts), do: Integer.to_string(parts.year)
   defp date_token("yy", parts), do: parts.year |> Integer.to_string() |> String.slice(-2, 2)

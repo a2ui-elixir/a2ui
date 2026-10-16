@@ -61,6 +61,70 @@ defmodule A2UICore.KeyOrder do
 
   defp item_templates(list, _template), do: List.duplicate(nil, length(list))
 
+  # The keys of each message body, in the order the protocol's schemas
+  # list them (v0.9 and v1.0 agree where both define a key).
+  @body_keys %{
+    "createSurface" => ~w(surfaceId catalogId theme sendDataModel components dataModel metadata),
+    "updateComponents" => ~w(surfaceId components),
+    "updateDataModel" => ~w(surfaceId path value),
+    "deleteSurface" => ~w(surfaceId),
+    "callRendererFunction" => ~w(surfaceId functionCallId callFunction),
+    "agentFunctionResponse" => ~w(functionCallId value error)
+  }
+
+  @doc """
+  An agent-to-renderer message as an ordered object, its keys in the
+  order the protocol's schemas list them, which is also the order a
+  model is shown and writes them: `version` first, then the message;
+  in its body `surfaceId` first and the components and data last; in a
+  component `id` and `component` first. Other keys follow, sorted. Data
+  values and ordered objects keep their order; anything but a map is
+  returned as it is.
+
+  A streaming reader can only act on a message once its `surfaceId` has
+  arrived, so this order lets a surface build while its message streams.
+
+      iex> %{"updateComponents" => %{"components" => [], "surfaceId" => "s"}, "version" => "v1.0"}
+      ...> |> A2UICore.KeyOrder.message()
+      ...> |> Jason.encode!()
+      ~s({"version":"v1.0","updateComponents":{"surfaceId":"s","components":[]}})
+  """
+  @spec message(term()) :: term()
+  def message(%OrderedObject{} = message), do: message
+
+  def message(%{} = message) do
+    {version, rest} = Map.split(message, ["version"])
+
+    new(
+      Enum.to_list(version) ++
+        Enum.map(Enum.sort(rest), fn {key, body} -> {key, body(key, body)} end)
+    )
+  end
+
+  def message(other), do: other
+
+  defp body(kind, %{} = body) when not is_struct(body) do
+    listed = Enum.filter(Map.get(@body_keys, kind, []), &Map.has_key?(body, &1))
+    others = body |> Map.keys() |> Enum.reject(&(&1 in listed)) |> Enum.sort()
+
+    new(Enum.map(listed ++ others, fn key -> {key, body_value(key, Map.fetch!(body, key))} end))
+  end
+
+  defp body(_kind, body), do: body
+
+  defp body_value("components", components) when is_list(components),
+    do: Enum.map(components, &component/1)
+
+  defp body_value(_key, value), do: value
+
+  defp component(%{} = component) when not is_struct(component) do
+    listed = Enum.filter(["id", "component"], &Map.has_key?(component, &1))
+    others = component |> Map.drop(listed) |> Enum.sort()
+    new(Enum.map(listed, &{&1, Map.fetch!(component, &1)}) ++ others)
+  end
+
+  defp component(component), do: component
+
   @doc """
   The value of `key` in an ordered object or map, or `nil`.
   """

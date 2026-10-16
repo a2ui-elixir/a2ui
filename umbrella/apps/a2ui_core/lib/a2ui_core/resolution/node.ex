@@ -28,6 +28,10 @@ defmodule A2UICore.Resolution.Node do
   keeps the same component, and a node that is replaced (a placeholder
   that gets its definition, a component whose type changed) gets a new
   one. `instance_id` is a readable, deterministic name for the position.
+
+  `busy` is true while a property waits for the response to an agent
+  function call (see `A2UICore.Resolution.NodeResolver`); the property
+  is `nil` meanwhile.
   """
 
   @moduledoc since: "0.1.0"
@@ -44,6 +48,7 @@ defmodule A2UICore.Resolution.Node do
     :edge,
     :catalog_id,
     occurrence: 1,
+    busy: false,
     props: %{},
     children: []
   ]
@@ -61,6 +66,7 @@ defmodule A2UICore.Resolution.Node do
           edge: String.t() | nil,
           catalog_id: String.t() | nil,
           occurrence: pos_integer(),
+          busy: boolean(),
           props: map(),
           children: [pos_integer()]
         }

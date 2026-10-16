@@ -330,11 +330,14 @@ defmodule A2UIAgent.Express.Compiler do
     ids = component_ids(state.catalogs, scope.symbols)
     ctx = new_context(state, scope.symbols, ids)
 
-    {data_model, ctx} =
-      Enum.reduce(scope.data, {%{}, ctx}, fn {path, value}, {data_model, ctx} ->
+    {assignments, ctx} =
+      Enum.map_reduce(scope.data, ctx, fn {path, value}, ctx ->
         {compiled, ctx} = value(ctx, value, false)
-        {set_path(data_model, path, compiled), ctx}
+        {{path, compiled}, ctx}
       end)
+
+    data_model = Enum.reduce(assignments, %{}, &assign/2)
+    scope = %{scope | data: assignments}
 
     {components, ctx} =
       Enum.reduce(scope.symbols, {[], ctx}, fn {name, value}, {components, ctx} ->
@@ -397,15 +400,37 @@ defmodule A2UIAgent.Express.Compiler do
       "updateComponents" => %{"surfaceId" => scope.surface_id, "components" => components}
     }
 
-  defp data_message(state, scope, data_model),
-    do: %{
+  # An object assigned to the root (`$`) merges into the data model.
+  defp assign({path, %{} = value}, data_model) when path in ["$", "$/"],
+    do: Map.merge(data_model, value)
+
+  defp assign({path, value}, data_model), do: set_path(data_model, path, value)
+
+  # A single assignment below the top level, or to the root, updates that
+  # path; anything else replaces the root with the assembled data model.
+  defp data_message(state, scope, data_model) do
+    {path, value} =
+      case scope.data do
+        [{only, value}] ->
+          pointer = "/" <> strip_prefix(only)
+
+          if pointer == "/" or length(String.split(pointer, "/")) > 2,
+            do: {pointer, value},
+            else: {"/", data_model}
+
+        _several ->
+          {"/", data_model}
+      end
+
+    %{
       "version" => state.version,
-      "updateDataModel" => %{
-        "surfaceId" => scope.surface_id,
-        "path" => "/",
-        "value" => data_model
-      }
+      "updateDataModel" => %{"surfaceId" => scope.surface_id, "path" => path, "value" => value}
     }
+  end
+
+  defp strip_prefix("$/" <> rest), do: rest
+  defp strip_prefix("$" <> rest), do: rest
+  defp strip_prefix(other), do: other
 
   @spec undefined_root!() :: no_return()
   defp undefined_root!,

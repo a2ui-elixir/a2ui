@@ -34,6 +34,10 @@ defmodule A2UIPhoenix.Live do
       transport to the agent;
     * `{:open_url, url}` is pushed to the browser as the `"a2ui:open_url"`
       event (`priv/static/a2ui_phoenix.js` opens it in a new tab);
+    * `{:agent_call_sent, call_id, timeout_ms}` starts the call's timer,
+      which rejects the call with `TIMEOUT` if the agent has not answered
+      when it fires (`A2UIPhoenix.Session.timeout_agent_call/2`), and also
+      goes to the `:on_effect` callback;
     * every other effect goes to the `:on_effect` callback.
 
   The reply to an embedded MCP App's request is pushed as the
@@ -99,6 +103,9 @@ defmodule A2UIPhoenix.Live do
   defp handle_info({A2UIPhoenix.Surface, surface_id, request}, socket),
     do: {:halt, apply_request(socket, surface_id, request)}
 
+  defp handle_info({__MODULE__, :agent_call_timeout, call_id}, socket),
+    do: {:halt, apply_result(socket, Session.timeout_agent_call(session(socket), call_id))}
+
   defp handle_info(_message, socket), do: {:cont, socket}
 
   defp apply_request(socket, surface_id, {:write, ref, property, value}),
@@ -141,6 +148,15 @@ defmodule A2UIPhoenix.Live do
 
   defp deliver({:send, message}, socket), do: callback(socket, :on_send, message)
   defp deliver({:open_url, url}, socket), do: push_event(socket, "a2ui:open_url", %{url: url})
+
+  defp deliver({:agent_call_sent, call_id, timeout_ms} = effect, socket) do
+    if is_number(timeout_ms) and timeout_ms > 0,
+      do:
+        Process.send_after(self(), {__MODULE__, :agent_call_timeout, call_id}, round(timeout_ms))
+
+    callback(socket, :on_effect, effect)
+  end
+
   defp deliver(effect, socket), do: callback(socket, :on_effect, effect)
 
   defp callback(socket, key, value) do

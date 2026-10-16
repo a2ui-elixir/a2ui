@@ -6,7 +6,7 @@ defmodule A2UICore.Message.AdapterRegistry do
 
   v0.8 is not supported by this implementation: a version of `v0.8` (or
   a payload using the legacy v0.8 action keys) resolves to an
-  `:unsupported_version` error rather than an adapter.
+  `UNSUPPORTED_VERSION` error rather than an adapter.
   """
 
   alias A2UICore.Error
@@ -66,7 +66,7 @@ defmodule A2UICore.Message.AdapterRegistry do
 
     Error.new(
       :validation,
-      "unsupported_version",
+      "UNSUPPORTED_VERSION",
       "[VersionAdapterFactory] Unsupported protocol version '#{version}'." <>
         " Supported versions: #{supported}."
     )

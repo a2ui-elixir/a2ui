@@ -109,7 +109,7 @@ defmodule A2UIPhoenix.Inputs do
   defp date_time(props, "time", time, today) do
     current = Components.text(props["value"])
 
-    if props["enableDate"] != false do
+    if date_enabled?(props) do
       date =
         cond do
           String.contains?(current, "T") -> current |> String.split("T", parts: 2) |> hd()
@@ -120,6 +120,25 @@ defmodule A2UIPhoenix.Inputs do
       "#{date}T#{time}:00"
     else
       time
+    end
+  end
+
+  @doc """
+  Whether a `DateTimeInput` picks a date: `enableDate`, which defaults to
+  true only when `enableTime` is not set (a time-only input picks no
+  date), as the basic catalog's guide and the reference renderers have
+  it.
+
+      iex> A2UIPhoenix.Inputs.date_enabled?(%{"enableTime" => true})
+      false
+      iex> A2UIPhoenix.Inputs.date_enabled?(%{})
+      true
+  """
+  @spec date_enabled?(map()) :: boolean()
+  def date_enabled?(props) do
+    case props["enableDate"] do
+      nil -> props["enableTime"] != true
+      enabled -> enabled == true
     end
   end
 

@@ -403,6 +403,29 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       data changes, model context, messages) with payload checks; Node tests
       for the browser code (CI runs them).
 
+### M19 — examples (2026-10-16; conformance unchanged)
+
+- [x] M19.1 `examples/restaurant_agent`: an agent over A2A (send and stream,
+      direct JSON and Express), MCP, AG-UI, server-sent events and WebSocket,
+      with a shared restaurant catalog (`Rating`, `checkAvailability`,
+      `clientInfo`); a full booking tested through a real renderer session.
+- [x] M19.2 `examples/terminal_client`: a renderer on `a2ui_core` alone that
+      draws surfaces as text, with a client for each transport (`mix chat`).
+- [x] M19.3 `examples/gallery`: ten scenarios (components, forms, data,
+      surfaces, functions and RPC, custom catalogs, streaming, MCP, errors,
+      v0.9), the 43 reference examples, a chat with the agent over A2A, and
+      LiveDashboard metrics; LiveViewTest for every page, the chat against a
+      live agent. Checked in a real browser.
+- [x] M19.4 What running them found, fixed in the packages: agent function
+      routing (v1.0) in the core and the Phoenix session; renderer-side
+      `allowedCallers`/`requiresUserActivation`; `@index` in `formatString`
+      templates; `formatDate` timestamps without seconds and TR35 quoting;
+      decompiled direct JSON in protocol key order so it streams; the v0.9
+      theme, `DateTimeInput` date default and stylesheet fixes in the
+      renderer; error reports that point at the failing field; the
+      `UNSUPPORTED_VERSION` code; `Builder.call/3` `:catalog_id`; Express data
+      assignments as in Python and `decompile/3`'s `:surface_catalogs`.
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

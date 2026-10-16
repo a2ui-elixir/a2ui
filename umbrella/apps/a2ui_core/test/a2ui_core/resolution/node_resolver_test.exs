@@ -505,4 +505,127 @@ defmodule A2UICore.Resolution.NodeResolverTest do
                NodeResolver.invoke(resolver, tree(), 999, "action")
     end
   end
+
+  describe "agent functions" do
+    @lookup %{"@call" => "lookupCity", "args" => %{"zip" => %{"@path" => "/zip"}}}
+
+    defp agent_surface(extra \\ []) do
+      surface(
+        [column(["city" | extra]), text("city", @lookup)] ++
+          Enum.map(extra, &text(&1, @lookup)),
+        %{"zip" => "10115"},
+        Basic.catalog("v1.0")
+      )
+    end
+
+    defp city(resolver), do: NodeResolver.positions(resolver)["root/children/0"]
+
+    test "a call is reported once and its node is busy until it settles" do
+      surface = agent_surface(["again"])
+      {resolver, notifications} = NodeResolver.new(surface)
+      key = {"lookupCity", nil, %{"zip" => "10115"}}
+
+      assert [{:agent_call, %{key: ^key, call: call}}] =
+               for({:agent_call, _} = note <- notifications, do: note)
+
+      assert call == %{"@call" => "lookupCity", "args" => %{"zip" => "10115"}}
+      assert resolver.agent_calls == %{key => :pending}
+      assert %Node{busy: true, props: %{"text" => %Binding{value: nil}}} = city(resolver)
+
+      assert {^resolver, []} = NodeResolver.update(resolver, surface)
+
+      resolver = NodeResolver.settle_agent_call(resolver, key, {:ok, "Berlin"})
+      {resolver, notifications} = NodeResolver.update(resolver, surface)
+
+      ref = city(resolver).ref
+      assert {:node_updated, ref} in notifications
+      assert %Node{busy: false, props: %{"text" => %Binding{value: "Berlin"}}} = city(resolver)
+    end
+
+    test "a failed call leaves the property nil and is not sent again" do
+      surface = agent_surface()
+      {resolver, _notifications} = NodeResolver.new(surface)
+      key = {"lookupCity", nil, %{"zip" => "10115"}}
+
+      resolver = NodeResolver.settle_agent_call(resolver, key, {:error, %{code: "TIMEOUT"}})
+      {resolver, notifications} = NodeResolver.update(resolver, surface)
+
+      assert notifications == [{:node_updated, city(resolver).ref}]
+      assert %Node{busy: false, props: %{"text" => %Binding{value: nil}}} = city(resolver)
+    end
+
+    test "new arguments make a new call" do
+      surface = agent_surface()
+      {resolver, _notifications} = NodeResolver.new(surface)
+      old = {"lookupCity", nil, %{"zip" => "10115"}}
+      resolver = NodeResolver.settle_agent_call(resolver, old, {:ok, "Berlin"})
+
+      surface = put_data(surface, "/zip", "80331")
+      {resolver, notifications} = NodeResolver.update(resolver, surface)
+      new = {"lookupCity", nil, %{"zip" => "80331"}}
+
+      assert [{:agent_call, %{key: ^new}}] =
+               for({:agent_call, _} = note <- notifications, do: note)
+
+      assert resolver.agent_calls == %{old => {:ok, "Berlin"}, new => :pending}
+    end
+
+    test "past 256 calls, settled calls no property uses are forgotten" do
+      surface = agent_surface()
+      {resolver, _notifications} = NodeResolver.new(surface)
+      used = {"lookupCity", nil, %{"zip" => "10115"}}
+
+      resolver =
+        Enum.reduce(1..300, resolver, fn n, resolver ->
+          resolver
+          |> NodeResolver.track_agent_call(n)
+          |> NodeResolver.settle_agent_call(n, {:ok, n})
+        end)
+
+      resolver = NodeResolver.track_agent_call(resolver, :in_flight)
+      {resolver, _notifications} = NodeResolver.update(resolver, surface)
+
+      assert resolver.agent_calls == %{used => :pending, :in_flight => :pending}
+    end
+
+    test "settling an unknown call changes nothing; tracking marks a call sent" do
+      {resolver, _notifications} = NodeResolver.new(agent_surface())
+
+      assert NodeResolver.settle_agent_call(resolver, :unknown, {:ok, 1}) == resolver
+
+      tracked = NodeResolver.track_agent_call(resolver, :other)
+      assert tracked.agent_calls[:other] == :pending
+      assert NodeResolver.track_agent_call(tracked, :other) == tracked
+    end
+
+    test "a function-call action always asks for its call" do
+      surface =
+        surface(
+          [
+            %{
+              "id" => "root",
+              "component" => "Button",
+              "child" => "label",
+              "action" => %{
+                "functionCall" => %{
+                  "@call" => "reserve",
+                  "args" => %{"zip" => %{"@path" => "/zip"}}
+                }
+              }
+            },
+            text("label", "Reserve")
+          ],
+          %{"zip" => "10115"},
+          Basic.catalog("v1.0")
+        )
+
+      {resolver, _notifications} = NodeResolver.new(surface)
+      root = NodeResolver.root(resolver)
+
+      assert {:ok, [{:agent_call, %{action: true, call: call}}]} =
+               NodeResolver.invoke(resolver, surface, root.ref, "action", @now)
+
+      assert call == %{"@call" => "reserve", "args" => %{"zip" => "10115"}}
+    end
+  end
 end

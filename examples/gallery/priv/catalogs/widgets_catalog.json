@@ -1,0 +1,88 @@
+{
+  "catalogId": "https://example.com/a2ui/catalogs/widgets/v1/catalog.json",
+  "protocolVersion": "v1.0",
+  "title": "Gallery widgets",
+  "description": "Components and a function the gallery renderer adds to the basic catalog.",
+  "instructions": "Show a status with Badge, how far along something is with Progress, and group components under a heading with Panel. Abbreviate a name with initials.",
+  "components": {
+    "Badge": {
+      "type": "object",
+      "description": "A short label with a tone.",
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The label."
+        },
+        "tone": {
+          "type": "string",
+          "enum": ["info", "success", "warning", "danger"],
+          "default": "info",
+          "description": "The colour of the badge."
+        }
+      },
+      "required": ["component", "text"]
+    },
+    "Progress": {
+      "type": "object",
+      "description": "A progress bar.",
+      "properties": {
+        "component": {
+          "const": "Progress"
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "How far along, from 0 to 1."
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "What the bar measures."
+        }
+      },
+      "required": ["component", "value"]
+    },
+    "Panel": {
+      "type": "object",
+      "description": "Components under a heading.",
+      "properties": {
+        "component": {
+          "const": "Panel"
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The heading."
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList",
+          "description": "The components in the panel."
+        }
+      },
+      "required": ["component", "children"]
+    }
+  },
+  "functions": {
+    "initials": {
+      "type": "object",
+      "description": "The initials of a name, in capitals.",
+      "returnType": "string",
+      "properties": {
+        "@call": {
+          "const": "initials"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["name"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  }
+}

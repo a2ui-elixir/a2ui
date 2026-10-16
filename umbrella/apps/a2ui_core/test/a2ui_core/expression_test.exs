@@ -129,6 +129,20 @@ defmodule A2UICore.ExpressionTest do
     test "a nested interpolation inside an interpolation" do
       assert parse!("${${/a}}") == [%{"path" => "/a"}]
     end
+
+    test "system functions are named with @" do
+      assert parse!("${@index()}") == [
+               %{"call" => "@index", "args" => %{}, "returnType" => "any"}
+             ]
+
+      assert parse!("#${@index(offset: 1)}") == [
+               "#",
+               %{"call" => "@index", "args" => %{"offset" => 1}, "returnType" => "any"}
+             ]
+
+      assert [%{"call" => "f", "args" => %{"i" => %{"call" => "@index"}}}] =
+               parse!("${f(i: @index())}")
+    end
   end
 
   describe "errors" do
@@ -154,6 +168,18 @@ defmodule A2UICore.ExpressionTest do
       assert message("${1e}") =~ "Invalid number literal"
       assert message("${1e999}") =~ "out of range"
       assert message("${#{String.duplicate("9", 400)}}") =~ "out of range"
+    end
+
+    test "@ only names a called system function" do
+      for template <- ["${@}", "${@()}", "${@1}", "${@/a}", "${@é()}"] do
+        assert message(template) == "Invalid identifier starting with '@' in expression"
+      end
+
+      assert message("${@index}") == "Expected '(' after function name '@index'"
+
+      for template <- ["${foo@bar()}", "${foo@bar}", "${/a@b}"] do
+        assert message(template) =~ "Unexpected characters at end of expression"
+      end
     end
 
     test "parse!/1 raises the error" do

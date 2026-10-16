@@ -73,6 +73,50 @@ jobs:
         run: node --test test/js/*.test.mjs
         working-directory: umbrella/apps/a2ui_phoenix
 
+  # The example applications, against the packages in this repository.
+  examples:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example: [restaurant_agent, terminal_client, gallery]
+    env:
+      MIX_ENV: test
+      A2UI_REFERENCE_ROOT: ${{ github.workspace }}/reference/a2ui
+      A2UI_REQUIRE_REFERENCE: "1"
+    defaults:
+      run:
+        working-directory: examples/${{ matrix.example }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The gallery renders the upstream example surfaces.
+      - name: Fetch upstream reference at the pinned commit
+        working-directory: .
+        run: |
+          pin=$(awk '/commit:/ {print $NF}' SPEC_PIN)
+          git init reference/a2ui
+          git -C reference/a2ui fetch --depth 1 https://github.com/a2ui-project/a2ui.git "$pin"
+          git -C reference/a2ui checkout --detach FETCH_HEAD
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            examples/${{ matrix.example }}/deps
+            examples/${{ matrix.example }}/_build
+          key: examples-${{ matrix.example }}-${{ runner.os }}-${{ hashFiles(format('examples/{0}/mix.lock', matrix.example)) }}
+          restore-keys: |
+            examples-${{ matrix.example }}-${{ runner.os }}-
+
+      - run: mix deps.get
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix test
+
   package:
     runs-on: ubuntu-latest
     env:

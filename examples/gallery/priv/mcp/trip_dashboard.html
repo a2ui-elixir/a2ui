@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trip dashboard</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 14px; color: #1f2430; background: #fbfcfe; }
+  h2 { margin: 0 0 2px; font-size: 17px; }
+  .muted { color: #5b6475; font-size: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  button { font: inherit; padding: 5px 11px; border-radius: 6px; border: 1px solid #3b5bdb; background: #fff; color: #3b5bdb; cursor: pointer; }
+  button.danger { border-color: #b42318; color: #b42318; }
+  .panel { padding: 8px 10px; border-radius: 8px; background: #eef3ff; margin-top: 6px; }
+  #log { font: 12px ui-monospace, monospace; color: #5b6475; white-space: pre-wrap; margin-top: 10px; max-height: 120px; overflow: auto; }
+</style>
+</head>
+<body>
+  <h2 id="title">Trip dashboard</h2>
+  <div class="muted">An MCP App in the renderer's sandbox. It reads and writes /trip, calls tools and host functions, and talks to the agent.</div>
+  <div class="row">
+    <button id="more">+1 day</button>
+    <button id="less">−1 day</button>
+    <button id="weather">Refresh the weather</button>
+    <button id="ask">Ask the agent for ideas</button>
+    <button id="forbidden" class="danger">Delete the trip</button>
+  </div>
+  <div class="panel" id="trip">Waiting for the host…</div>
+  <div class="panel" id="forecast">No forecast yet.</div>
+  <div id="log"></div>
+<script>
+  let nextId = 1;
+  const pending = new Map();
+  let trip = {};
+
+  const send = (message) => window.parent.postMessage(message, "*");
+  const notify = (method, params) => send({jsonrpc: "2.0", method, params});
+  const request = (method, params) => new Promise((resolve) => {
+    const id = nextId++;
+    pending.set(id, resolve);
+    send({jsonrpc: "2.0", id, method, params});
+  });
+  const log = (text) => {
+    const el = document.getElementById("log");
+    el.textContent = text + "\n" + el.textContent;
+  };
+  const textOf = (result) =>
+    ((result && result.content) || []).filter((c) => c.type === "text").map((c) => c.text).join(" ");
+
+  function showTrip() {
+    document.getElementById("trip").textContent =
+      (trip.days || "?") + " days in " + (trip.city || "?") + (trip.notes ? " — " + trip.notes : "");
+  }
+
+  // The host runs formatString over the surface's data model.
+  async function refreshTitle() {
+    const reply = await request("ui/requests/function-call", {
+      call: "formatString",
+      args: {value: "${/trip/city}: ${/trip/days} days"}
+    });
+    if (reply.result) document.getElementById("title").textContent = reply.result.result;
+  }
+
+  function setDays(days) {
+    trip = Object.assign({}, trip, {days});
+    showTrip();
+    notify("ui/notifications/data-model-change", {key: "trip", subpath: "/days", value: days});
+    request("ui/update-model-context", {structuredContent: {viewing: "trip", days}});
+    refreshTitle();
+  }
+
+  window.addEventListener("message", async (event) => {
+    const message = event.data || {};
+
+    if (message.type === "sandbox-init") {
+      const reply = await request("ui/initialize", {
+        protocolVersion: "2026-01-26",
+        appInfo: {name: "Trip dashboard", version: "1.0.0"},
+        appCapabilities: {}
+      });
+      notify("ui/notifications/initialized", {});
+      log("connected to " + ((reply.result && reply.result.hostInfo && reply.result.hostInfo.name) || "host"));
+      notify("ui/notifications/size-changed", {height: document.body.scrollHeight + 16});
+      refreshTitle();
+    } else if (message.id && pending.has(message.id)) {
+      pending.get(message.id)(message);
+      pending.delete(message.id);
+    } else if (message.method === "ui/notifications/data-model-update") {
+      const {key, subpath, value} = message.params || {};
+      if (key === "trip") {
+        trip = subpath ? Object.assign({}, trip, {[subpath.slice(1)]: value}) : value || {};
+        showTrip();
+      }
+      log("data " + key + (subpath || "") + " = " + JSON.stringify(value));
+    } else if (message.method === "ui/notifications/tool-result") {
+      log("the tool result that opened me: " + textOf(message.params));
+    }
+  });
+
+  document.getElementById("more").onclick = () => setDays((trip.days || 0) + 1);
+  document.getElementById("less").onclick = () => setDays(Math.max(1, (trip.days || 2) - 1));
+
+  document.getElementById("weather").onclick = async () => {
+    const reply = await request("tools/call", {name: "get_weather", arguments: {city: trip.city}});
+    document.getElementById("forecast").textContent = reply.error ? reply.error.message : textOf(reply.result);
+  };
+
+  document.getElementById("ask").onclick = async () => {
+    await request("ui/message", {role: "user", content: [{type: "text", text: "Ideas for " + trip.days + " days in " + trip.city + "?"}]});
+    log("asked the agent");
+  };
+
+  document.getElementById("forbidden").onclick = async () => {
+    const reply = await request("tools/call", {name: "delete_trip", arguments: {}});
+    log(reply.error ? "refused: " + reply.error.message : "deleted?!");
+  };
+</script>
+</body>
+</html>

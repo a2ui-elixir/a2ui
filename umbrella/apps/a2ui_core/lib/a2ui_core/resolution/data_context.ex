@@ -50,6 +50,40 @@ defmodule A2UICore.Resolution.DataContext do
   come from an action (`A2UICore.Resolution.NodeResolver.invoke/5`);
   rendering ignores them.
 
+  ## Agent functions
+
+  From v1.0 a function that the catalog a call resolves to does not
+  declare, or declares without an implementation, may be the agent's: a
+  renderer sends it to the agent as a `callAgentFunction` message. A
+  scope built with the `:agent_calls` option routes such calls instead
+  of failing them. The option holds what the renderer knows of the calls
+  it sent, keyed by `{name, catalog_id, args}` (`catalog_id` is the one
+  the call names, else `nil`; `args` are resolved):
+
+    * `:pending` — sent, no response yet; the call's value is `nil`;
+    * `{:ok, value}` — the agent's response; the call's value is `value`;
+    * `{:error, payload}` — the call failed; its value is `nil`.
+
+  Every routed call comes back as an
+  `{:agent_call, %{key: key, call: call}}` effect, where `call` is the
+  function call object to send (`"@call"`, resolved `"args"`, and the
+  `"catalogId"` the call named), so that the renderer sends the calls it
+  has not sent yet. With `agent_calls: {:send, calls}`, the scope of a
+  function-call action, the call the action makes is always routed
+  without a lookup, and its effect also carries `action: true`; the
+  calls in its arguments are looked up in `calls`. A call that names a
+  catalog the scope does not reach is still a catalog error.
+
+  ## Who may call
+
+  A function the renderer runs is refused, with an `EXPRESSION_ERROR`,
+  when its catalog reserves it for the agent (`allowedCallers:
+  "agentOnly"`), and when it requires a user gesture
+  (`requiresUserActivation: true`, as `openUrl` does) and the scope was
+  not built for one with `user_activated: true`. A renderer builds its
+  action scopes that way (`A2UICore.Resolution.NodeResolver.invoke/5`);
+  property bindings and check conditions never are.
+
   v1.0 objects follow the reserved-key rule
   (`A2UICore.Validation.ReservedKeys`): `@@x` is the literal key `@x`,
   any other single-`@` key is an `INVALID_RESERVED_KEY` error.
@@ -70,7 +104,21 @@ defmodule A2UICore.Resolution.DataContext do
             catalogs: %{},
             protocol_version: nil,
             surface_id: nil,
-            locale: nil
+            locale: nil,
+            agent_calls: nil,
+            user_activated: false
+
+  @typedoc "What a renderer knows of an agent function call it sent."
+  @type agent_call_state :: :pending | {:ok, term()} | {:error, map()}
+
+  @typedoc """
+  The agent function calls a scope knows, by `{name, catalog_id, args}`;
+  `nil` when the scope does not route calls to the agent.
+  """
+  @type agent_calls ::
+          nil
+          | %{optional(term()) => agent_call_state()}
+          | {:send, %{optional(term()) => agent_call_state()}}
 
   @type t :: %__MODULE__{
           path: String.t(),
@@ -81,11 +129,21 @@ defmodule A2UICore.Resolution.DataContext do
           catalogs: %{optional(String.t()) => Catalog.t()},
           protocol_version: String.t() | nil,
           surface_id: String.t() | nil,
-          locale: String.t() | nil
+          locale: String.t() | nil,
+          agent_calls: agent_calls(),
+          user_activated: boolean()
         }
 
-  @typedoc "A warning or error produced while resolving, or what a function asks for."
-  @type effect :: {:warning, map()} | {:error, map()} | {:write, map()} | {:messages, map()}
+  @typedoc """
+  A warning or error produced while resolving, what a function asks for,
+  or a call routed to the agent.
+  """
+  @type effect ::
+          {:warning, map()}
+          | {:error, map()}
+          | {:write, map()}
+          | {:messages, map()}
+          | {:agent_call, map()}
 
   @max_function_args Payload.max_function_call_args()
 
@@ -96,7 +154,9 @@ defmodule A2UICore.Resolution.DataContext do
   Options: `:data_model`, `:catalog` (the default catalog, if any),
   `:catalogs` (`%{catalog_id => catalog}` reachable by `catalogId`),
   `:protocol_version` (default: the default catalog's), `:surface_id`
-  (for messages), `:locale`.
+  (for messages), `:locale`, `:agent_calls` (see
+  [Agent functions](#module-agent-functions)), `:user_activated` (see
+  [Who may call](#module-who-may-call); default `false`).
   """
   @spec new(String.t(), keyword()) :: t()
   def new(path \\ "/", options \\ []) when is_binary(path) do
@@ -109,13 +169,18 @@ defmodule A2UICore.Resolution.DataContext do
       catalogs: Keyword.get(options, :catalogs, %{}),
       protocol_version: options[:protocol_version] || (catalog && catalog.protocol_version),
       surface_id: options[:surface_id],
-      locale: options[:locale]
+      locale: options[:locale],
+      agent_calls: options[:agent_calls],
+      user_activated: options[:user_activated] == true
     }
   end
 
   @doc """
   Creates the root scope for a `A2UICore.State.Surface`: its data
   model, its default catalog and the catalogs it can reach.
+
+  Options: `:path` (default `"/"`), `:locale` (default: the surface's),
+  `:agent_calls` and `:user_activated`.
   """
   @spec for_surface(Surface.t(), keyword()) :: t()
   def for_surface(%Surface{} = surface, options \\ []) do
@@ -126,7 +191,9 @@ defmodule A2UICore.Resolution.DataContext do
       catalogs: surface.catalogs,
       protocol_version: Surface.protocol_version(surface),
       surface_id: surface.id,
-      locale: Keyword.get(options, :locale, surface.metadata[:locale])
+      locale: Keyword.get(options, :locale, surface.metadata[:locale]),
+      agent_calls: options[:agent_calls],
+      user_activated: options[:user_activated]
     )
   end
 
@@ -214,12 +281,12 @@ defmodule A2UICore.Resolution.DataContext do
   """
   @spec resolve_action(t(), term()) :: {term(), [effect()]}
   def resolve_action(%__MODULE__{} = context, %{"event" => %{} = event} = action) do
-    {event, effects} = resolve_action_parts(context, event)
+    {event, effects} = resolve_action_parts(looked_up(context), event)
     {%{action | "event" => event}, effects}
   end
 
   def resolve_action(%__MODULE__{} = context, %{"name" => _} = action),
-    do: resolve_action_parts(context, action)
+    do: resolve_action_parts(looked_up(context), action)
 
   def resolve_action(%__MODULE__{} = context, %{"functionCall" => call}),
     do: resolve_dynamic_value(context, call)
@@ -365,8 +432,8 @@ defmodule A2UICore.Resolution.DataContext do
   defp execute(context, name, raw_args, catalog) do
     with :ok <- check_argument_count(name, raw_args),
          {:ok, function} <- find_callee(context, name, raw_args, catalog) do
-      {resolved, effects} = resolve(context, raw_args, [])
-      run(function, resolved || %{}, context, Enum.reverse(effects), name)
+      {resolved, effects} = resolve(looked_up(context), raw_args, [])
+      run(function, resolved || %{}, context, Enum.reverse(effects), {name, catalog})
     else
       {:error, %A2UICore.Error{} = error} -> {:error, error_payload(error, name), []}
     end
@@ -410,21 +477,86 @@ defmodule A2UICore.Resolution.DataContext do
   end
 
   defp catalog_function(context, name, raw_args, catalog) do
-    with {:ok, catalog} <- target_catalog(context, name, catalog),
-         {:ok, _validated} <- Payload.validate_function(catalog, name, raw_args) do
+    with {:ok, catalog} <- target_catalog(context, name, catalog) do
+      if routes_to_agent?(context) and Catalog.get_function(catalog, name) == nil do
+        {:ok, :agent}
+      else
+        declared_function(catalog, name, raw_args)
+      end
+    end
+  end
+
+  defp declared_function(catalog, name, raw_args) do
+    with {:ok, _validated} <- Payload.validate_function(catalog, name, raw_args) do
       find_function(catalog, name)
     end
   end
 
-  defp run(%{execute: nil}, _args, _context, effects, _name), do: {:ok, nil, effects}
+  defp routes_to_agent?(context), do: context.agent_calls != nil and v1?(context)
 
-  defp run(%{execute: execute}, args, context, effects, name) do
-    case execute.(args, context) do
+  defp run(:agent, args, context, effects, call), do: agent_call(context, args, effects, call)
+
+  defp run(%{execute: nil}, args, context, effects, call) do
+    if routes_to_agent?(context),
+      do: agent_call(context, args, effects, call),
+      else: {:ok, nil, effects}
+  end
+
+  defp run(%{execute: execute} = function, args, context, effects, {name, _catalog}) do
+    outcome =
+      with :ok <- check_caller(function, context, name), do: execute.(args, context)
+
+    case outcome do
       {:ok, value} -> {:ok, value, effects}
       {:ok, value, found} -> {:ok, value, effects ++ found}
       {:error, error} -> {:error, error_payload(error, name), effects}
     end
   end
+
+  defp check_caller(%{allowed_callers: "agentOnly"}, _context, name),
+    do: refuse("Function '#{name}' cannot be called by renderer (allowedCallers is agentOnly).")
+
+  defp check_caller(%{requires_user_activation: true}, %__MODULE__{user_activated: false}, name),
+    do: refuse("Function '#{name}' requires user activation context to execute.")
+
+  defp check_caller(_function, _context, _name), do: :ok
+
+  defp refuse(message), do: {:error, A2UICore.Error.new(:expression, "EXPRESSION_ERROR", message)}
+
+  # A call routed to the agent: its value is the agent's response when it
+  # has arrived, and the effect asks the renderer to send it otherwise.
+  defp agent_call(context, args, effects, {name, catalog}) do
+    catalog_id =
+      case catalog do
+        {:named, id} -> id
+        :default -> nil
+      end
+
+    call = %{"@call" => name, "args" => args}
+    call = if catalog_id, do: Map.put(call, "catalogId", catalog_id), else: call
+    request = %{key: {name, catalog_id, args}, call: call}
+
+    case context.agent_calls do
+      {:send, _calls} ->
+        {:ok, nil, effects ++ [{:agent_call, Map.put(request, :action, true)}]}
+
+      calls ->
+        value =
+          case Map.get(calls, request.key) do
+            {:ok, value} -> value
+            _pending_failed_or_unknown -> nil
+          end
+
+        {:ok, value, effects ++ [{:agent_call, request}]}
+    end
+  end
+
+  # The calls in a function's arguments and in an event's context are
+  # looked up, never sent unconditionally.
+  defp looked_up(%__MODULE__{agent_calls: {:send, calls}} = context),
+    do: %{context | agent_calls: calls}
+
+  defp looked_up(%__MODULE__{} = context), do: context
 
   defp check_argument_count(name, raw_args) when is_map(raw_args) do
     if map_size(raw_args) > @max_function_args do

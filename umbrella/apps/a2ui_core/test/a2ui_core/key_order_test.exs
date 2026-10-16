@@ -61,6 +61,37 @@ defmodule A2UICore.KeyOrderTest do
     assert KeyOrder.delete(%{"a" => 1, "b" => 2}, "a") == %{"b" => 2}
   end
 
+  test "message/1 writes a message in the protocol's order" do
+    message = %{
+      "version" => "v1.0",
+      "createSurface" => %{
+        "sendDataModel" => true,
+        "dataModel" => %{"b" => 1, "a" => 2},
+        "components" => [
+          %{"text" => "Hi", "component" => "Text", "id" => "root", "accessibility" => %{}}
+        ],
+        "catalogId" => "c",
+        "surfaceId" => "s",
+        "extra" => 1
+      }
+    }
+
+    assert message |> KeyOrder.message() |> Jason.encode!() ==
+             ~s({"version":"v1.0","createSurface":{"surfaceId":"s","catalogId":"c","sendDataModel":true,) <>
+               ~s("components":[{"id":"root","component":"Text","accessibility":{},"text":"Hi"}],) <>
+               ~s("dataModel":{"a":2,"b":1},"extra":1}})
+
+    assert %{"updateDataModel" => %{"value" => nil, "path" => "/x", "surfaceId" => "s"}}
+           |> KeyOrder.message()
+           |> Jason.encode!() ==
+             ~s({"updateDataModel":{"surfaceId":"s","path":"/x","value":null}})
+
+    ordered = KeyOrder.new([{"b", 1}, {"a", 2}])
+    assert KeyOrder.message(ordered) == ordered
+    assert KeyOrder.message(42) == 42
+    assert KeyOrder.message(%{"custom" => [1]}) |> Jason.encode!() == ~s({"custom":[1]})
+  end
+
   test "to_plain/1 turns ordered objects into maps, recursively" do
     assert KeyOrder.to_plain(ordered(~s({"a": [{"b": 1}], "c": {"d": null}}))) ==
              %{"a" => [%{"b" => 1}], "c" => %{"d" => nil}}

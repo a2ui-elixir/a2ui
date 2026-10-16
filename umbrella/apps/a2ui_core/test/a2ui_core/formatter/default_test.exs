@@ -83,8 +83,17 @@ defmodule A2UICore.Formatter.DefaultTest do
       assert Default.date(~U[2026-01-01 12:00:00Z], "h a", []) == "12 PM"
     end
 
-    test "unknown characters pass through" do
-      assert Default.date(@moment, "yyyy/'x'", []) == "2026/'x'"
+    test "punctuation and unknown letters pass through" do
+      assert Default.date(@moment, "yyyy/x%", []) == "2026/x%"
+    end
+
+    test "quoted text is literal, and two quotes are a quote" do
+      assert Default.date(@moment, "EEEE, MMMM d, yyyy 'at' h:mm a", []) ==
+               "Wednesday, August 26, 2026 at 3:04 PM"
+
+      assert Default.date(@moment, "h 'o''clock' a", []) == "3 o'clock PM"
+      assert Default.date(@moment, "''yy", []) == "'26"
+      assert Default.date(@moment, "yyyy 'unclosed MM", []) == "2026 unclosed MM"
     end
 
     test "accepts any map with the date and time fields" do

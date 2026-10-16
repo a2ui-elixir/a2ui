@@ -10,7 +10,9 @@ defmodule A2UICore.Expression do
       `"x"`), a number (`42`, `-1.5`, `1e5`) or a boolean,
     * a data binding `%{"path" => path}` (`${/user/name}`, `${count}`),
     * a function call `%{"call" => name, "args" => %{…}, "returnType" => "any"}`
-      (`${add(a: 1, b: /x)}`); arguments are themselves expressions.
+      (`${add(a: 1, b: /x)}`); arguments are themselves expressions. A
+      system function is named with `@` and must be called:
+      `${@index(offset: 1)}`.
 
   `\\${` is an escaped marker and yields the literal `${`. `null` yields
   nothing. Whitespace inside an interpolation is ignored.
@@ -234,6 +236,19 @@ defmodule A2UICore.Expression do
 
   # -- paths and calls ---------------------------------------------------------------------
 
+  # A system function (`@index`) is named by `@` and an ASCII
+  # identifier, and is always called.
+  defp path_or_call("@" <> name_and_rest, depth) do
+    case take_while(name_and_rest, &system_name_char?/1) do
+      {<<first, _::binary>> = name, rest}
+      when first in ?a..?z or first in ?A..?Z or first == ?_ ->
+        system_call("@" <> name, String.trim_leading(rest), depth)
+
+      _other ->
+        fail("Invalid identifier starting with '@' in expression")
+    end
+  end
+
   defp path_or_call(text, depth) do
     {token, rest} = take_while(text, &path_char?/1)
     rest_trimmed = String.trim_leading(rest)
@@ -245,7 +260,15 @@ defmodule A2UICore.Expression do
     end
   end
 
+  defp system_call(name, "(" <> after_paren, depth), do: function_call(name, after_paren, depth)
+  defp system_call(name, _rest, _depth), do: fail("Expected '(' after function name '#{name}'")
+
   defp path_char?(c), do: Identifier.continue?(c) or c in ["/", ".", "-"]
+
+  defp system_name_char?(<<c>>) when c in ?a..?z or c in ?A..?Z or c in ?0..?9 or c == ?_,
+    do: true
+
+  defp system_name_char?(_c), do: false
 
   defp function_call(name, input, depth) do
     {args, rest} = arguments(String.trim_leading(input), name, depth, %{})

@@ -143,7 +143,7 @@ defmodule A2UICore.RPC do
            :ok <- check_version(catalog, call),
            {:ok, function} <- find_function(catalog, call),
            :ok <- check_permissions(function, call, options[:user_activated] == true),
-           context = options[:context] || own_context(rpc, catalog, call),
+           context = options[:context] || own_context(rpc, catalog, call, options),
            {:ok, resolved} <- resolve_arguments(call.args, context),
            {:ok, arguments} <- validate_arguments(catalog, call.call, resolved) do
         execute(function, arguments, context)
@@ -173,12 +173,13 @@ defmodule A2UICore.RPC do
     do: {:error, "INVALID_FUNCTION_CALL", "No catalog available for function resolution."}
 
   # The surface-independent root context of a call that names no surface.
-  defp own_context(rpc, catalog, call) do
+  defp own_context(rpc, catalog, call, options) do
     DataContext.new("/",
       data_model: DataModel.new(%{}),
       catalog: catalog,
       catalogs: Map.new(rpc.catalogs, &{&1.catalog_id, &1}),
-      surface_id: "_rpc_fallback_#{call.function_call_id || "default"}"
+      surface_id: "_rpc_fallback_#{call.function_call_id || "default"}",
+      user_activated: options[:user_activated] == true
     )
   end
 

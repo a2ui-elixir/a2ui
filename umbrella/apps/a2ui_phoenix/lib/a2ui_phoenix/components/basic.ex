@@ -593,7 +593,7 @@ defmodule A2UIPhoenix.Components.Basic do
 
     assigns =
       assign(assigns,
-        date?: props["enableDate"] != false,
+        date?: A2UIPhoenix.Inputs.date_enabled?(props),
         time?: props["enableTime"] == true,
         date: A2UIPhoenix.Inputs.date_part(raw),
         time: A2UIPhoenix.Inputs.time_part(raw),

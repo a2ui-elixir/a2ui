@@ -97,10 +97,13 @@ defmodule A2UIAgent.Express.Parser do
     )
   end
 
-  @doc "Writes messages back as Express (see `A2UIAgent.Express.Decompiler`)."
-  @spec decompile(t(), [map()] | map()) :: {:ok, String.t()} | {:error, Error.t()}
-  def decompile(%__MODULE__{catalogs: catalogs}, messages),
-    do: Decompiler.decompile(catalogs, messages)
+  @doc """
+  Writes messages back as Express; see `A2UIAgent.Express.Decompiler.decompile/3`
+  for the options.
+  """
+  @spec decompile(t(), [map()] | map(), keyword()) :: {:ok, String.t()} | {:error, Error.t()}
+  def decompile(%__MODULE__{catalogs: catalogs}, messages, options \\ []),
+    do: Decompiler.decompile(catalogs, messages, options)
 
   @doc "Encloses decompiled blocks in one pair of tags."
   @spec wrap_decompiled_blocks([String.t()]) :: String.t()

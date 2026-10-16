@@ -45,7 +45,11 @@ defmodule A2UIPhoenix.InputsTest do
 
   test "a date-time input keeps the half that did not change" do
     both = fn value ->
-      node_of("DateTimeInput", %{"enableTime" => true, "value" => %Binding{value: value}})
+      node_of("DateTimeInput", %{
+        "enableDate" => true,
+        "enableTime" => true,
+        "value" => %Binding{value: value}
+      })
     end
 
     date_only = node_of("DateTimeInput", %{"value" => %Binding{value: "2026-01-01"}})

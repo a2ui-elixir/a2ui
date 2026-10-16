@@ -190,13 +190,13 @@ defmodule A2UICore.EdgeCasesTest do
 
   describe "AdapterRegistry" do
     test "unsupported versions are rejected, supported ones normalized" do
-      assert {:error, %Error{code: "unsupported_version", message: m}} =
+      assert {:error, %Error{code: "UNSUPPORTED_VERSION", message: m}} =
                AdapterRegistry.get_adapter("v0.8")
 
       assert m =~ "v0.8"
-      assert {:error, %Error{code: "unsupported_version"}} = AdapterRegistry.get_adapter("v99.0")
+      assert {:error, %Error{code: "UNSUPPORTED_VERSION"}} = AdapterRegistry.get_adapter("v99.0")
 
-      assert {:error, %Error{code: "unsupported_version"}} =
+      assert {:error, %Error{code: "UNSUPPORTED_VERSION"}} =
                AdapterRegistry.get_adapter("not a version")
 
       assert {:ok, V0_9} = AdapterRegistry.get_adapter("0.9")
@@ -237,7 +237,7 @@ defmodule A2UICore.EdgeCasesTest do
     end
 
     test "legacy v0.8 action keys report an unsupported version" do
-      assert {:error, %Error{code: "unsupported_version"}} =
+      assert {:error, %Error{code: "UNSUPPORTED_VERSION"}} =
                AdapterRegistry.resolve_from_payload(%{"beginRendering" => %{}})
     end
 

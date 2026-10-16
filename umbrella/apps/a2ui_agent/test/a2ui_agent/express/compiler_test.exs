@@ -78,10 +78,30 @@ defmodule A2UIAgent.Express.CompilerTest do
                }
              ] = compile!(v1, ~s|surface("s")\nlabel = Text("x")\n$/a = 1|)
 
-      assert [%{"updateDataModel" => %{"value" => %{"user" => %{"name" => "Ada"}}}}] =
+      assert [%{"updateDataModel" => %{"path" => "/", "value" => %{"title" => "x"}}}] =
+               compile!(v1, ~s|$/title = "x"|)
+
+      assert [%{"updateDataModel" => %{"path" => "/", "value" => 1}}] = compile!(v1, "$ = 1")
+    end
+
+    test "a single assignment below the top level updates its path", %{v1: v1} do
+      assert [%{"updateDataModel" => %{"path" => "/user/name", "value" => "Ada"}}] =
                compile!(v1, ~s|$/user/name = "Ada"|)
 
-      assert [%{"updateDataModel" => %{"value" => %{}}}] = compile!(v1, "$ = 1")
+      assert [
+               %{
+                 "updateDataModel" => %{
+                   "path" => "/",
+                   "value" => %{"user" => %{"name" => "Ada"}, "a" => 1}
+                 }
+               }
+             ] =
+               compile!(v1, ~s|$/user/name = "Ada"
+$/a = 1|)
+
+      assert [%{"updateDataModel" => %{"path" => "/", "value" => %{"x" => 1, "y" => 2}}}] =
+               compile!(v1, ~s|$ = {x: 1}
+$/y = 2|)
     end
 
     test "deleteSurface takes the id positionally or by keyword", %{v1: v1} do

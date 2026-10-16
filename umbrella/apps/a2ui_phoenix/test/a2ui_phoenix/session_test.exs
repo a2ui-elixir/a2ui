@@ -148,9 +148,37 @@ defmodule A2UIPhoenix.SessionTest do
       assert [{:send, %{"version" => "v1.0", "error" => report}}] = effects
       assert report["code"] == "VALIDATION_FAILED"
       assert report["surfaceId"] == "main"
-      assert report["path"] == (error.path || "/")
+      assert report["path"] == "/components/0/text"
       assert report["message"] == error.message
       assert Session.resolver(session, "main")
+    end
+
+    test "the reported path points at the failing field of the failing message" do
+      session = ready([create("main")], validation: Config.strict())
+
+      components = [
+        %{"id" => "root", "component" => "Column", "children" => ["note"]},
+        %{
+          "id" => "note",
+          "component" => "Text",
+          "text" => %{"@call" => "formatNumber", "args" => %{"value" => "x"}}
+        }
+      ]
+
+      assert {:error, %Error{code: "VALIDATION_FAILED"}, _session,
+              [{:send, %{"error" => report}}]} =
+               Session.handle_message(session, components("main", components))
+
+      assert report["path"] == "/components/1/text/args/value"
+
+      # Other errors carry no path.
+      dangling = [%{"id" => "root", "component" => "Column", "children" => ["gone"]}]
+
+      assert {:error, %Error{}, _session, [{:send, %{"error" => report}}]} =
+               Session.handle_message(session, components("main", dangling))
+
+      refute Map.has_key?(report, "path")
+      assert report["surfaceId"] == "main"
     end
 
     test "operations before a failure stay applied and are resolved" do
@@ -404,6 +432,183 @@ defmodule A2UIPhoenix.SessionTest do
                for({:send, _} = send <- effects, do: send)
 
       assert {:ok, _time, 0} = DateTime.from_iso8601(timestamp)
+    end
+  end
+
+  describe "agent functions" do
+    @lookup %{"@call" => "lookupCity", "args" => %{"zip" => %{"@path" => "/zip"}}}
+
+    defp lookup_surface do
+      [
+        create("main"),
+        data("main", "/zip", "10115"),
+        components("main", [
+          %{"id" => "root", "component" => "Column", "children" => ["city", "go"]},
+          %{"id" => "city", "component" => "Text", "text" => @lookup},
+          %{
+            "id" => "go",
+            "component" => "Button",
+            "child" => "label",
+            "action" => %{
+              "functionCall" => %{"@call" => "reserve", "args" => %{"city" => @lookup}}
+            }
+          },
+          %{"id" => "label", "component" => "Text", "text" => "Reserve"}
+        ])
+      ]
+    end
+
+    defp response(id, outcome),
+      do: %{
+        "version" => "v1.0",
+        "agentFunctionResponse" => Map.put(outcome, "functionCallId", id)
+      }
+
+    defp text_of(session, id), do: node_of(session, "main", id).props["text"].value
+
+    test "a property's call goes to the agent and the response fills it in" do
+      {:ok, session, effects} = Session.handle_message(new(), lookup_surface())
+
+      assert {:send,
+              %{
+                "version" => "v1.0",
+                "callAgentFunction" => %{
+                  "surfaceId" => "main",
+                  "functionCallId" => "call-1",
+                  "callFunction" => %{"@call" => "lookupCity", "args" => %{"zip" => "10115"}}
+                }
+              }} in effects
+
+      assert {:agent_call_sent, "call-1", 30_000} in effects
+      assert %Node{busy: true} = node_of(session, "main", "city")
+
+      {:ok, session, effects} =
+        Session.handle_message(session, response("call-1", %{"value" => "Berlin"}))
+
+      assert {:rpc_settled, "call-1", {:ok, "Berlin"}} in effects
+      assert text_of(session, "city") == "Berlin"
+      assert %Node{busy: false} = node_of(session, "main", "city")
+      assert session.agent_calls == %{}
+    end
+
+    test "an error response or a timeout is reported and leaves the property empty" do
+      {:ok, session, _effects} = Session.handle_message(new(), lookup_surface())
+
+      {:ok, failed, effects} =
+        Session.handle_message(
+          session,
+          response("call-1", %{"error" => %{"code" => "UNKNOWN_FUNCTION", "message" => "No."}})
+        )
+
+      assert [
+               {:diagnostic, "main", :error,
+                %{code: "UNKNOWN_FUNCTION", function_call_id: "call-1"}}
+             ] =
+               for({:diagnostic, _, _, _} = d <- effects, do: d)
+
+      assert text_of(failed, "city") == nil
+
+      {:ok, timed_out, effects} = Session.timeout_agent_call(session, "call-1")
+
+      assert [{:diagnostic, "main", :error, %{code: "TIMEOUT"}}] =
+               for({:diagnostic, _, _, _} = d <- effects, do: d)
+
+      assert {:ok, ^timed_out, []} = Session.timeout_agent_call(timed_out, "call-1")
+    end
+
+    test "a function-call action sends its call each time, with the values it knows" do
+      {:ok, session, _effects} = Session.handle_message(new(), lookup_surface())
+
+      {:ok, session, _effects} =
+        Session.handle_message(session, response("call-1", %{"value" => "Berlin"}))
+
+      ref = node_of(session, "main", "go").ref
+
+      {:ok, session, effects} = Session.invoke(session, "main", ref, "action")
+
+      assert [
+               {:send,
+                %{
+                  "callAgentFunction" => %{
+                    "functionCallId" => "call-2",
+                    "callFunction" => %{"@call" => "reserve", "args" => %{"city" => "Berlin"}}
+                  }
+                }},
+               {:agent_call_sent, "call-2", 30_000}
+             ] = effects
+
+      {:ok, session, [{:send, %{"callAgentFunction" => %{"functionCallId" => "call-3"}}} | _]} =
+        Session.invoke(session, "main", ref, "action")
+
+      {:ok, _session, effects} =
+        Session.handle_message(
+          session,
+          response("call-2", %{"error" => %{"code" => "EXECUTION_ERROR", "message" => "Full."}})
+        )
+
+      assert Enum.any?(
+               effects,
+               &match?({:diagnostic, "main", :error, %{code: "EXECUTION_ERROR"}}, &1)
+             )
+    end
+
+    test "a call an event needs is sent once and remembered" do
+      session =
+        ready([
+          create("main"),
+          data("main", "/zip", "10115"),
+          components("main", [
+            %{
+              "id" => "root",
+              "component" => "Button",
+              "child" => "label",
+              "action" => %{"event" => %{"name" => "go", "context" => %{"city" => @lookup}}}
+            },
+            %{"id" => "label", "component" => "Text", "text" => "Go"}
+          ])
+        ])
+
+      ref = node_of(session, "main", "root").ref
+      {:ok, session, effects} = Session.invoke(session, "main", ref, "action")
+
+      assert [
+               {:send, %{"callAgentFunction" => %{"functionCallId" => "call-1"}}},
+               {:agent_call_sent, "call-1", 30_000},
+               {:send, %{"action" => %{"name" => "go", "context" => %{"city" => nil}}}}
+             ] =
+               Enum.sort_by(
+                 effects,
+                 &(elem(&1, 0) == :send and Map.has_key?(elem(&1, 1), "action"))
+               )
+
+      {:ok, session, _effects} =
+        Session.handle_message(session, response("call-1", %{"value" => "Berlin"}))
+
+      {:ok, _session, effects} = Session.invoke(session, "main", ref, "action")
+
+      assert [{:send, %{"action" => %{"context" => %{"city" => "Berlin"}}}}] = effects
+    end
+
+    test "a response for a surface that is gone is only passed on" do
+      {:ok, session, _effects} = Session.handle_message(new(), lookup_surface())
+
+      {:ok, session, _effects} =
+        Session.handle_message(session, %{
+          "version" => "v1.0",
+          "deleteSurface" => %{"surfaceId" => "main"}
+        })
+
+      assert {:ok, _session, [{:rpc_settled, "call-1", {:ok, "Berlin"}}]} =
+               Session.handle_message(session, response("call-1", %{"value" => "Berlin"}))
+    end
+
+    test "after dispose, a call that cannot be sent is reported" do
+      {session, _effects} = Session.dispose(new())
+
+      {:ok, _session, effects} = Session.handle_message(session, lookup_surface())
+
+      assert Enum.any?(effects, &match?({:diagnostic, "main", :error, %{code: "DISPOSED"}}, &1))
+      refute Enum.any?(effects, &match?({:send, %{"callAgentFunction" => _}}, &1))
     end
   end
 end
