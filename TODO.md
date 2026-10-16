@@ -465,6 +465,35 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       `config :restaurant_agent, today:` (the tests' dates no longer depend
       on the day they run).
 
+### M22 — design system for the renderer and the examples (2026-10-16)
+
+- [x] M22.1 `a2ui_phoenix.css` rebuilt as a design system: tokens with the
+      reference renderers' names (colors, type scale, space, radii, shadows,
+      motion, per-component tokens), light and dark through `light-dark()`
+      and the page's `color-scheme` (or the `a2ui-light`/`a2ui-dark`
+      classes), colors derived from the primary color on each surface
+      (hover, tint, text, focus ring, the text on it), and every basic and
+      MCP component in one style.
+- [x] M22.2 The components' markup: namespaced classes for every element and
+      variant, states as ARIA attributes, one anatomy for the inputs (label,
+      control, the messages of failed checks, read as guidance while the
+      field is empty: `data-a2ui-empty`), Material Symbols icons, and a
+      slider whose track fills to its value (rendered, and kept in step by
+      the script).
+- [x] M22.3 The gallery rebuilt on one UI kit (`GalleryWeb.CoreComponents`,
+      `gallery.css`) drawn with the same tokens: page headers, panels, cards,
+      buttons, badges, tags, tabs, surface frames, the message log, chat
+      bubbles, callouts; Geist fonts, a theme switch, an icon-only header on
+      phones, a favicon; the custom catalogs' components in `catalog.css`.
+- [x] M22.4 The landing page's replays recorded again: the site sets the
+      renderer's tokens from its theme and styles no component, and
+      `mix gallery.replays` copies `catalog.css` too.
+- [x] M22.5 The guide's styling and themes section (tokens, light and dark,
+      markup), README, CHANGELOG; tests for the new markup; checked in a
+      browser at desktop and phone widths in both themes: every scenario,
+      the reference examples, the chat with the restaurant agent, and the
+      replays.
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

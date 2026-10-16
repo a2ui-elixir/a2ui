@@ -78,43 +78,88 @@ defmodule GalleryWeb.ExamplesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <h1>Reference examples</h1>
-    <p :if={@bundles == []} class="lead">
-      The reference checkout was not found. Clone it as the repository's README explains, or
-      point <code>A2UI_REFERENCE_ROOT</code> at one.
-    </p>
-    <div :if={@bundles != []} class="examples">
-      <nav>
-        <.link
-          :for={bundle <- @bundles}
-          navigate={"/examples/" <> bundle.name}
-          class={@bundle && @bundle.name == bundle.name && "active"}
-        >
-          {bundle.title || bundle.name}
-        </.link>
-      </nav>
-      <section :if={@bundle}>
-        <h2>{@bundle.title}</h2>
-        <p class="summary">{@bundle.description}</p>
-        <div :for={surface <- Session.surfaces(@a2ui)} class="surface-frame">
-          <div class="surface-id">{surface.id}</div>
-          <.live_component
-            module={A2UIPhoenix.Surface}
-            id={"surface-" <> surface.id}
-            session={@a2ui}
+    <.page_header>
+      <:eyebrow>The A2UI project · catalogs/basic/v1/examples</:eyebrow>
+      <:title>Reference examples</:title>
+      <p>
+        The A2UI project's own example surfaces, each rendered by <code>A2UIPhoenix</code>
+        from its messages, with what it would send to an agent.
+      </p>
+    </.page_header>
+
+    <.callout :if={@bundles == []} tone="warning" title="The reference checkout was not found">
+      <p>
+        Clone it as the repository's README explains, or point <code>A2UI_REFERENCE_ROOT</code>
+        at one.
+      </p>
+    </.callout>
+
+    <div :if={@bundles != []} class="ui-browser">
+      <.panel class="ui-sidebar">
+        <nav aria-label="Examples">
+          <.link
+            :for={{bundle, index} <- Enum.with_index(@bundles, 1)}
+            navigate={"/examples/" <> bundle.name}
+            aria-current={if @bundle && @bundle.name == bundle.name, do: "page"}
+          >
+            <span class="ui-sidebar-number">{number(index)}</span>
+            <span>{bundle.title || bundle.name}</span>
+          </.link>
+        </nav>
+      </.panel>
+
+      <section :if={@bundle} class="ui-stage" aria-label={@bundle.title}>
+        <header class="ui-example-head">
+          <h2 class="ui-example-title">{@bundle.title || @bundle.name}</h2>
+          <p :if={@bundle.description} class="ui-example-text">{@bundle.description}</p>
+          <.tags items={[@bundle.name <> ".json"]} />
+        </header>
+        <.canvas>
+          <.surface_frame
+            :for={surface <- Session.surfaces(@a2ui)}
+            id={"frame-" <> surface.id}
             surface_id={surface.id}
-            markdown={&Markdown.to_html/1}
-          />
-        </div>
-        <ul :if={@notes != []} class="notes" id="notes">
-          <li :for={note <- @notes} class={"note-" <> note.kind}><b>{note.kind}</b> {note.text}</li>
-        </ul>
-        <details>
-          <summary>Messages</summary>
-          <pre>{pretty(@bundle.messages)}</pre>
+            version={surface.version}
+          >
+            <.live_component
+              module={A2UIPhoenix.Surface}
+              id={"surface-" <> surface.id}
+              session={@a2ui}
+              surface_id={surface.id}
+              markdown={&Markdown.to_html/1}
+            />
+          </.surface_frame>
+        </.canvas>
+        <.panel :if={@notes != []}>
+          <:head>
+            <h3 class="ui-panel-title">Renderer output</h3>
+            <.badge>{length(@notes)}</.badge>
+          </:head>
+          <ul class="ui-notes" id="notes">
+            <li :for={note <- @notes} class="ui-note" data-kind={note.kind}>
+              <.badge tone={tone(note.kind)}>{note.kind}</.badge>
+              <span class="ui-note-text">{note.text}</span>
+            </li>
+          </ul>
+        </.panel>
+        <details class="ui-panel ui-disclosure" phx-mounted={JS.ignore_attributes(["open"])}>
+          <summary>
+            <.icon name="braces" />
+            <span>Messages</span>
+            <.badge>{length(@bundle.messages)}</.badge>
+            <.icon name="chevron" class="ui-icon ui-log-chevron" />
+          </summary>
+          <.code code={pretty(@bundle.messages)} />
         </details>
       </section>
     </div>
     """
   end
+
+  defp number(index), do: index |> Integer.to_string() |> String.pad_leading(2, "0")
+
+  defp tone(kind) when kind in ["error", "rejected"], do: "danger"
+  defp tone("warning"), do: "warning"
+  defp tone(kind) when kind in ["action", "sent"], do: "accent"
+  defp tone(_kind), do: "info"
 end

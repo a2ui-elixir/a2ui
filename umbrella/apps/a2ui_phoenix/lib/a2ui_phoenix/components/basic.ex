@@ -5,14 +5,21 @@ defmodule A2UIPhoenix.Components.Basic do
   `Card`, `Tabs`, `Modal`, `Divider`, `Button`, `TextField`, `CheckBox`,
   `ChoicePicker`, `Slider` and `DateTimeInput`.
 
-  The markup and class names follow the reference web renderer
-  (`a2ui-text`, `a2ui-button primary`, …) so its stylesheets apply. Inputs
-  are named with `A2UIPhoenix.Context.input_name/2` and report changes
-  through the surface's form; buttons, tabs, modals and chips send click
-  events to the surface (`A2UIPhoenix.Surface`). Interactive elements use
-  native controls and, where the control alone does not say it, the ARIA
-  role from `A2UICore.Accessibility` (a `radiogroup` for a single-choice
-  picker).
+  Every element carries a namespaced class: the component's
+  (`a2ui-button`), its variant (`a2ui-button-primary`) and its parts
+  (`a2ui-tabs-tab`), as in the reference web renderers. States are ARIA
+  attributes (`aria-selected`, `aria-pressed`, `aria-invalid`), and the
+  input components share one anatomy: an `a2ui-field` with an
+  `a2ui-field-label`, the control and the `a2ui-field-errors` of its failed
+  checks, marked `data-a2ui-empty` while it holds no value.
+  `priv/static/a2ui_phoenix.css` styles them all from `--a2ui-*` tokens.
+
+  Inputs are named with `A2UIPhoenix.Context.input_name/2` and report
+  changes through the surface's form; buttons, tabs, modals and chips send
+  click events to the surface (`A2UIPhoenix.Surface`). Interactive elements
+  use native controls and, where the control alone does not say it, the
+  ARIA role from `A2UICore.Accessibility` (a `radiogroup` for a
+  single-choice picker).
 
   `components/0` is the component map `A2UIPhoenix.Surface` starts from;
   a host overrides or extends it with its own `%{type => component}`.
@@ -83,22 +90,22 @@ defmodule A2UIPhoenix.Components.Basic do
     cond do
       variant in @headings ->
         ~H"""
-        <span class={["a2ui-text", @variant]} style={style(@props)} {@attrs}><.dynamic_tag tag_name={@variant}>{@content}</.dynamic_tag></span>
+        <span class={["a2ui-text", "a2ui-text-" <> @variant]} style={style(@props)} {@attrs}><.dynamic_tag tag_name={@variant}>{@content}</.dynamic_tag></span>
         """
 
       variant == "caption" ->
         ~H"""
-        <span class={["a2ui-text", @variant]} style={style(@props)} {@attrs}><em>{@content}</em></span>
+        <span class="a2ui-text a2ui-text-caption" style={style(@props)} {@attrs}>{@content}</span>
         """
 
       assigns.ctx.markdown != nil ->
         ~H"""
-        <span class={["a2ui-text", @variant]} style={style(@props)} {@attrs}>{@ctx.markdown.(@content)}</span>
+        <span class={["a2ui-text", "a2ui-text-" <> @variant]} style={style(@props)} {@attrs}>{@ctx.markdown.(@content)}</span>
         """
 
       true ->
         ~H"""
-        <span class={["a2ui-text", @variant]} style={style(@props)} {@attrs}>{@content}</span>
+        <span class={["a2ui-text", "a2ui-text-" <> @variant]} style={style(@props)} {@attrs}>{@content}</span>
         """
     end
   end
@@ -117,7 +124,7 @@ defmodule A2UIPhoenix.Components.Basic do
     <img
       src={text(@props["url"])}
       alt={text(@props["description"])}
-      class={["a2ui-image", @variant]}
+      class={["a2ui-image", "a2ui-image-" <> @variant]}
       style={style(@props, ["object-fit: #{@fit}"])}
       {@attrs}
     />
@@ -138,11 +145,11 @@ defmodule A2UIPhoenix.Components.Basic do
     ~H"""
     <%= case @name do %>
       <% %{"svgPath" => path} -> %>
-        <svg class="a2ui-icon svg" viewBox="0 0 24 24" style={style(@props)} {@attrs}>
+        <svg class="a2ui-icon a2ui-icon-svg" viewBox="0 0 24 24" style={style(@props)} {@attrs}>
           <path d={path}></path>
         </svg>
       <% name -> %>
-        <i class="material-icons a2ui-icon" style={style(@props)} {@attrs}>{icon_name(name)}</i>
+        <span class="a2ui-icon" style={style(@props)} {@attrs}>{icon_name(name)}</span>
     <% end %>
     """
   end
@@ -168,8 +175,14 @@ defmodule A2UIPhoenix.Components.Basic do
   @spec video(map()) :: Phoenix.LiveView.Rendered.t()
   def video(assigns) do
     ~H"""
-    <div class="a2ui-video-container" style={style(@props)} {@attrs}>
-      <video src={@props["url"]} poster={@props["posterUrl"]} controls class="a2ui-video">
+    <div class="a2ui-video" style={style(@props)} {@attrs}>
+      <video
+        src={@props["url"]}
+        poster={@props["posterUrl"]}
+        controls
+        preload="metadata"
+        class="a2ui-video-media"
+      >
         Your browser does not support the video tag.
       </video>
     </div>
@@ -181,10 +194,10 @@ defmodule A2UIPhoenix.Components.Basic do
   def audio_player(assigns) do
     ~H"""
     <div class="a2ui-audio-player" style={style(@props)} {@attrs}>
-      <div :if={@props["description"] not in [nil, ""]} class="a2ui-audio-description">
+      <div :if={@props["description"] not in [nil, ""]} class="a2ui-audio-player-description">
         {text(@props["description"])}
       </div>
-      <audio src={@props["url"]} controls class="a2ui-audio">
+      <audio src={@props["url"]} controls preload="metadata" class="a2ui-audio-player-media">
         Your browser does not support the audio tag.
       </audio>
     </div>
@@ -198,7 +211,7 @@ defmodule A2UIPhoenix.Components.Basic do
 
     ~H"""
     <hr
-      class={["a2ui-divider", @axis]}
+      class={["a2ui-divider", "a2ui-divider-" <> @axis]}
       aria-orientation={if @axis == "vertical", do: "vertical"}
       style={style(@props)}
       {@attrs}
@@ -246,7 +259,7 @@ defmodule A2UIPhoenix.Components.Basic do
 
     ~H"""
     <div
-      class={["a2ui-list", @direction]}
+      class={["a2ui-list", "a2ui-list-" <> @direction]}
       style={style(@props, [flex_declaration("align-items", @props["align"])])}
       {@attrs}
     >
@@ -279,7 +292,7 @@ defmodule A2UIPhoenix.Components.Basic do
 
     ~H"""
     <div class="a2ui-tabs" style={style(@props)} {@attrs}>
-      <div class="a2ui-tab-bar" role="tablist">
+      <div class="a2ui-tabs-list" role="tablist">
         <button
           :for={{tab, index} <- @tabs}
           type="button"
@@ -287,7 +300,7 @@ defmodule A2UIPhoenix.Components.Basic do
           id={Context.dom_id(@ctx, @node, "tab-#{index}")}
           aria-selected={to_string(index == @active)}
           aria-controls={Context.dom_id(@ctx, @node, "panel")}
-          class={["a2ui-tab-button", index == @active && "active"]}
+          class="a2ui-tabs-tab"
           phx-click="a2ui:tab"
           phx-value-ref={@node.ref}
           phx-value-index={index}
@@ -298,7 +311,7 @@ defmodule A2UIPhoenix.Components.Basic do
       </div>
       <div
         :if={@open}
-        class="a2ui-tab-content"
+        class="a2ui-tabs-panel"
         role="tabpanel"
         id={Context.dom_id(@ctx, @node, "panel")}
         aria-labelledby={Context.dom_id(@ctx, @node, "tab-#{@active}")}
@@ -319,7 +332,7 @@ defmodule A2UIPhoenix.Components.Basic do
     assigns = assign(assigns, :open, Context.ui(assigns.ctx, assigns.node, :open, false))
 
     ~H"""
-    <div class="a2ui-modal-wrapper" style={style(@props)} {@attrs}>
+    <div class="a2ui-modal" style={style(@props)} {@attrs}>
       <div
         class="a2ui-modal-trigger"
         phx-click="a2ui:modal"
@@ -329,9 +342,9 @@ defmodule A2UIPhoenix.Components.Basic do
       >
         <.child ctx={@ctx} child={@props["trigger"]} />
       </div>
-      <div :if={@open} class="a2ui-modal-overlay">
+      <div :if={@open} class="a2ui-modal-backdrop">
         <div
-          class="a2ui-modal-content"
+          class="a2ui-modal-dialog"
           role="dialog"
           aria-modal="true"
           id={Context.dom_id(@ctx, @node, "dialog")}
@@ -351,7 +364,7 @@ defmodule A2UIPhoenix.Components.Basic do
             phx-value-open="false"
             phx-target={@ctx.target}
           >
-            &times;
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
           <.child ctx={@ctx} child={@props["content"]} />
         </div>
@@ -370,7 +383,7 @@ defmodule A2UIPhoenix.Components.Basic do
     ~H"""
     <button
       type="button"
-      class={["a2ui-button", @variant, "a2ui-button-#{@variant}"]}
+      class={["a2ui-button", "a2ui-button-" <> @variant]}
       disabled={invalid?(@props)}
       phx-click="a2ui:action"
       phx-value-ref={@node.ref}
@@ -394,21 +407,30 @@ defmodule A2UIPhoenix.Components.Basic do
         _other -> "text"
       end
 
+    value = text(assigns.props["value"])
+
     assigns =
       assign(assigns,
         type: type,
         input_id: Context.dom_id(assigns.ctx, assigns.node, "input"),
-        value: text(assigns.props["value"])
+        value: value
       )
 
     ~H"""
-    <div class="a2ui-textfield-container" style={style(@props)} {@attrs}>
-      <label :if={@props["label"] not in [nil, ""]} for={@input_id}>{text(@props["label"])}</label>
+    <div
+      class="a2ui-field a2ui-text-field"
+      data-a2ui-empty={@value == ""}
+      style={style(@props)}
+      {@attrs}
+    >
+      <label :if={@props["label"] not in [nil, ""]} class="a2ui-field-label" for={@input_id}>
+        {text(@props["label"])}
+      </label>
       <textarea
         :if={@props["variant"] == "longText"}
         id={@input_id}
         name={Context.input_name(@node)}
-        class={["a2ui-textfield", invalid?(@props) && "invalid"]}
+        class="a2ui-input"
         placeholder={@props["placeholder"]}
         aria-invalid={if invalid?(@props), do: "true"}
         aria-describedby={error_ids(@ctx, @node, @props)}
@@ -419,7 +441,7 @@ defmodule A2UIPhoenix.Components.Basic do
         id={@input_id}
         name={Context.input_name(@node)}
         value={@value}
-        class={["a2ui-textfield", invalid?(@props) && "invalid"]}
+        class="a2ui-input"
         placeholder={@props["placeholder"]}
         aria-invalid={if invalid?(@props), do: "true"}
         aria-describedby={error_ids(@ctx, @node, @props)}
@@ -435,8 +457,13 @@ defmodule A2UIPhoenix.Components.Basic do
     assigns = assign(assigns, :input_id, Context.dom_id(assigns.ctx, assigns.node, "input"))
 
     ~H"""
-    <div class="a2ui-checkbox-container" style={style(@props)} {@attrs}>
-      <label class={["a2ui-checkbox", invalid?(@props) && "invalid"]} for={@input_id}>
+    <div
+      class="a2ui-field a2ui-check-box"
+      data-a2ui-empty={@props["value"] != true}
+      style={style(@props)}
+      {@attrs}
+    >
+      <label class="a2ui-check" for={@input_id}>
         <input type="hidden" name={Context.input_name(@node)} value="false" />
         <input
           type="checkbox"
@@ -444,11 +471,11 @@ defmodule A2UIPhoenix.Components.Basic do
           name={Context.input_name(@node)}
           value="true"
           checked={@props["value"] == true}
-          class={[invalid?(@props) && "invalid"]}
+          class="a2ui-check-input"
           aria-invalid={if invalid?(@props), do: "true"}
           aria-describedby={error_ids(@ctx, @node, @props)}
         />
-        <span class="a2ui-check-box-text">{text(@props["label"])}</span>
+        <span class="a2ui-check-label">{text(@props["label"])}</span>
       </label>
       <.validation_errors ctx={@ctx} node={@node} props={@props} />
     </div>
@@ -481,14 +508,19 @@ defmodule A2UIPhoenix.Components.Basic do
       )
 
     ~H"""
-    <div class="a2ui-choice-picker-container" style={style(@props)} {@attrs}>
-      <span :if={@props["label"] not in [nil, ""]} id={@label_id} class="a2ui-choice-picker-label">
+    <div
+      class="a2ui-field a2ui-choice-picker"
+      data-a2ui-empty={@selected == []}
+      style={style(@props)}
+      {@attrs}
+    >
+      <span :if={@props["label"] not in [nil, ""]} id={@label_id} class="a2ui-field-label">
         {text(@props["label"])}
       </span>
       <input
         :if={@props["filterable"] == true}
         type="text"
-        class="filter-input"
+        class="a2ui-input a2ui-choice-picker-filter"
         name={Context.input_name(@node, "filter")}
         value={@filter}
         placeholder="Filter options..."
@@ -496,9 +528,8 @@ defmodule A2UIPhoenix.Components.Basic do
       />
       <div
         class={[
-          "a2ui-choice-picker",
-          "options",
-          if(@chips?, do: "chips a2ui-chips-group", else: "a2ui-options-group")
+          "a2ui-choice-picker-options",
+          if(@chips?, do: "a2ui-choice-picker-chips", else: "a2ui-choice-picker-checkbox")
         ]}
         role={if @multi?, do: "group", else: "radiogroup"}
         aria-labelledby={if @props["label"] not in [nil, ""], do: @label_id}
@@ -515,7 +546,7 @@ defmodule A2UIPhoenix.Components.Basic do
           <button
             :if={@chips?}
             type="button"
-            class={["a2ui-chip", "chip", option["value"] in @selected && "active selected"]}
+            class="a2ui-chip"
             aria-pressed={to_string(option["value"] in @selected)}
             phx-click="a2ui:toggle"
             phx-value-ref={@node.ref}
@@ -524,15 +555,15 @@ defmodule A2UIPhoenix.Components.Basic do
           >
             {text(option["label"])}
           </button>
-          <label :if={not @chips?} class="a2ui-option-label">
+          <label :if={not @chips?} class="a2ui-check">
             <input
               type={if @multi?, do: "checkbox", else: "radio"}
               name={if @multi?, do: Context.input_name(@node) <> "[]", else: Context.input_name(@node)}
               value={option["value"]}
               checked={option["value"] in @selected}
-              class="a2ui-option-input"
+              class="a2ui-check-input"
             />
-            <span class="a2ui-option-text">{text(option["label"])}</span>
+            <span class="a2ui-check-label">{text(option["label"])}</span>
           </label>
         <% end %>
       </div>
@@ -559,14 +590,19 @@ defmodule A2UIPhoenix.Components.Basic do
         min: min,
         max: max,
         step: step,
+        fill: slider_fill(props["value"], min, max),
         input_id: Context.dom_id(assigns.ctx, assigns.node, "input")
       )
 
     ~H"""
-    <div class="a2ui-slider-container" style={style(@props)} {@attrs}>
+    <div
+      class="a2ui-field a2ui-slider"
+      style={style(@props, ["--a2ui-slider-fill: #{@fill}%"])}
+      {@attrs}
+    >
       <div class="a2ui-slider-header">
-        <label class="a2ui-slider-label" for={@input_id}>{text(@props["label"])}</label>
-        <span class="a2ui-slider-value">{text(@props["value"])}</span>
+        <label class="a2ui-field-label" for={@input_id}>{text(@props["label"])}</label>
+        <output class="a2ui-slider-value" for={@input_id}>{text(@props["value"])}</output>
       </div>
       <input
         type="range"
@@ -576,7 +612,7 @@ defmodule A2UIPhoenix.Components.Basic do
         max={@max}
         step={@step}
         value={text(@props["value"] || 0)}
-        class="a2ui-slider"
+        class="a2ui-slider-input"
         aria-invalid={if invalid?(@props), do: "true"}
         aria-describedby={error_ids(@ctx, @node, @props)}
       />
@@ -584,6 +620,12 @@ defmodule A2UIPhoenix.Components.Basic do
     </div>
     """
   end
+
+  # How much of the track the value fills, in percent.
+  defp slider_fill(value, low, high) when is_number(value) and high > low,
+    do: Float.round(((value |> max(low) |> min(high)) - low) / (high - low) * 100, 2)
+
+  defp slider_fill(_value, _low, _high), do: 0
 
   @doc "`DateTimeInput`: a date input, a time input, or both."
   @spec date_time_input(map()) :: Phoenix.LiveView.Rendered.t()
@@ -597,15 +639,21 @@ defmodule A2UIPhoenix.Components.Basic do
         time?: props["enableTime"] == true,
         date: A2UIPhoenix.Inputs.date_part(raw),
         time: A2UIPhoenix.Inputs.time_part(raw),
+        empty?: raw == "",
         label_id: Context.dom_id(assigns.ctx, assigns.node, "label")
       )
 
     ~H"""
-    <div class="a2ui-date-time-container" style={style(@props)} {@attrs}>
-      <span :if={@props["label"] not in [nil, ""]} id={@label_id} class="a2ui-date-time-label">
+    <div
+      class="a2ui-field a2ui-date-time-input"
+      data-a2ui-empty={@empty?}
+      style={style(@props)}
+      {@attrs}
+    >
+      <span :if={@props["label"] not in [nil, ""]} id={@label_id} class="a2ui-field-label">
         {text(@props["label"])}
       </span>
-      <div class="a2ui-date-time-inputs">
+      <div class="a2ui-date-time-input-controls">
         <input
           :if={@date?}
           type="date"
@@ -613,7 +661,7 @@ defmodule A2UIPhoenix.Components.Basic do
           value={@date}
           min={date_bound(@props["min"])}
           max={date_bound(@props["max"])}
-          class="a2ui-date-time-input"
+          class="a2ui-input"
           aria-labelledby={if @props["label"] not in [nil, ""], do: @label_id}
           aria-invalid={if invalid?(@props), do: "true"}
         />
@@ -622,7 +670,7 @@ defmodule A2UIPhoenix.Components.Basic do
           type="time"
           name={Context.input_name(@node, "time")}
           value={@time}
-          class="a2ui-date-time-input"
+          class="a2ui-input"
           aria-labelledby={if @props["label"] not in [nil, ""], do: @label_id}
           aria-invalid={if invalid?(@props), do: "true"}
         />

@@ -85,7 +85,7 @@ defmodule A2UIPhoenix.SurfaceTest do
           surface("main", [%{"id" => "root", "component" => "Column", "children" => ["late"]}])
         )
 
-      assert render(view) =~ ~s(class="a2ui-placeholder a2ui-pending")
+      assert render(view) =~ ~s(class="a2ui-placeholder a2ui-placeholder-pending")
 
       send(
         view.pid,
@@ -182,7 +182,10 @@ defmodule A2UIPhoenix.SurfaceTest do
       assert view |> element("input[value='john.doe@example.com']") |> has_element?()
       assert view |> element("input[type=radio][value=email][checked]") |> has_element?()
       assert view |> element("input[type=checkbox][checked]") |> has_element?()
-      assert view |> element("button.a2ui-button.primary", "Send Message") |> has_element?()
+
+      assert view
+             |> element("button.a2ui-button.a2ui-button-primary", "Send Message")
+             |> has_element?()
     end
 
     test "typing writes the data model and re-runs the checks", %{view: view} do
@@ -326,11 +329,15 @@ defmodule A2UIPhoenix.SurfaceTest do
         )
 
       assert view |> element("input[type=range][step='2.0']") |> has_element?()
+      assert view |> by_id("volume") |> render() =~ "--a2ui-slider-fill: 20.0%"
+      assert view |> element("[data-a2ui-id=when][data-a2ui-empty]") |> has_element?()
 
       change(view, "main", input(view, "volume"), "value", "6")
       assert view |> element(".a2ui-slider-value", "6") |> has_element?()
+      assert view |> by_id("volume") |> render() =~ "--a2ui-slider-fill: 60.0%"
 
       change(view, "main", input(view, "when", "time"), "time", "08:15")
+      refute view |> element("[data-a2ui-id=when][data-a2ui-empty]") |> has_element?()
       assert view |> element("input[type=date][value='2026-10-14']") |> has_element?()
       assert view |> element("input[type=time][value='08:15']") |> has_element?()
 
@@ -425,7 +432,7 @@ defmodule A2UIPhoenix.SurfaceTest do
              |> element("[data-a2ui-id=status][aria-live=polite][aria-hidden=true]")
              |> has_element?()
 
-      assert view |> element("i.material-icons[aria-hidden=true]", "mail") |> has_element?()
+      assert view |> element("span.a2ui-icon[aria-hidden=true]", "mail") |> has_element?()
       refute view |> element("[data-a2ui-id=go_text][aria-label]") |> has_element?()
     end
 
@@ -456,10 +463,15 @@ defmodule A2UIPhoenix.SurfaceTest do
         )
 
       html = render(view)
-      [_, input_id] = Regex.run(~r/<label for="([^"]+)"/, html)
+      [_, input_id] = Regex.run(~r/<label class="a2ui-field-label" for="([^"]+)"/, html)
       assert view |> element("input##{input_id}[aria-invalid=true]") |> has_element?()
       [_, described_by] = Regex.run(~r/aria-describedby="([^"]+)"/, html)
       assert view |> element("##{described_by}", "Required.") |> has_element?()
+
+      # Empty, the field says what it needs; filled and still wrong, it is an error.
+      assert view
+             |> element(".a2ui-field[data-a2ui-empty] .a2ui-field-error", "Required.")
+             |> has_element?()
     end
   end
 
@@ -546,7 +558,10 @@ defmodule A2UIPhoenix.SurfaceTest do
         ])
 
       assert html =~ ~s(style="--a2ui-color-primary: #00BFFF")
-      assert html =~ ~s(<img src="https://example.com/bot.png" alt=""/>)
+
+      assert html =~
+               ~s(<img class="a2ui-surface-attribution-icon" src="https://example.com/bot.png" alt=""/>)
+
       assert html =~ "Weather Bot"
     end
 

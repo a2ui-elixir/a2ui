@@ -3240,198 +3240,25 @@ html:not(.js) .demo-replay {
   }
 }
 
-/* A surface as the renderer drew it: a2ui_phoenix.css with its --a2ui-*
-   properties taken from the page's theme. */
+/* A surface as the renderer drew it: a2ui_phoenix.css (and the gallery's
+   catalog.css), themed with the page's colors and fonts. */
 
 .replay-stage {
   --a2ui-font-family: var(--font-sans);
-  --a2ui-color-on-background: var(--text);
-  --a2ui-color-surface: var(--panel);
-  --a2ui-color-border: var(--line-2);
+  --a2ui-font-family-monospace: var(--font-mono);
   --a2ui-color-primary: var(--accent);
   --a2ui-color-on-primary: var(--on-accent);
+  --a2ui-color-on-background: var(--text);
+  --a2ui-color-surface: var(--panel);
+  --a2ui-color-on-surface: var(--text);
+  --a2ui-color-muted: var(--muted);
+  --a2ui-color-border: var(--line);
+  --a2ui-color-border-strong: var(--line-2);
+  --a2ui-color-input: var(--field);
+  --a2ui-color-on-input: var(--text);
   --a2ui-color-error: var(--red);
-  --a2ui-text-caption-color: var(--muted);
-  --a2ui-card-border-radius: 10px;
-  --a2ui-font-size-xs: 0.8125rem;
   padding: 16px;
   overflow-x: auto;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-}
-
-.replay-stage .a2ui-text h2 {
-  font-size: 1.125rem;
-  font-weight: 620;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-}
-
-.replay-stage .a2ui-card {
-  padding: 12px;
-}
-
-.replay-stage .a2ui-image.smallFeature {
-  border-radius: 8px;
-}
-
-.replay-stage .a2ui-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 8px;
-  color: var(--text);
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 550;
-  transition: transform 0.15s var(--ease), box-shadow 0.2s, opacity 0.2s;
-}
-
-.replay-stage .a2ui-button.primary {
-  color: var(--a2ui-color-on-primary);
-}
-
-.replay-stage label,
-.replay-stage .a2ui-date-time-label,
-.replay-stage .a2ui-choice-picker-label {
-  color: var(--text-2);
-  font-size: 0.8125rem;
-  font-weight: 550;
-}
-
-.replay-stage .a2ui-textfield,
-.replay-stage .a2ui-date-time-input {
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-2);
-  border-radius: 8px;
-  background: var(--field);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.875rem;
-}
-
-.replay-stage textarea.a2ui-textfield {
-  min-height: 64px;
-  resize: none;
-}
-
-.replay-stage .a2ui-textfield.invalid {
-  border-color: var(--red);
-}
-
-.replay-stage .a2ui-date-time-inputs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.replay-stage .a2ui-slider-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.replay-stage .a2ui-slider-value {
-  color: var(--accent);
-  font: 600 0.875rem/1 var(--font-mono);
-}
-
-.replay-stage .a2ui-slider,
-.replay-stage input[type="checkbox"] {
-  accent-color: var(--accent);
-}
-
-.replay-stage .a2ui-slider {
-  width: 100%;
-}
-
-.replay-stage .a2ui-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text);
-  font-size: 0.875rem;
-  font-weight: 450;
-}
-
-.replay-stage .a2ui-checkbox input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-}
-
-.replay-stage .a2ui-chip {
-  padding: 6px 12px;
-  border: 1px solid var(--line-2);
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  transition: transform 0.15s var(--ease), box-shadow 0.2s;
-}
-
-.replay-stage .a2ui-chip.selected {
-  border-color: transparent;
-  background: var(--a2ui-color-primary);
-  color: var(--a2ui-color-on-primary);
-}
-
-.replay-stage .material-icons {
-  display: inline-block;
-  color: var(--green);
-  font-family: "Material Symbols Outlined";
-  font-size: 32px;
-  font-style: normal;
-  font-weight: normal;
-  font-feature-settings: "liga";
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  white-space: nowrap;
-  direction: ltr;
-}
-
-/* A component the agent has not sent yet. */
-
-.replay-stage .a2ui-placeholder.a2ui-pending {
-  min-width: 48px;
-  min-height: 22px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, var(--chip), var(--line-2), var(--chip)) 0 0 / 200% 100%;
-  animation: replay-pending 1.2s linear infinite;
-}
-
-@keyframes replay-pending {
-  to {
-    background-position: -200% 0;
-  }
-}
-
-/* The restaurant catalog's Rating, drawn as the gallery draws it. */
-
-.replay-stage .rating {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.replay-stage .rating .stars {
-  color: #f59f00;
-  letter-spacing: 0.05em;
-}
-
-.replay-stage .rating .stars .empty {
-  color: var(--line-2);
-}
-
-.replay-stage .rating-label {
-  color: var(--muted);
-  font-size: 0.8125rem;
 }
 
 /* What the user does next, and doing it. */
@@ -3776,7 +3603,6 @@ html:not(.js) .replay-controls {
 
 @media (prefers-reduced-motion: reduce) {
   .replay-stage .replay-hint,
-  .replay-stage .a2ui-placeholder,
   .chat-typing i {
     animation: none;
   }

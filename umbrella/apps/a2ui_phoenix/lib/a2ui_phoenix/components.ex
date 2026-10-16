@@ -104,7 +104,7 @@ defmodule A2UIPhoenix.Components do
     ~H"""
     <div
       id={Context.dom_id(@ctx, @node)}
-      class={["a2ui-placeholder", "a2ui-#{@kind}"]}
+      class={["a2ui-placeholder", "a2ui-placeholder-#{@kind}"]}
       data-a2ui-id={@node.component_id}
       data-a2ui-type={@node.type}
       aria-busy={if @kind == :pending, do: "true"}
@@ -142,14 +142,18 @@ defmodule A2UIPhoenix.Components do
   attr(:props, :map, required: true)
 
   def validation_errors(assigns) do
+    messages = if invalid?(assigns.props), do: assigns.props["validationErrors"] || [], else: []
+    assigns = assign(assigns, :messages, messages)
+
     ~H"""
-    <div
-      :if={invalid?(@props)}
-      :for={{message, index} <- Enum.with_index(@props["validationErrors"] || [])}
-      id={Context.dom_id(@ctx, @node, "error-#{index}")}
-      class="error a2ui-error-message"
-    >
-      {message}
+    <div :if={@messages != []} class="a2ui-field-errors">
+      <p
+        :for={{message, index} <- Enum.with_index(@messages)}
+        id={Context.dom_id(@ctx, @node, "error-#{index}")}
+        class="a2ui-field-error"
+      >
+        {message}
+      </p>
     </div>
     """
   end

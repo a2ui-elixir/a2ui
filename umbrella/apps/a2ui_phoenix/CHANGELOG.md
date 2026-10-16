@@ -9,8 +9,15 @@ First release.
 - `A2UIPhoenix.Live` and `A2UIPhoenix.Surface`: surfaces in a LiveView, with
   two-way bindings, actions and local UI state.
 - The basic catalog's components (protocol v0.9.1 and v1.0) as function
-  components with ARIA attributes, and a stylesheet that uses the reference
-  web renderer's custom properties.
+  components with ARIA attributes.
+- A design system for them (`priv/static/a2ui_phoenix.css`): tokens named as
+  in the reference web renderers (`--a2ui-color-primary`, type scale, space,
+  radii, shadows, motion, per-component tokens), light and dark through the
+  page's `color-scheme` or the `a2ui-light`/`a2ui-dark` classes, colors
+  derived from the primary color on each surface, one anatomy for every
+  input (label, control, messages of failed checks, read as guidance while
+  the field is empty, `data-a2ui-empty`), states as ARIA attributes, and
+  Material Symbols icons.
 - Components of other catalogs, passed to a surface by type.
 - The MCP catalog: actions that call MCP tools apply what the tools return,
   and `McpApp` embeds MCP Apps in a double-iframe sandbox
@@ -31,4 +38,5 @@ First release.
 - `DateTimeInput` shows a date unless only the time is enabled
   (`A2UIPhoenix.Inputs.date_enabled?/1`).
 - Stylesheet: image sizes per variant, dividers, full-width media, a busy
-  indicator, and Markdown text without outer margins.
+  indicator, Markdown text without outer margins, and a slider whose track
+  fills to its value (`--a2ui-slider-fill`).

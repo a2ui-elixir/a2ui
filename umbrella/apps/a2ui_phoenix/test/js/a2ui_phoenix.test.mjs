@@ -124,6 +124,32 @@ test("openUrl events open http(s), mailto and tel links only", () => {
   assert.deepEqual(plain(env.opened), [["https://example.test/a", "_blank", "noopener,noreferrer"]]);
 });
 
+test("a moving slider fills its track and shows its value at once", () => {
+  const env = browser();
+  const properties = {};
+  const output = {textContent: "2"};
+  const slider = {
+    style: {setProperty: (name, value) => (properties[name] = value)},
+    querySelector: (selector) => (selector === ".a2ui-slider-value" ? output : null),
+  };
+  const input = {
+    classList: {contains: (name) => name === "a2ui-slider-input"},
+    closest: (selector) => (selector === ".a2ui-slider" ? slider : null),
+    min: "0",
+    max: "12",
+    value: "3",
+  };
+
+  for (const listener of env.listeners.input) listener({target: input});
+  assert.equal(properties["--a2ui-slider-fill"], "25%");
+  assert.equal(output.textContent, "3");
+
+  // Other inputs are left alone.
+  const other = {classList: {contains: () => false}, closest: () => slider, value: "9"};
+  for (const listener of env.listeners.input) listener({target: other});
+  assert.equal(output.textContent, "3");
+});
+
 test("mounting loads the sandbox proxy into the frame container", () => {
   const env = browser();
   const {container} = mount(env);

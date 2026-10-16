@@ -8,6 +8,7 @@ defmodule Gallery.MixProject do
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      listeners: [Phoenix.CodeReloader],
       deps: deps()
     ]
   end

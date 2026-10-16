@@ -184,6 +184,7 @@ defmodule SiteWeb.PageTest do
 
     assert "assets/site.css" in links
     assert "assets/a2ui_phoenix.css" in links
+    assert "assets/catalog.css" in links
     assert length(fonts) == 3
 
     for path <- links ++ fonts do
@@ -200,6 +201,7 @@ defmodule SiteWeb.PageTest do
           {"/assets/site.js", "text/javascript"},
           {"/assets/fonts/Geist-Variable.woff2", "font/woff2"},
           {"/assets/a2ui_phoenix.css", "text/css"},
+          {"/assets/catalog.css", "text/css"},
           {"/assets/fonts/MaterialSymbolsOutlined-subset.woff2", "font/woff2"},
           {"/favicon.svg", "image/svg+xml"}
         ] do

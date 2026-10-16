@@ -103,12 +103,13 @@ defmodule A2UIPhoenix.Surface do
     ~H"""
     <div id={@id} class="a2ui-surface" data-a2ui-surface={@surface_id} style={@theme.style}>
       <header :if={@theme.icon || @theme.name} class="a2ui-surface-attribution">
-        <img :if={@theme.icon} src={@theme.icon} alt="" />
-        <span :if={@theme.name}>{@theme.name}</span>
+        <img :if={@theme.icon} class="a2ui-surface-attribution-icon" src={@theme.icon} alt="" />
+        <span :if={@theme.name} class="a2ui-surface-attribution-name">{@theme.name}</span>
       </header>
       <form
         :if={@root}
         id={"#{@id}-form"}
+        class="a2ui-surface-body"
         phx-change="a2ui:input"
         phx-submit="a2ui:submit"
         phx-target={@myself}

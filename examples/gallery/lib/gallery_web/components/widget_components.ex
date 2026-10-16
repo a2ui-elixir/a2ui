@@ -2,7 +2,9 @@ defmodule GalleryWeb.WidgetComponents do
   @moduledoc """
   The components of the gallery's own catalog
   (`priv/catalogs/widgets_catalog.json`): what a host writes for a
-  catalog of its own.
+  catalog of its own. Their classes (`widget-*`) are styled by
+  `priv/static/assets/catalog.css` from the same `--a2ui-*` tokens as the
+  basic components.
   """
 
   use Phoenix.Component
@@ -22,7 +24,7 @@ defmodule GalleryWeb.WidgetComponents do
     assigns = assign(assigns, :tone, tone)
 
     ~H"""
-    <span class={["badge", "badge-" <> @tone]} {@attrs}>{@props["text"]}</span>
+    <span class={["widget-badge", "widget-badge-" <> @tone]} {@attrs}>{@props["text"]}</span>
     """
   end
 
@@ -37,7 +39,7 @@ defmodule GalleryWeb.WidgetComponents do
 
     ~H"""
     <div
-      class="progress"
+      class="widget-progress"
       role="progressbar"
       aria-valuemin="0"
       aria-valuemax="100"
@@ -45,8 +47,13 @@ defmodule GalleryWeb.WidgetComponents do
       aria-label={@attrs["aria-label"] || @props["label"]}
       {Map.delete(@attrs, "aria-label")}
     >
-      <div class="progress-bar" style={"width: #{@percent}%"}></div>
-      <span class="progress-label">{@props["label"]} {@percent} %</span>
+      <div class="widget-progress-head">
+        <span class="widget-progress-label">{@props["label"]}</span>
+        <span class="widget-progress-value">{@percent} %</span>
+      </div>
+      <div class="widget-progress-track">
+        <div class="widget-progress-bar" style={"width: #{@percent}%"}></div>
+      </div>
     </div>
     """
   end
@@ -54,9 +61,9 @@ defmodule GalleryWeb.WidgetComponents do
   @doc "`Panel`: its children under a heading."
   def panel(assigns) do
     ~H"""
-    <section class="panel" {@attrs}>
-      <h3 :if={@props["title"]}>{@props["title"]}</h3>
-      <div class="panel-body">
+    <section class="widget-panel" {@attrs}>
+      <h3 :if={@props["title"]} class="widget-panel-title">{@props["title"]}</h3>
+      <div class="widget-panel-body">
         <Components.child ctx={@ctx} child={@props["children"]} />
       </div>
     </section>

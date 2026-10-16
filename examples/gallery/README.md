@@ -36,6 +36,20 @@ A scenario is a module implementing `Gallery.Scenario` (`lib/gallery/scenarios`)
 the agent's first messages, its replies to what the renderer sends, and its
 controls.
 
+## Design
+
+The pages and the surfaces they show are one design. Surfaces are drawn by
+`a2ui_phoenix.css`, the renderer's design system; the pages are made of the
+gallery's UI kit, `GalleryWeb.CoreComponents` (page header, panels, buttons,
+badges, tabs, the frame a surface is shown in, the message log, chat
+bubbles, callouts), styled by `priv/static/assets/gallery.css` with the same
+`--a2ui-*` tokens. The gallery sets a few of them (the Geist fonts, bundled
+in `priv/static/assets/fonts` under the SIL Open Font License, and its
+primary color) and the page's `color-scheme`, which the header's switch
+turns to light or dark. Icons are Material Symbols, from Google Fonts. The components of the gallery's own catalogs
+(`Rating`, `Badge`, `Progress`, `Panel`) are styled by
+`priv/static/assets/catalog.css`, with the same tokens.
+
 ## Replays for the landing page
 
 The landing page (`../../site`) is static, so it plays recordings instead of
@@ -43,8 +57,9 @@ running the gallery. `mix gallery.replays` makes them: it runs the restaurant
 agent's booking conversation (over A2A, in process), the Streaming scenario
 and the Forms scenario against an `A2UIPhoenix.Session`, renders every surface
 with `A2UIPhoenix.Surface` after each step, and writes the steps with the
-messages that crossed to `../../site/priv/replays.json`, next to a copy of the
-renderer's stylesheet (`--site DIR` writes elsewhere). The recorder lives in
+messages that crossed to `../../site/priv/replays.json`, next to copies of the
+stylesheets they are drawn with, the renderer's and `catalog.css`
+(`--site DIR` writes elsewhere). The recorder lives in
 `test/support/replays` and the task runs in the test environment, where the
 restaurant agent is a dependency.
 

@@ -43,7 +43,7 @@ defmodule GalleryWeb.ScenarioLiveTest do
   test "data: templates, formatting, live quotes and data-model updates", %{conn: conn} do
     {:ok, view, html} = live(conn, "/scenarios/data")
     assert html =~ "3 stocks, prices in EUR."
-    assert html =~ "<em>#3</em>"
+    assert html =~ ~r{class="a2ui-text a2ui-text-caption"[^>]*>#3</span>}
     assert html =~ ~r/€\d{2,3}\.\d\d/
     assert html =~ "Volume 1,204,331"
 
@@ -60,7 +60,7 @@ defmodule GalleryWeb.ScenarioLiveTest do
     note = "#frame-market [data-a2ui-id=note]"
     control(view, "delete_note")
     eventually(view, fn _html -> not has_element?(view, note, "Quotes are simulated") end)
-    assert has_element?(view, "#log .log-entry", "MISSING_DATA_BINDING")
+    assert has_element?(view, "#log .ui-log-entry", "MISSING_DATA_BINDING")
 
     control(view, "reset")
     eventually(view, fn _html -> has_element?(view, note, "Quotes are simulated") end)
@@ -125,17 +125,18 @@ defmodule GalleryWeb.ScenarioLiveTest do
 
   test "custom catalogs: the gallery's components and function", %{conn: conn} do
     {:ok, view, html} = live(conn, "/scenarios/custom")
-    assert html =~ ~s(class="badge badge-info")
+    assert html =~ ~s(class="widget-badge widget-badge-info")
     assert html =~ ">GH</span>"
-    assert html =~ "Sprint 42 %"
+    assert html =~ ~s(<span class="widget-progress-label">Sprint</span>)
+    assert html =~ ~s(<span class="widget-progress-value">42 %</span>)
     assert html =~ "12 tasks done."
-    assert html =~ ~s(class="rating")
+    assert html =~ ~s(class="restaurant-rating")
 
     control(view, "rename")
-    eventually_in(view, "#frame-team .badge", "DV")
+    eventually_in(view, "#frame-team .widget-badge", "DV")
 
     control(view, "advance")
-    eventually(view, &(&1 =~ "Sprint 80 %" and &1 =~ "15 tasks done."))
+    eventually(view, &(&1 =~ ">80 %</span>" and &1 =~ "15 tasks done."))
   end
 
   test "streaming: the surface builds while the answer arrives", %{conn: conn} do

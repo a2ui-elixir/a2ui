@@ -13,14 +13,14 @@ defmodule GalleryWeb.ExamplesLiveTest do
     test "the page lists every example and opens the first", %{conn: conn} do
       {:ok, view, html} = live(conn, "/examples")
       assert html =~ "Complex Layout"
-      assert has_element?(view, ".examples nav a.active", "Complex Layout")
+      assert has_element?(view, ".ui-sidebar a[aria-current=page]", "Complex Layout")
       assert length(Regex.scan(~r/href="\/examples\//, html)) == unquote(length(bundles))
     end
 
     test "an example's action is listed, since no agent is there", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/examples/00_interactive-button")
-      view |> element(".surface-frame button", "Click Me") |> render_click()
-      assert has_element?(view, "#notes .note-action", "button_clicked")
+      view |> element(".ui-frame button", "Click Me") |> render_click()
+      assert has_element?(view, "#notes [data-kind=action]", "button_clicked")
     end
   end
 
@@ -29,10 +29,10 @@ defmodule GalleryWeb.ExamplesLiveTest do
 
     test "#{bundle.name} renders without errors", %{conn: conn} do
       {:ok, view, html} = live(conn, "/examples/" <> @name)
-      assert has_element?(view, ".surface-frame .a2ui-surface")
+      assert has_element?(view, ".ui-frame .a2ui-surface")
       refute html =~ "a2ui-placeholder"
-      refute has_element?(view, "#notes .note-rejected")
-      refute has_element?(view, "#notes .note-error")
+      refute has_element?(view, "#notes [data-kind=rejected]")
+      refute has_element?(view, "#notes [data-kind=error]")
     end
   end
 end

@@ -15,14 +15,24 @@ defmodule Gallery.Replays do
   @doc "The replays (a fresh recording unless given) as the JSON document the site reads."
   def json(replays \\ all()), do: Jason.encode!(%{"replays" => replays}, pretty: true) <> "\n"
 
-  @doc "The renderer's stylesheet, which the site serves next to the replays."
-  def stylesheet,
-    do: Path.join(Application.app_dir(:a2ui_phoenix, "priv/static"), "a2ui_phoenix.css")
+  @doc """
+  The stylesheets the replays are drawn with, which the site serves next
+  to them: the renderer's, and the gallery's for its catalog components.
+  """
+  def stylesheets,
+    do: [
+      Path.join(Application.app_dir(:a2ui_phoenix, "priv/static"), "a2ui_phoenix.css"),
+      Path.join(Application.app_dir(:gallery, "priv/static/assets"), "catalog.css")
+    ]
 
-  @doc "Where the site keeps `json/0` and a copy of `stylesheet/0`, under its directory `site`."
+  @doc """
+  Where the site, under its directory `site`, keeps `json/0` and a copy of
+  each of `stylesheets/0` (a map from each stylesheet to its copy).
+  """
   def targets(site),
     do: %{
       json: Path.join(site, "priv/replays.json"),
-      stylesheet: Path.join(site, "priv/static/assets/a2ui_phoenix.css")
+      stylesheets:
+        Map.new(stylesheets(), &{&1, Path.join(site, "priv/static/assets/" <> Path.basename(&1))})
     }
 end

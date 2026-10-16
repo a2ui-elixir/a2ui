@@ -52,17 +52,17 @@ defmodule A2UIPhoenix.ComponentsTest do
   describe "placeholders" do
     test "an unknown type, a cycle and a type without a renderer" do
       assert render_surface([%{"id" => "root", "component" => "Sparkle"}]) =~
-               ~s(class="a2ui-placeholder a2ui-unknown_type")
+               ~s(class="a2ui-placeholder a2ui-placeholder-unknown_type")
 
       cyclic = render_surface([%{"id" => "root", "component" => "Card", "child" => "root"}])
-      assert cyclic =~ ~s(class="a2ui-placeholder a2ui-cyclic")
+      assert cyclic =~ ~s(class="a2ui-placeholder a2ui-placeholder-cyclic")
 
       unrendered =
         render_surface([%{"id" => "root", "component" => "Divider"}],
           components: %{"Divider" => nil}
         )
 
-      assert unrendered =~ ~s(class="a2ui-placeholder a2ui-unrendered")
+      assert unrendered =~ ~s(class="a2ui-placeholder a2ui-placeholder-unrendered")
       assert unrendered =~ ~s(data-a2ui-type="Divider")
     end
 
@@ -84,8 +84,8 @@ defmodule A2UIPhoenix.ComponentsTest do
           v09: true
         )
 
-      assert html =~ "<h2>Title</h2>"
-      assert html =~ "<em>small</em>"
+      assert html =~ ~r{<span class="a2ui-text a2ui-text-h2"[^>]*><h2>Title</h2></span>}
+      assert html =~ ~r{<span class="a2ui-text a2ui-text-caption"[^>]*>small</span>}
     end
 
     test "media" do
@@ -122,7 +122,10 @@ defmodule A2UIPhoenix.ComponentsTest do
 
       assert html =~ ~s(style="flex: 2; object-fit: scale-down")
       assert html =~ ~s(<path d="M0 0L1 1">)
-      assert html =~ ~r/<i class="material-icons a2ui-icon"[^>]*role="img"[^>]*>star_border<\/i>/
+      assert html =~ ~s(<svg class="a2ui-icon a2ui-icon-svg")
+      assert html =~ ~r/<span class="a2ui-icon"[^>]*role="img"[^>]*>star_border<\/span>/
+      assert html =~ ~s(class="a2ui-image a2ui-image-default")
+      assert html =~ ~s(class="a2ui-divider a2ui-divider-vertical")
       assert html =~ ~s(aria-label="Not starred")
       assert html =~ ~s(poster="/p.png")
       assert html =~ "Episode 1"
@@ -217,7 +220,7 @@ defmodule A2UIPhoenix.ComponentsTest do
           %{"id" => "a", "component" => "Text", "text" => "item"}
         ])
 
-      assert html =~ ~s(class="a2ui-list horizontal")
+      assert html =~ ~s(class="a2ui-list a2ui-list-horizontal")
       assert html =~ "align-items: center"
     end
   end

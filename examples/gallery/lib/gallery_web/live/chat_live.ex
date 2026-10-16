@@ -232,46 +232,59 @@ defmodule GalleryWeb.ChatLive do
       note: nil
     }
 
-  defp log(socket, entries),
-    do: update(socket, :log, &Enum.take(Enum.reverse(entries) ++ &1, @max_log))
+  # Each entry has an id, so that the log keeps what is expanded as it grows.
+  defp log(socket, entries) do
+    entries = Enum.map(entries, &Map.put(&1, :id, System.unique_integer([:positive, :monotonic])))
+    update(socket, :log, &Enum.take(Enum.reverse(entries) ++ &1, @max_log))
+  end
 
   # -- the page -----------------------------------------------------------------------
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="chat">
-      <section class="conversation">
-        <div class="scenario-head" id="chat-head">
-          <h1>{(@card && @card["name"]) || "Restaurant agent"}</h1>
-          <p :if={@card} class="summary">{@card["description"]}</p>
-          <p class="status">
-            <span :if={@card}>
-              {@agent_url} · A2A {@card["protocolVersion"]} · extensions: {@card
-              |> A2A.advertised_extensions()
-              |> Enum.join(", ")}
-            </span>
-            <span :if={@request}> · the agent is answering…</span>
-          </p>
-          <div :if={@problem} class="problem">
+    <div class="ui-chat">
+      <.panel class="ui-conversation">
+        <div class="ui-conversation-head" id="chat-head">
+          <span class="ui-agent-avatar"><.icon name="chat" /></span>
+          <div class="ui-agent-info">
+            <h1 class="ui-agent-name">{(@card && @card["name"]) || "Restaurant agent"}</h1>
+            <p :if={@card && @card["description"]} class="ui-agent-description">
+              {@card["description"]}
+            </p>
+            <p class="ui-agent-meta">
+              <code>{@agent_url}</code>
+              <span :if={@card}>A2A {@card["protocolVersion"]}</span>
+              <.badge :for={extension <- extensions(@card)} tone="accent">{extension}</.badge>
+            </p>
+          </div>
+          <.status :if={@problem} tone="danger">unreachable</.status>
+          <.status :if={!@problem and @request != nil} tone="busy">the agent is answering…</.status>
+          <.status :if={!@problem and @request == nil and @card != nil} tone="success">
+            connected
+          </.status>
+        </div>
+
+        <div class="ui-transcript" id="transcript" phx-hook="ScrollToEnd">
+          <.callout :if={@problem} tone="warning" id="problem" title="The agent is not running">
             <p>{@problem}</p>
             <p>
               Start it with <code>cd examples/restaurant_agent &amp;&amp; mix run --no-halt</code>, then
             </p>
-            <button phx-click="retry" class="control">Try again</button>
-          </div>
-        </div>
-        <div class="transcript" id="transcript" phx-hook="ScrollToEnd">
+            <div><.button size="sm" icon="replay" phx-click="retry">Try again</.button></div>
+          </.callout>
           <%= for item <- @transcript do %>
-            <p :if={item.role == :user} class="bubble user" id={"t-#{item.key}"}>{item.text}</p>
-            <div :if={item.role == :agent} class="bubble agent" id={"t-#{item.key}"}>
+            <.bubble :if={item.role == :user} role="user" id={"t-#{item.key}"}>{item.text}</.bubble>
+            <.bubble :if={item.role == :agent} role="agent" id={"t-#{item.key}"}>
               {Phoenix.HTML.raw(Markdown.to_html(item.text))}
-            </div>
-            <p :if={item.role == :system} class="bubble system" id={"t-#{item.key}"}>{item.text}</p>
-            <div
+            </.bubble>
+            <.bubble :if={item.role == :system} role="system" id={"t-#{item.key}"}>
+              {item.text}
+            </.bubble>
+            <.surface_frame
               :if={item.role == :surface and Session.surface(@a2ui, item.text) != nil}
-              class="surface-frame"
               id={"frame-" <> item.text}
+              surface_id={item.text}
             >
               <.live_component
                 module={A2UIPhoenix.Surface}
@@ -281,39 +294,64 @@ defmodule GalleryWeb.ChatLive do
                 components={RestaurantComponents.components()}
                 markdown={&Markdown.to_html/1}
               />
-            </div>
+            </.surface_frame>
           <% end %>
-          <p :if={@transcript == []} class="bubble system" id="t-empty">
+          <.bubble :if={@transcript == [] and @problem == nil} role="system" id="t-empty">
             Ask for a cuisine to see restaurants, then book a table.
-          </p>
+          </.bubble>
         </div>
-        <form class="composer" id="composer" phx-submit="send">
-          <input
-            type="text"
-            name="text"
-            placeholder="Ask the agent…"
-            autocomplete="off"
-            disabled={@problem != nil}
-          />
-          <button type="submit" class="control" disabled={@problem != nil}>Send</button>
-        </form>
-        <div class="controls" id="suggestions">
-          <button
-            :for={text <- @suggestions}
-            phx-click="suggest"
-            phx-value-text={text}
-            class="control secondary"
-            disabled={@problem != nil}
-          >
-            {text}
-          </button>
+
+        <div class="ui-composer">
+          <div class="ui-suggestions" id="suggestions">
+            <.button
+              :for={text <- @suggestions}
+              size="sm"
+              variant="ghost"
+              phx-click="suggest"
+              phx-value-text={text}
+              disabled={@problem != nil}
+            >
+              {text}
+            </.button>
+          </div>
+          <form id="composer" phx-submit="send">
+            <input
+              type="text"
+              name="text"
+              class="ui-input"
+              placeholder="Ask the agent…"
+              aria-label="Your message"
+              autocomplete="off"
+              disabled={@problem != nil}
+            />
+            <.button type="submit" variant="primary" icon="send" disabled={@problem != nil}>
+              Send
+            </.button>
+          </form>
         </div>
-      </section>
-      <aside class="inspector">
-        <nav class="tabs"><span class="tab active">Messages</span></nav>
-        <.message_log id="log" entries={@log} />
-      </aside>
+      </.panel>
+
+      <.panel class="ui-inspector">
+        <:head>
+          <h2 class="ui-panel-title">Messages</h2>
+          <.badge>{length(@log)}</.badge>
+        </:head>
+        <div class="ui-inspector-body">
+          <.message_log id="log" entries={@log} />
+          <.empty :if={@log == []}>
+            What crosses between the agent and the renderer shows here.
+          </.empty>
+        </div>
+      </.panel>
     </div>
     """
   end
+
+  defp extensions(nil), do: []
+
+  defp extensions(card),
+    do: card |> A2A.advertised_extensions() |> Enum.map(&extension_label/1)
+
+  # The A2UI extension's URI ends with its protocol version.
+  defp extension_label(uri), do: uri |> String.split("/") |> Enum.take(-2) |> Enum.join("/")
 end

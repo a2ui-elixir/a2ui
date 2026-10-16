@@ -148,16 +148,20 @@ defmodule Site.ContentTest do
   # The icons in assets/fonts/MaterialSymbolsOutlined-subset.woff2 (see the README).
   @icon_subset ~w(check)
 
-  test "the replays come from the examples, with the renderer's stylesheet and icons" do
+  test "the replays come from the examples, with their stylesheets and icons" do
     for replay <- Site.Replays.all() do
       assert File.dir?(Path.join(@root, replay["source"])), replay["source"]
     end
 
-    stylesheet = "umbrella/apps/a2ui_phoenix/priv/static/a2ui_phoenix.css"
+    for stylesheet <- [
+          "umbrella/apps/a2ui_phoenix/priv/static/a2ui_phoenix.css",
+          "examples/gallery/priv/static/assets/catalog.css"
+        ] do
+      copy = Path.join(@root, "site/priv/static/assets/" <> Path.basename(stylesheet))
 
-    assert File.read!(Path.join(@root, "site/priv/static/assets/a2ui_phoenix.css")) ==
-             File.read!(Path.join(@root, stylesheet)),
-           "the renderer's stylesheet changed: run mix gallery.replays in examples/gallery"
+      assert File.read!(copy) == File.read!(Path.join(@root, stylesheet)),
+             "#{stylesheet} changed: run mix gallery.replays in examples/gallery"
+    end
 
     html =
       for replay <- Site.Replays.all(),
@@ -167,7 +171,7 @@ defmodule Site.ContentTest do
 
     icons =
       for page <- html,
-          [_, name] <- Regex.scan(~r/class="material-icons[^"]*"[^>]*>([^<]+)</, page),
+          [_, name] <- Regex.scan(~r/class="a2ui-icon"[^>]*>([^<]+)</, page),
           uniq: true,
           do: String.trim(name)
 

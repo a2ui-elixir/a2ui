@@ -19,12 +19,12 @@ end
 
 The package ships two assets in `priv/static`:
 
-- `a2ui_phoenix.css` lays out the basic components. It uses the
-  `--a2ui-*` custom properties of the reference web renderer for colors and
-  spacing, so you can theme it by setting those properties.
-- `a2ui_phoenix.js` opens the URLs that `openUrl` actions ask for, and holds
-  the hook of the MCP catalog's `McpApp` component (see
-  [MCP tools and apps](#mcp-tools-and-apps)).
+- `a2ui_phoenix.css`, the design system of the basic and MCP catalogs:
+  every component, in light and dark, drawn with `--a2ui-*` custom
+  properties that a theme sets (see [Styling and themes](#styling-and-themes)).
+- `a2ui_phoenix.js` opens the URLs that `openUrl` actions ask for, fills a
+  slider's track while it moves, and holds the hook of the MCP catalog's
+  `McpApp` component (see [MCP tools and apps](#mcp-tools-and-apps)).
 
 In a project created with `mix phx.new`, import them from your assets:
 
@@ -38,9 +38,19 @@ import "a2ui_phoenix/priv/static/a2ui_phoenix.js"
 @import "../../deps/a2ui_phoenix/priv/static/a2ui_phoenix.css";
 ```
 
-The basic `Icon` component renders Material Icons ligatures
-(`<i class="material-icons">`). Load that font, for example from Google
-Fonts, for icons to show.
+The basic `Icon` component draws a Material Symbols ligature
+(`<span class="a2ui-icon">`). Load the font for icons to show, for example
+from Google Fonts:
+
+```html
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+/>
+```
+
+Another font with the same ligatures works too: name it in
+`--a2ui-icon-font-family`.
 
 ## The session
 
@@ -331,13 +341,86 @@ component, and one that needs a user gesture (`requiresUserActivation`, as
 `openUrl` does) runs from an action only. Elsewhere either is an expression
 error, reported as a diagnostic.
 
-## Themes
+## Styling and themes
+
+`a2ui_phoenix.css` draws every component with the same tokens: CSS custom
+properties, named as in the reference web renderers. Their defaults are
+declared with `:where(:root)`, so any rule of the page wins over them, and a
+theme is a few declarations:
+
+```css
+:root {
+  --a2ui-color-primary: #0e7490;
+  --a2ui-font-family: "Inter", system-ui, sans-serif;
+  --a2ui-border-radius: 0.375rem;
+}
+```
+
+| Tokens | What they set |
+|---|---|
+| `--a2ui-color-primary` | The accent: primary buttons, checked inputs, selected chips, the active tab, the slider, links, focus rings. |
+| `--a2ui-color-on-background`, `--a2ui-color-background` | The text of a surface; the color under surfaces, for the host and components of its own (surfaces are transparent). |
+| `--a2ui-color-surface`, `--a2ui-color-on-surface`, `--a2ui-color-surface-muted` | Cards, dialogs and chips; the text on them; quiet fills (code, the slider's track, placeholders). |
+| `--a2ui-color-muted`, `--a2ui-color-subtle` | Secondary text (captions, guidance); the quietest (input placeholders, list markers). |
+| `--a2ui-color-border`, `--a2ui-color-border-strong` | Dividers and the edges of cards; the edges of controls. |
+| `--a2ui-color-input`, `--a2ui-color-on-input` | Text fields, date and time inputs, checkboxes and radios. |
+| `--a2ui-color-secondary`, `--a2ui-color-on-secondary` | Default buttons. |
+| `--a2ui-color-error`, `--a2ui-color-success`, `--a2ui-color-warning` | Failed checks; status colors for components of your own. |
+| `--a2ui-font-family`, `--a2ui-font-family-title`, `--a2ui-font-family-monospace` | Text (the page's, unless set), headings, code and numbers. |
+| `--a2ui-font-size`, `--a2ui-font-size-xs` … `--a2ui-font-size-2xl` | The type scale (`xs`, `s`, `m`, `l`, `xl`, `2xl`); `m` is `--a2ui-font-size`, the body size. |
+| `--a2ui-grid-base`, `--a2ui-spacing-xs` … `--a2ui-spacing-xl`, `--a2ui-gap` | Space, on a 0.5rem grid; `--a2ui-gap` separates the children of rows, columns and lists. |
+| `--a2ui-border-width`, `--a2ui-border-radius` (and `-s`, `-l`, `-xl`), `--a2ui-control-height` | Shape, and the height of buttons and text fields. |
+| `--a2ui-shadow-s`, `--a2ui-shadow-m`, `--a2ui-shadow-l`, `--a2ui-duration`, `--a2ui-easing` | Depth and motion. |
+
+The colors that come from the primary color (its hover shade, its tint,
+primary text that keeps its contrast, focus rings, and the text on it, white
+or black, whichever reads) are computed on each surface, so a new
+`--a2ui-color-primary` changes them too. Set `--a2ui-color-on-primary`,
+`--a2ui-color-primary-hover`, `--a2ui-color-primary-soft` or
+`--a2ui-color-primary-text` to choose them instead. Browsers without
+relative colors put white text on the primary color.
+
+Component tokens refine one component, for example
+`--a2ui-button-border-radius`, `--a2ui-card-padding`,
+`--a2ui-textfield-border-radius`, `--a2ui-icon-size`,
+`--a2ui-image-avatar-size` or `--a2ui-modal-border-radius`; the stylesheet
+names each one where it uses it.
+
+### Light and dark
+
+Colors are `light-dark()` pairs that follow the page's `color-scheme`. Set
+`color-scheme: light dark` on the page to follow the system, or `light` or
+`dark` to keep one; the `a2ui-light` and `a2ui-dark` classes choose for the
+surfaces inside the element that has them. The stylesheet leaves the page's
+color scheme to the page.
+
+### Markup
+
+Each component has a root class named after it (`a2ui-button`,
+`a2ui-text-field`, `a2ui-choice-picker`, …) and a class for its variant
+(`a2ui-button-primary`, `a2ui-text-h2`, `a2ui-image-avatar`,
+`a2ui-list-horizontal`). States are ARIA attributes, not classes:
+`aria-invalid` on a control whose checks fail, `aria-pressed` on a selected
+chip, `aria-selected` on the active tab, `aria-busy` on a component that
+waits for an agent function.
+
+The input components (`TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
+`DateTimeInput`) share one anatomy: an `a2ui-field` element that holds the
+label (`a2ui-field-label`), the control, and the messages of its failed
+checks (`a2ui-field-errors`, an `a2ui-field-error` each). While a field
+holds no value (an empty text, an unchecked box, no choice) it has
+`data-a2ui-empty`, and its messages read as guidance instead of errors, so
+a form does not open in red. A slider sets `--a2ui-slider-fill`, the filled
+part of its track, from its value, and `a2ui_phoenix.js` keeps it in step
+while the slider moves.
+
+### Surface themes
 
 A v0.9 surface may carry a theme. `A2UIPhoenix.Surface` sets its
 `primaryColor` (a `#rrggbb` color) as the `--a2ui-color-primary` custom
-property of the surface, which the stylesheet uses for primary buttons and
-active states, and shows the agent's `agentDisplayName` and `iconUrl` (an
-`http` or `https` URL) above the surface. Protocol v1.0 has no surface theme.
+property of the surface, which restyles everything drawn with the primary
+color, and shows the agent's `agentDisplayName` and `iconUrl` (an `http` or
+`https` URL) above the surface. Protocol v1.0 has no surface theme.
 
 ## MCP tools and apps
 
@@ -496,6 +579,20 @@ An input's value reaches the data model only when the property it names is
 bound to a data path, as in `"text" => %{"@path" => "/note"}`. The submitted
 string is written as it is. `A2UIPhoenix.Inputs` shows how the basic
 components convert theirs.
+
+Styled with the same tokens as the basic components, your components match
+them, in light and dark and under any theme:
+
+```css
+.badge {
+  padding: 0.125rem var(--a2ui-spacing-m);
+  border: var(--a2ui-border-width) solid var(--a2ui-color-border);
+  border-radius: 999px;
+  background: var(--a2ui-color-surface-muted);
+  color: var(--a2ui-color-on-surface);
+  font-size: var(--a2ui-font-size-xs);
+}
+```
 
 ## Streaming to other renderers
 

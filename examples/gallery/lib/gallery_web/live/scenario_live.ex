@@ -184,8 +184,11 @@ defmodule GalleryWeb.ScenarioLive do
       note: note
     }
 
-  defp log(socket, entries),
-    do: update(socket, :log, &Enum.take(Enum.reverse(entries) ++ &1, @max_log))
+  # Each entry has an id, so that the log keeps what is expanded as it grows.
+  defp log(socket, entries) do
+    entries = Enum.map(entries, &Map.put(&1, :id, System.unique_integer([:positive, :monotonic])))
+    update(socket, :log, &Enum.take(Enum.reverse(entries) ++ &1, @max_log))
+  end
 
   # -- the page ---------------------------------------------------------------------
 
@@ -220,85 +223,116 @@ defmodule GalleryWeb.ScenarioLive do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :surfaces, Session.surfaces(assigns.a2ui))
+    assigns =
+      assign(assigns,
+        surfaces: Session.surfaces(assigns.a2ui),
+        number: number(assigns.scenario)
+      )
 
     ~H"""
-    <div class="scenario">
-      <section class="stage">
-        <div class="scenario-head" id="scenario-head">
-          <h1>{@scenario.title()}</h1>
-          <p class="summary">{@scenario.summary()}</p>
-          <ul class="chips">
-            <li :for={feature <- @scenario.features()}>{feature}</li>
-          </ul>
-          <div class="controls">
-            <button
+    <.page_header id="scenario-head">
+      <:eyebrow>
+        <.link navigate="/"><.icon name="arrow-left" />Scenarios</.link>
+        <span aria-hidden="true">/</span> {@number}
+      </:eyebrow>
+      <:title>{@scenario.title()}</:title>
+      <p>{@scenario.summary()}</p>
+      <.tags items={@scenario.features()} />
+      <:actions>
+        <.button variant="secondary" icon="replay" phx-click="restart">Start over</.button>
+      </:actions>
+    </.page_header>
+
+    <div class="ui-workbench">
+      <section class="ui-stage" aria-label="What the renderer shows">
+        <div :if={@scenario.controls() != []} class="ui-toolbar" id="controls">
+          <span class="ui-toolbar-label"><.icon name="bolt" />Agent</span>
+          <div class="ui-toolbar-actions">
+            <.button
               :for={{id, label} <- @scenario.controls()}
+              size="sm"
               phx-click="control"
               phx-value-id={id}
-              class="control"
             >
               {label}
-            </button>
-            <button phx-click="restart" class="control secondary">Start over</button>
+            </.button>
           </div>
         </div>
-        <%!-- Always there, so that the first bubble does not make the DOM
-             patch move the surfaces: moving an iframe reloads it, and an
-             embedded MCP App would start over. --%>
-        <div class="said" id="said" hidden={@said == []}>
-          <p :for={text <- Enum.reverse(@said)} class="bubble agent">{text}</p>
-        </div>
-        <div class="surfaces" id="surfaces">
-          <div :for={surface <- @surfaces} class="surface-frame" id={"frame-" <> surface.id}>
-            <div class="surface-id">{surface.id} <span class="version">{surface.version}</span></div>
-            <.live_component
-              module={A2UIPhoenix.Surface}
-              id={"surface-" <> surface.id}
-              session={@a2ui}
+        <.canvas id="stage">
+          <%!-- Always there, so that the first bubble does not make the DOM
+               patch move the surfaces: moving an iframe reloads it, and an
+               embedded MCP App would start over. --%>
+          <div class="ui-said" id="said" hidden={@said == []}>
+            <.bubble :for={text <- Enum.reverse(@said)} role="agent">{text}</.bubble>
+          </div>
+          <div class="ui-surfaces" id="surfaces">
+            <.surface_frame
+              :for={surface <- @surfaces}
+              id={"frame-" <> surface.id}
               surface_id={surface.id}
-              components={Map.merge(RestaurantComponents.components(), @scenario.components())}
-              markdown={&Markdown.to_html/1}
-            />
+              version={surface.version}
+            >
+              <.live_component
+                module={A2UIPhoenix.Surface}
+                id={"surface-" <> surface.id}
+                session={@a2ui}
+                surface_id={surface.id}
+                components={Map.merge(RestaurantComponents.components(), @scenario.components())}
+                markdown={&Markdown.to_html/1}
+              />
+            </.surface_frame>
+            <.empty :if={@surfaces == []}>No surfaces yet.</.empty>
           </div>
-          <p :if={@surfaces == []} class="empty">No surfaces.</p>
-        </div>
+        </.canvas>
       </section>
-      <aside class="inspector">
-        <nav class="tabs">
-          <button
-            :for={
-              {tab, label} <- [
-                {"messages", "Messages"},
-                {"data", "Data models"},
-                {"capabilities", "Capabilities"},
-                {"script", "Script"}
-              ]
-            }
-            phx-click="tab"
-            phx-value-tab={tab}
-            class={["tab", @tab == tab && "active"]}
-          >
-            {label}
-          </button>
-        </nav>
-        <.message_log :if={@tab == "messages"} id="log" entries={@log} />
-        <div :if={@tab == "data"} class="data-models">
-          <div :for={surface <- @surfaces}>
-            <h3>{surface.id}</h3>
-            <pre>{pretty(surface.data_model.data)}</pre>
+
+      <.panel class="ui-inspector">
+        <:head>
+          <.tabs
+            label="Inspector"
+            active={@tab}
+            tabs={[
+              {"messages", "Messages"},
+              {"data", "Data models"},
+              {"capabilities", "Capabilities"},
+              {"script", "Script"}
+            ]}
+          />
+          <.badge :if={@tab == "messages"}>{length(@log)}</.badge>
+        </:head>
+        <div class="ui-inspector-body">
+          <.message_log :if={@tab == "messages"} id="log" entries={@log} />
+          <.empty :if={@tab == "messages" and @log == []}>No messages yet.</.empty>
+          <div :if={@tab == "data"} class="data-models">
+            <div :for={surface <- @surfaces} class="ui-model">
+              <p class="ui-model-title">
+                {surface.id}
+                <.badge>{surface.version}</.badge>
+              </p>
+              <.code code={pretty(surface.data_model.data)} />
+            </div>
+            <.empty :if={@surfaces == []}>No surfaces, so no data models.</.empty>
           </div>
+          <div :if={@tab == "capabilities"} class="data-models">
+            <p class="ui-inspector-note">
+              What this renderer tells the agent it supports, with each catalog inline, as it
+              travels in the transport's metadata.
+            </p>
+            <.code code={pretty(capabilities(@a2ui))} class="ui-model-code" />
+          </div>
+          <.code
+            :if={@tab == "script"}
+            code={@scenario.script() || pretty(@scenario.messages())}
+            class={["ui-model-code", @scenario.script() && "ui-code-wrap"]}
+          />
         </div>
-        <div :if={@tab == "capabilities"} class="data-models">
-          <p class="note">
-            What this renderer tells the agent it supports, with each catalog inline, as it
-            travels in the transport's metadata.
-          </p>
-          <pre>{pretty(capabilities(@a2ui))}</pre>
-        </div>
-        <pre :if={@tab == "script"} class="script">{@scenario.script() || pretty(@scenario.messages())}</pre>
-      </aside>
+      </.panel>
     </div>
     """
+  end
+
+  defp number(scenario) do
+    index = Enum.find_index(Scenario.all(), &(&1 == scenario)) || 0
+    index |> Kernel.+(1) |> Integer.to_string() |> String.pad_leading(2, "0")
   end
 end

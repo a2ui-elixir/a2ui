@@ -7,9 +7,9 @@ defmodule Mix.Tasks.Gallery.Replays do
 
       mix gallery.replays [--site DIR]
 
-  Writes `priv/replays.json` and a copy of the renderer's stylesheet
-  (`priv/static/assets/a2ui_phoenix.css`) into the site, `../../site`
-  unless `--site` says otherwise. It runs in the test environment, where
+  Writes `priv/replays.json` and copies of the stylesheets the replays are
+  drawn with (`priv/static/assets/a2ui_phoenix.css` and `catalog.css`)
+  into the site, `../../site` unless `--site` says otherwise. It runs in the test environment, where
   the restaurant agent is a dependency of the gallery.
   """
 
@@ -25,10 +25,13 @@ defmodule Mix.Tasks.Gallery.Replays do
 
     File.mkdir_p!(Path.dirname(targets.json))
     File.write!(targets.json, Gallery.Replays.json())
-    File.mkdir_p!(Path.dirname(targets.stylesheet))
-    File.cp!(Gallery.Replays.stylesheet(), targets.stylesheet)
 
-    for path <- [targets.json, targets.stylesheet],
+    for {source, copy} <- targets.stylesheets do
+      File.mkdir_p!(Path.dirname(copy))
+      File.cp!(source, copy)
+    end
+
+    for path <- [targets.json | Map.values(targets.stylesheets)],
         do: Mix.shell().info("* wrote #{Path.relative_to_cwd(path)}")
   end
 end

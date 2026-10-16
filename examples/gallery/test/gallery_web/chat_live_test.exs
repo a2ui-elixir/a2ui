@@ -35,7 +35,7 @@ defmodule GalleryWeb.ChatLiveTest do
 
     view |> element("#suggestions button", "Find Italian restaurants") |> render_click()
     eventually_in(view, "#transcript", "Trattoria Roma")
-    assert has_element?(view, "#transcript .rating")
+    assert has_element?(view, "#transcript .restaurant-rating")
 
     [book | _] = ids_of(view, "#transcript button", "Book a table")
     view |> element("#" <> book) |> render_click()
@@ -53,14 +53,14 @@ defmodule GalleryWeb.ChatLiveTest do
 
     eventually_in(view, "#transcript", "Table booked")
     assert has_element?(view, "#transcript", "Ada Lovelace, we expect you at Trattoria Roma")
-    assert has_element?(view, "#log .log-entry", "rendererFunctionResponse")
-    assert has_element?(view, "#log .log-entry", "agentFunctionResponse")
+    assert has_element?(view, "#log .ui-log-entry", "rendererFunctionResponse")
+    assert has_element?(view, "#log .ui-log-entry", "agentFunctionResponse")
   end
 
   test "typing a message works like a suggestion", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/chat")
     view |> form("#composer", %{"text" => "Something Japanese, please"}) |> render_submit()
-    assert has_element?(view, "#transcript .bubble.user", "Something Japanese, please")
+    assert has_element?(view, "#transcript .ui-bubble-user", "Something Japanese, please")
     eventually_in(view, "#transcript", "Japanese restaurants near you")
   end
 
@@ -69,7 +69,7 @@ defmodule GalleryWeb.ChatLiveTest do
     on_exit(fn -> Application.put_env(:gallery, :agent_url, url) end)
 
     {:ok, view, _html} = live(conn, "/chat")
-    assert has_element?(view, ".problem", "does not answer")
+    assert has_element?(view, "#problem", "does not answer")
     assert has_element?(view, "#composer input[disabled]")
   end
 end

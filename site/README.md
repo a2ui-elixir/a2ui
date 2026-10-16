@@ -25,12 +25,16 @@ static host, under any path, or opened from disk.
 | `lib/site_web/components.ex` | Icons, component wireframes, section headings, code panels. |
 | `lib/site_web/code.ex` | The syntax highlighter for the code samples. |
 | `lib/site/static.ex`, `lib/mix/tasks/site.build.ex` | The static export. |
-| `priv/static/assets/` | The stylesheet (light and dark themes), the script, the Geist fonts (SIL Open Font License, `fonts/LICENSE-OFL.txt`), the renderer's stylesheet `a2ui_phoenix.css` (copied by `mix gallery.replays`) and a subset of Material Symbols with the icons the replays show (Apache License 2.0, `fonts/LICENSE-Apache-2.0.txt`). |
+| `priv/static/assets/` | The stylesheet (light and dark themes), the script, the Geist fonts (SIL Open Font License, `fonts/LICENSE-OFL.txt`), the stylesheets the replays are drawn with, the renderer's `a2ui_phoenix.css` and the gallery's `catalog.css` (copied by `mix gallery.replays`), and a subset of Material Symbols with the icons the replays show (Apache License 2.0, `fonts/LICENSE-Apache-2.0.txt`). |
 
 The script only enhances the page: the theme switch, the code tabs, the copy
 buttons, the replay of the opening animation and the data model it binds, and
 the player of the recorded runs. Without it, every section and every code
 sample is still there, and the player shows its first step.
+
+The replays are themed like the rest of the page: the `.replay-stage` rule in
+`site.css` sets the renderer's `--a2ui-*` tokens (colors, fonts) from the
+page's own, and styles no component.
 
 A replay that shows an icon the subset lacks fails the tests. The subset comes
 from the Google Fonts CSS API with the icons' names, for example

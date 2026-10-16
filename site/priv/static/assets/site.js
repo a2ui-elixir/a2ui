@@ -741,8 +741,10 @@
 
       if (element.type === "range") {
         var to = Number(move.value);
-        var container = element.closest(".a2ui-slider-container");
-        var output = container && container.querySelector(".a2ui-slider-value");
+        var slider = element.closest(".a2ui-slider");
+        var output = slider && slider.querySelector(".a2ui-slider-value");
+        var min = Number(element.min || 0);
+        var max = Number(element.max || 100);
         var slide = function () {
           var value = Number(element.value);
           if (value === to) {
@@ -751,6 +753,10 @@
           }
           element.value = value + (to > value ? 1 : -1);
           if (output) output.textContent = element.value;
+          if (slider && max > min) {
+            var fill = ((Number(element.value) - min) / (max - min)) * 100;
+            slider.style.setProperty("--a2ui-slider-fill", Math.round(fill * 100) / 100 + "%");
+          }
           later(slide, 90);
         };
         later(slide, 300);

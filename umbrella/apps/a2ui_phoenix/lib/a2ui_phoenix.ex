@@ -17,6 +17,7 @@ defmodule A2UIPhoenix do
 
   No global processes: state lives in the host's LiveView assigns.
   `priv/static/a2ui_phoenix.js` opens the URLs `openUrl` actions ask for,
-  and `priv/static/a2ui_phoenix.css` lays out the basic components.
+  and `priv/static/a2ui_phoenix.css` draws the components, in light and
+  dark, themed by `--a2ui-*` custom properties (see the guide).
   """
 end

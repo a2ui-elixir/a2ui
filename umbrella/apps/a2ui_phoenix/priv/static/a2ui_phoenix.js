@@ -3,6 +3,8 @@
 //   * opens the URL an A2UI `openUrl` action asks for: A2UIPhoenix.Live
 //     pushes it as the "a2ui:open_url" event, which LiveView dispatches on
 //     window with a "phx:" prefix;
+//   * keeps a Slider's filled track and value in step with its thumb while
+//     it moves, before the server renders them;
 //   * the `A2UIMcpApp` hook, the host side of the MCP Apps bridge of the
 //     MCP catalog's `McpApp` component (A2UIPhoenix.Components.MCP).
 //
@@ -37,6 +39,25 @@
 
   window.addEventListener("phx:a2ui:open_url", (event) => {
     openUrl(event.detail && event.detail.url, URL_SCHEMES);
+  });
+
+  // -- Slider -------------------------------------------------------------------
+
+  window.addEventListener("input", (event) => {
+    const input = event.target;
+    if (!input || !input.classList || !input.classList.contains("a2ui-slider-input")) return;
+
+    const slider = input.closest(".a2ui-slider");
+    if (!slider) return;
+
+    const min = Number(input.min || 0);
+    const max = Number(input.max || 100);
+    const value = Math.min(Math.max(Number(input.value), min), max);
+    const fill = max > min ? ((value - min) / (max - min)) * 100 : 0;
+    slider.style.setProperty("--a2ui-slider-fill", Math.round(fill * 100) / 100 + "%");
+
+    const output = slider.querySelector(".a2ui-slider-value");
+    if (output) output.textContent = input.value;
   });
 
   // -- MCP Apps -----------------------------------------------------------------

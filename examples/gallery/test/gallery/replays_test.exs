@@ -9,14 +9,16 @@ defmodule Gallery.ReplaysTest do
     %{replays: Gallery.Replays.all()}
   end
 
-  test "the site holds a fresh recording and the renderer's stylesheet", %{replays: replays} do
+  test "the site holds a fresh recording and its stylesheets", %{replays: replays} do
     targets = Gallery.Replays.targets(@site)
 
     assert File.read!(targets.json) == Gallery.Replays.json(replays),
            "the replays changed: run mix gallery.replays"
 
-    assert File.read!(targets.stylesheet) == File.read!(Gallery.Replays.stylesheet()),
-           "the renderer's stylesheet changed: run mix gallery.replays"
+    for {source, copy} <- targets.stylesheets do
+      assert File.read!(copy) == File.read!(source),
+             "#{Path.basename(source)} changed: run mix gallery.replays"
+    end
   end
 
   test "what each move clicks or types into is on the surfaces of its step", %{replays: replays} do
