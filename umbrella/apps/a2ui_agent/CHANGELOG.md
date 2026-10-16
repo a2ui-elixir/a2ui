@@ -16,6 +16,13 @@ First release.
   decompiler back, written as the reference SDKs write them.
 - Skills (`A2UIAgent.Skill`, `A2UIAgent.SkillGenerator`): a format's prompt
   packaged as one skill or as a core skill and one skill per catalog.
+- A component builder (`A2UIAgent.Builder`, with a function per basic
+  component in `A2UIAgent.Builder.Basic`): trees flattened into component
+  lists with the reference's id scheme, completed with the catalog's
+  defaults and checked against it, and packaged as messages.
+- Macros (`A2UIAgent.Macro`, `A2UIAgent.MacroExpander`): components the
+  model writes that expand into catalog components, an inference catalog
+  that adds them to the base catalog, and their catalog schemas.
 - `A2UIAgent.PayloadValidator` and `A2UIAgent.BlockLexer`.
 - A2A: A2UI parts, extension negotiation, the `message/send` and
   `message/stream` methods (`A2UIAgent.A2A.Server`), and a plug that serves

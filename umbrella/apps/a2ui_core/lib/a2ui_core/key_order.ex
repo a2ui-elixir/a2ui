@@ -85,14 +85,17 @@ defmodule A2UICore.KeyOrder do
 
   @doc """
   Sets `key` to `value`: in place when the object has the key, else as
-  its last key.
+  its last key. A map is updated with `Map.put/3`.
   """
   @spec put(OrderedObject.t(), String.t(), term()) :: OrderedObject.t()
+  @spec put(map(), String.t(), term()) :: map()
   def put(%OrderedObject{values: values} = object, key, value) do
     if List.keymember?(values, key, 0),
       do: %{object | values: List.keyreplace(values, key, 0, {key, value})},
       else: %{object | values: values ++ [{key, value}]}
   end
+
+  def put(%{} = map, key, value), do: Map.put(map, key, value)
 
   @doc """
   Sets `key` to `value` unless the object has the key.
@@ -103,11 +106,14 @@ defmodule A2UICore.KeyOrder do
   end
 
   @doc """
-  Removes `key`.
+  Removes `key` from an ordered object or map.
   """
   @spec delete(OrderedObject.t(), String.t()) :: OrderedObject.t()
+  @spec delete(map(), String.t()) :: map()
   def delete(%OrderedObject{values: values} = object, key),
     do: %{object | values: List.keydelete(values, key, 0)}
+
+  def delete(%{} = map, key), do: Map.delete(map, key)
 
   @doc """
   Whether an ordered object or map has no keys.

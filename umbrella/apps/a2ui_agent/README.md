@@ -53,6 +53,10 @@ For Express, pass `format: A2UIAgent.Express` to `Generator.new/2` (every
 request) or `Generator.create_processor/3` (one request). Express responses
 are parsed once they are complete.
 
+Components can also be built in Elixir (`A2UIAgent.Builder`), and macros
+(`A2UIAgent.Macro`, `A2UIAgent.MacroExpander`) give the model components of
+your own that expand into the catalog's before they reach the renderer.
+
 ## Serving over A2A
 
 `A2UIAgent.A2A.Plug` serves an agent over the JSON-RPC binding of

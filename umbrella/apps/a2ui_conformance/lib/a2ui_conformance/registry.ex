@@ -10,14 +10,18 @@ defmodule A2UIConformance.Registry do
   #   2. `Application.get_env(:a2ui_conformance, :reference_root)`,
   #   3. an upward directory walk looking for `reference/a2ui/conformance`.
   #
-  # Per the upstream README, `agent/builder/` and `agent/macros/` use a
-  # different case vocabulary (golden AST suites) and are excluded from
-  # the schema-validated corpus.
+  # `agent/builder/` and `agent/macros/` use a vocabulary of their own
+  # (upstream README): one mapping per file, whose `tests` declare a
+  # builder AST or a macro invocation and a golden file. Each test
+  # becomes a case named by its `id`, with the action `build` (builder)
+  # or its own `action`, else `expand` (macros); a macro case also
+  # carries the suite's macro definitions, under `suite_macros`.
 
   alias A2UIConformance.{Case, Yaml}
+  alias A2UICore.KeyOrder
 
   @default_root_walk_depth 8
-  @excluded_suites ~r{\Aagent/(builder|macros)/}
+  @golden_suites ~r{\Aagent/(builder|macros)/}
   @case_roots ["core", "agent", "extensions"]
 
   @doc """
@@ -112,22 +116,85 @@ defmodule A2UIConformance.Registry do
   """
   @spec load_suite(Path.t(), String.t()) :: {:ok, [Case.t()]} | {:error, term()}
   def load_suite(root, rel) do
-    if Regex.match?(@excluded_suites, rel) do
-      {:ok, []}
-    else
-      path = Path.join([root, "conformance", rel])
+    path = Path.join([root, "conformance", rel])
 
-      case Yaml.load_file(path) do
-        {:ok, [cases]} when is_list(cases) ->
-          {:ok, Enum.map(cases, &build_case(rel, &1))}
+    if Regex.match?(@golden_suites, rel),
+      do: load_golden_suite(path, rel),
+      else: load_case_list(path, rel)
+  end
 
-        {:ok, _multi_doc} ->
-          {:error, {:expected_single_document, rel}}
+  defp load_case_list(path, rel) do
+    case Yaml.load_file(path) do
+      {:ok, [cases]} when is_list(cases) ->
+        {:ok, Enum.map(cases, &build_case(rel, &1))}
 
-        {:error, reason} ->
-          {:error, {rel, reason}}
-      end
+      {:ok, _multi_doc} ->
+        {:error, {:expected_single_document, rel}}
+
+      {:error, reason} ->
+        {:error, {rel, reason}}
     end
+  end
+
+  # Mappings are read in order and made plain, except a builder case's
+  # `data_model`, whose entries become messages in order: it becomes a
+  # list of `{path, value}` pairs.
+  defp load_golden_suite(path, rel) do
+    case Yaml.load_file_ordered(path) do
+      {:ok, [%Jason.OrderedObject{} = suite]} ->
+        macros = suite |> KeyOrder.get("macros") |> macro_definitions()
+
+        default_action =
+          if String.starts_with?(rel, "agent/builder/"), do: "build", else: "expand"
+
+        {:ok,
+         Enum.map(
+           KeyOrder.get(suite, "tests") || [],
+           &golden_case(rel, &1, default_action, macros)
+         )}
+
+      {:ok, _other} ->
+        {:error, {:expected_single_document, rel}}
+
+      {:error, reason} ->
+        {:error, {rel, reason}}
+    end
+  end
+
+  # A macro's parameters become `{name, spec}` pairs, in order.
+  defp macro_definitions(nil), do: nil
+
+  defp macro_definitions(definitions) do
+    Enum.map(definitions, fn definition ->
+      parameters = parameter_pairs(KeyOrder.get(definition, "parameters"))
+      definition |> KeyOrder.to_plain() |> Map.put("parameters", parameters)
+    end)
+  end
+
+  defp parameter_pairs(%Jason.OrderedObject{values: values}),
+    do: Enum.map(values, fn {name, spec} -> {name, KeyOrder.to_plain(spec)} end)
+
+  defp parameter_pairs(_none), do: []
+
+  defp golden_case(rel, test, default_action, macros) do
+    data_model =
+      case KeyOrder.get(test, "data_model") do
+        nil ->
+          nil
+
+        entries ->
+          Enum.map(entries.values, fn {path, value} -> {path, KeyOrder.to_plain(value)} end)
+      end
+
+    raw =
+      test
+      |> KeyOrder.to_plain()
+      |> Map.put_new("action", default_action)
+      |> Map.put("data_model", data_model)
+      |> then(&if(macros, do: Map.put(&1, "suite_macros", macros), else: &1))
+
+    name = raw["id"] || raise ArgumentError, "case in #{rel} is missing 'id'"
+    Case.new(rel, name, raw)
   end
 
   defp build_case(rel, raw) when is_map(raw) do

@@ -342,21 +342,25 @@ The Phoenix adapter decodes entire JSON objects, hands them to `Processor.proces
 - `A2UIAgent.Streaming` — incremental JSON reader keyed on `progressive_keys`
   (text-like) with **buffering** rules from upstream: components, IDs, `path`, child
   refs, numbers, and `children` are never emitted half-alive.
-- `A2UIAgent.Builder` — **import-free** DSL:
+- `A2UIAgent.Builder` — component trees built as nested calls and flattened into
+  component lists, as the reference's typed builders do (built in M14, after the
+  reference's `agent/builder` suite; a function per basic component in
+  `A2UIAgent.Builder.Basic`):
 
   ```elixir
-  A2UIAgent.Builder.surface("contact_form_1", catalog)
-  |> A2UIAgent.Builder.component("Column", id: "root",
-       children: ["title", "form_container"])
-  |> A2UIAgent.Builder.text("Contact Us", id: "title")
-  ...
-  |> A2UIAgent.Builder.to_messages()
+  import A2UIAgent.Builder.Basic
+
+  card(id: "contact", child: column(children: [text(text: "Contact us")]))
+  |> A2UIAgent.Builder.messages(surface_id: "contact_form_1", catalog: catalog)
   ```
 
+- `A2UIAgent.Macro` / `A2UIAgent.MacroExpander` — components the model writes that
+  expand into catalog components (M14).
 - `A2UIAgent.Validate` — "would a renderer accept this payload?" (stateless check via
   a throwaway processor).
 
-**Express format** (ANTLR DSL) is out of scope for v1; design factory seam for later.
+**Express format** was first out of scope for v1; it was built in M13 as
+`A2UIAgent.Express`, with a hand-written parser for its grammar.
 
 ## 10. Testing strategy
 

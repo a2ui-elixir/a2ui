@@ -312,10 +312,34 @@ skipped cases are the legacy agent SDK (94), protocol v0.8 (118) and ADK (11).
       divergences (prompt and decompiler from Python, compiler from TypeScript,
       key order, inline ids, error recovery, buffered A2A answers).
 
-Next, in order: the builder and macro suites (`agent/builder` 11,
-`agent/macros` 18, golden files the harness does not load yet), the legacy agent
-SDK (94), the AG-UI, MCP and WebSocket transports, SSE resumption, and the partial
-items (retry loop, locale formatting, `$dynamicRef`, `unevaluatedItems`).
+### M14 — builder and macros (2026-10-16; conformance: 969 passed, 223 skipped; 921 of 1144 upstream cases run)
+
+The two golden suites now load: `agent/builder` (11) and `agent/macros` (18) pass,
+golden output and golden validity both.
+
+- [x] M14.1 `A2UIAgent.Builder`: component nodes, refs, bindings, child lists,
+      function calls, actions, check rules and accessibility attributes;
+      `flatten/2` with the reference's two-pass id allocation (author ids
+      reserved bare and prefixed, `<root>__<name>_<n>` for the rest, lists of
+      roots); with a catalog, defaults, catalog property order and component
+      validation; `messages/2`. `A2UIAgent.Builder.Basic`: a function per basic
+      component.
+- [x] M14.2 `A2UIAgent.Macro`: declared parameters, the reference's schema
+      mapping and argument coercion (ids to refs, bindings, action shorthands),
+      call nodes for composition with a depth limit.
+- [x] M14.3 `A2UIAgent.MacroExpander`: inference catalog (passthrough
+      components, union refs, collisions), standalone macro catalog,
+      `to_transport/2` (nested expansion, failures kept and logged, recursion
+      errors), `to_inference/2`.
+- [x] M14.4 Harness: golden suites loaded as cases (`build`, `expand` and the
+      macro catalog actions), golden validity checked with a processor and the
+      case's relaxations; the suite's macros written with the builder.
+- [x] M14.5 Core: `KeyOrder.put/3` and `delete/2` also take maps.
+- [x] M14.6 Guide section, module groups, divergences.
+
+Next, in order: the legacy agent SDK (94), the AG-UI, MCP and WebSocket
+transports, SSE resumption, and the partial items (retry loop, locale formatting,
+`$dynamicRef`, `unevaluatedItems`).
 
 ### Decisions
 

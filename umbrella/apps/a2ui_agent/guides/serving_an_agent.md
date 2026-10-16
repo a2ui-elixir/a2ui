@@ -411,3 +411,105 @@ Enum.map(skills, & &1.filename)
 `A2UIAgent.SkillGenerator.skill/2` makes one skill with the whole prompt
 instead. `A2UIAgent.Skill.to_markdown/1` gives a skill's file, and
 `A2UIAgent.Skill.export/2` writes skills into a directory.
+
+## Building components in Elixir
+
+Not every component has to come from the model. `A2UIAgent.Builder` builds
+a component tree in Elixir and flattens it into the component list an
+`updateComponents` message carries:
+
+```elixir
+import A2UIAgent.Builder
+import A2UIAgent.Builder.Basic
+
+tree =
+  card(
+    id: "profile",
+    child:
+      column(
+        children: [
+          text(text: bind("/user/name"), variant: "caption"),
+          button(child: text(text: "Edit"), action: event("edit_profile"))
+        ]
+      )
+  )
+
+components = flatten(tree, catalog: basic)
+
+Enum.map(components, &{&1["id"], &1["component"]})
+#=> [{"profile__text_1", "Text"}, {"profile__text_2", "Text"}, {"profile__button_1", "Button"}, {"profile__column_1", "Column"}, {"profile", "Card"}]
+```
+
+A node placed in a property of another node becomes a component of its
+own, and the property holds its id. Children come before their parents,
+and a node without an id gets one made from the root's. With `catalog:`,
+each component gets the defaults its catalog schema declares, and a
+component the catalog rejects raises:
+
+```elixir
+hd(components)
+#=> %{"id" => "profile__text_1", "component" => "Text", "text" => %{"@path" => "/user/name"}, "variant" => "caption"}
+
+Enum.at(components, 1)["variant"]
+#=> "body"
+```
+
+`A2UIAgent.Builder.messages/2` puts a tree in messages for a surface: a
+`createSurface` when it is given a catalog id, the `updateComponents`, and
+an `updateDataModel` for each data model entry.
+
+### Macros
+
+A macro is a component the model can write that the agent expands into the
+catalog's components before they reach the renderer. One macro call stands
+for a whole subtree, so the model writes less and the subtree always comes
+out the same. A macro has parameters and a function that builds its tree:
+
+```elixir
+alias A2UIAgent.{Macro, MacroExpander}
+
+status_badge =
+  Macro.new(
+    "StatusBadge",
+    [status: :string, title: :string],
+    fn %{status: status, title: title} ->
+      row(children: [text(text: String.upcase(status), variant: "caption"), text(text: title)])
+    end,
+    description: "A status and a title, side by side."
+  )
+
+expander = MacroExpander.new(basic, [status_badge])
+{:ok, inference_catalog} = MacroExpander.inference_catalog(expander)
+
+List.last(inference_catalog.component_order)
+#=> "StatusBadge"
+```
+
+The inference catalog is the base catalog with the macros added as
+components. Register it in a `A2UIAgent.CatalogConfig` in place of the base
+catalog, so that the prompt describes the macros and the model's messages
+are checked against them. Before the messages go to the renderer,
+`A2UIAgent.MacroExpander.to_transport/2` expands the macros:
+
+```elixir
+model_messages = [
+  %{
+    "version" => "v1.0",
+    "updateComponents" => %{
+      "surfaceId" => "status",
+      "components" => [
+        %{"id" => "root", "component" => "StatusBadge", "status" => "online", "title" => "API"}
+      ]
+    }
+  }
+]
+
+{:ok, [message]} = MacroExpander.to_transport(expander, model_messages)
+
+Enum.map(message["updateComponents"]["components"], &{&1["id"], &1["component"]})
+#=> [{"root__text_1", "Text"}, {"root__text_2", "Text"}, {"root", "Row"}]
+```
+
+The macro component's id becomes the id of the tree's root, and the other
+components are named after it. A macro may use other macros with
+`A2UIAgent.Macro.call/2`.

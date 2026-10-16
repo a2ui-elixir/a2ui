@@ -18,7 +18,7 @@ divergences from the reference implementations.
 
 ## Conformance
 
-Of the 1115 upstream cases at the pinned commit (`SPEC_PIN`), 892 run and all
+Of the 1144 upstream cases at the pinned commit (`SPEC_PIN`), 921 run and all
 of them pass. The others are skipped, each for a stated reason:
 
 | Suite family | Cases | Run | Skipped |
@@ -27,6 +27,8 @@ of them pass. The others are skipped, each for a stated reason:
 | `agent` (shared suites) | 107 | 107 | none |
 | `agent/direct_json` | 163 | 124 | 39 for v0.8 catalogs |
 | `agent/express` | 115 | 115 | none |
+| `agent/builder` | 11 | 11 | none |
+| `agent/macros` | 18 | 18 | none |
 | `agent/legacy` | 133 | 0 | the optional legacy SDK (39 of them v0.8) |
 | `extensions/a2a` | 14 | 13 | 1 v0.8 payload |
 | `extensions/adk` | 11 | 0 | adapters for Google's Python ADK |

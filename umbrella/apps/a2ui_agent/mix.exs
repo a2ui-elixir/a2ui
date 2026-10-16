@@ -121,6 +121,20 @@ defmodule A2UIAgent.MixProject do
           A2UIAgent.Skill,
           A2UIAgent.SkillGenerator
         ],
+        Builder: [
+          A2UIAgent.Builder,
+          A2UIAgent.Builder.Basic,
+          A2UIAgent.Builder.Component,
+          A2UIAgent.Builder.Ref,
+          A2UIAgent.Builder.Binding,
+          A2UIAgent.Builder.ChildList,
+          A2UIAgent.Builder.FunctionCall
+        ],
+        Macros: [
+          A2UIAgent.Macro,
+          A2UIAgent.Macro.Call,
+          A2UIAgent.MacroExpander
+        ],
         A2A: [
           A2UIAgent.A2A,
           A2UIAgent.A2A.Agent,

@@ -56,6 +56,11 @@ defmodule A2UICore.KeyOrderTest do
     assert KeyOrder.delete(object, "a").values == [{"b", 2}]
   end
 
+  test "put/3 and delete/2 update maps as maps" do
+    assert KeyOrder.put(%{"a" => 1}, "b", 2) == %{"a" => 1, "b" => 2}
+    assert KeyOrder.delete(%{"a" => 1, "b" => 2}, "a") == %{"b" => 2}
+  end
+
   test "to_plain/1 turns ordered objects into maps, recursively" do
     assert KeyOrder.to_plain(ordered(~s({"a": [{"b": 1}], "c": {"d": null}}))) ==
              %{"a" => [%{"b" => 1}], "c" => %{"d" => nil}}

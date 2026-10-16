@@ -286,6 +286,54 @@ made with.
   for a parser without it, then answers with the parsed response when the output is
   complete, for `message/stream` too.
 
+## Builder and macros
+
+The references are the Python builder (`python/a2ui_agent/src/a2ui/builder`) and macro
+transformer (`python/a2ui_agent/src/a2ui/transformers/macros`); no other SDK implements
+them (the TypeScript harness skips both suites).
+
+- **One builder for every catalog, driven by the catalog when flattening.** Python
+  generates a typed class per component of the v0.9 basic catalog; the classes carry the
+  catalog's defaults, and pydantic rejects unknown properties and values when a node is
+  made. `A2UIAgent.Builder` makes generic component nodes, and `flatten/2` with
+  `:catalog` adds the catalog's defaults and checks each component with the core
+  validator, so a component the catalog rejects raises when the tree is flattened. The
+  builder writes bindings and function calls for the protocol version; Python's builder
+  is v0.9 only.
+- **Snake case keys are camelized.** Python fields are snake case with aliases for the
+  wire names. Atom keys are written in lower camel case; string keys as given.
+- **No object identity.** Python emits a node object placed in two slots once and
+  references it twice. Elixir values have no identity: a subtree placed twice is emitted
+  twice, with different made ids.
+- **Children follow the catalog's property order.** Python emits children in the
+  generated class's field order. With `:catalog` the builder follows the catalog
+  document's order, which is the same for a component's own properties; without one, the
+  order the properties were given in.
+- **Macro parameters are declared.** Python reads a macro's parameters, their schemas and
+  descriptions from the function's type hints and docstring. An Elixir function has
+  neither, so `Macro.new/4` takes the parameter types (named after the conformance
+  suite's: `:dynamic_string`, `:component_list`, ...) and descriptions. A missing
+  description is the name, spaced and capitalized, as in Python.
+- **Macros compose through call nodes.** A Python macro calls another as a function,
+  inline, and a cycle ends at the interpreter's recursion limit. `Macro.call/2` puts a
+  call in the tree, expanded when the tree is flattened, in its scope (so the made ids are
+  Python's); calls nested deeper than 16 fail with a recursion error, the limit Python's
+  expander applies to nested expansions.
+- **The expander knows its base catalog.** Python's `MacroExpander` is given the base
+  catalog by `transform_to_inference_catalog`, and expansions need none because the
+  generated classes carry the defaults. `MacroExpander.new/3` takes the base catalog for
+  both: the inference catalog is built from it, and expansions are completed and checked
+  against it. An expansion the catalog rejects leaves its macro component in place, with
+  the failure logged, as any failing macro does in Python.
+- **The standalone macro catalog follows the base catalog's version.** Python's
+  `to_catalog` always writes protocol 0.9.1; `macro_catalog/1` uses the base catalog's
+  version, whose common types the macro schemas refer to.
+- **The harness writes the suite's macros in Elixir.** The reference harness defines them
+  in Python, and the YAML templates are sketches that differ from the goldens
+  (`StatusBadge` upper-cases its status, `ConfigCard` writes `True`). The conformance
+  handler defines the same macros with the builder and the YAML's parameter types;
+  `ConfigCard` formats its arguments with Python's `str()`.
+
 ## Transports
 
 The references are the Python A2A helpers (`python/a2ui_agent/src/a2ui/a2a`), the

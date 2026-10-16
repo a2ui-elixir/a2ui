@@ -53,6 +53,7 @@ defmodule A2UIConformance.Dispatcher do
     process_chunk unwrap wrap fix_payload has_parts load_catalog
     provide_catalog transform_catalog prune resolve_catalogs skill_set
     from_format core_syntax from_catalog verify_cuttable_keys select_catalog
+    build expand transform_to_inference_catalog transform_to_inference
   )
 
   @agent_area "agent SDK"
@@ -137,6 +138,12 @@ defmodule A2UIConformance.Dispatcher do
     {"agent", "core_syntax"} => A2UIConformance.Handlers.Skills,
     {"agent", "from_catalog"} => A2UIConformance.Handlers.Skills,
     {"agent", "skill_set"} => A2UIConformance.Handlers.Skills,
+    # agent SDK: builder and macros
+    {"agent/builder", "build"} => A2UIConformance.Handlers.Builder,
+    {"agent/macros", "expand"} => A2UIConformance.Handlers.Macros,
+    {"agent/macros", "transform_catalog"} => A2UIConformance.Handlers.Macros,
+    {"agent/macros", "transform_to_inference_catalog"} => A2UIConformance.Handlers.Macros,
+    {"agent/macros", "transform_to_inference"} => A2UIConformance.Handlers.Macros,
     # A2A extension
     {"extensions/a2a", "create_a2ui_part"} => A2UIConformance.Handlers.A2A,
     {"extensions/a2a", "is_a2ui_part"} => A2UIConformance.Handlers.A2A,
