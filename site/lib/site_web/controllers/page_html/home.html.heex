@@ -1,0 +1,734 @@
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header" data-header>
+  <div class="header-inner">
+    <a class="brand" href="#top" aria-label="A2UI for Elixir, back to the top">
+      <.logo id="logo-header" />
+      <span class="brand-name">a2ui</span>
+      <span class="brand-tag">elixir</span>
+    </a>
+    <nav class="site-nav" id="site-nav" aria-label="Sections">
+      <a :for={{label, id} <- nav_links()} href={"#" <> id} data-nav-link>{label}</a>
+    </nav>
+    <div class="header-actions">
+      <span class="version-badge">v0.1.0</span>
+      <button
+        type="button"
+        class="icon-button theme-toggle"
+        data-theme-toggle
+        aria-label="Dark theme"
+        aria-pressed="false"
+      >
+        <.icon name="sun" class="icon theme-icon-sun" />
+        <.icon name="moon" class="icon theme-icon-moon" />
+      </button>
+      <a class="button button-primary button-sm header-cta" href="#install">Get started</a>
+      <button
+        type="button"
+        class="icon-button menu-toggle"
+        data-menu-toggle
+        aria-controls="site-nav"
+        aria-expanded="false"
+        aria-label="Sections"
+      >
+        <.icon name="menu" />
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="frame">
+  <main id="main" tabindex="-1">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="hero-bg" aria-hidden="true">
+        <div class="hero-grid"></div>
+        <div class="hero-glow"></div>
+        <span class="beam beam-1"></span>
+        <span class="beam beam-2"></span>
+        <span class="beam beam-3"></span>
+        <span class="beam beam-h"></span>
+      </div>
+
+      <div class="hero-copy">
+        <a class="status-chip" href="#conformance">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span><span class="mono">946/946</span> conformance cases passing</span>
+          <span class="status-sep" aria-hidden="true"></span>
+          <span class="mono">A2UI {Enum.join(Content.versions(), " · ")}</span>
+          <.icon name="arrow" class="icon icon-xs" />
+        </a>
+        <h1 id="hero-title">
+          Agents describe it.<br />
+          <span class="gradient-text">Phoenix renders it.</span><span
+            class="cursor"
+            aria-hidden="true"
+          ></span>
+        </h1>
+        <p class="hero-lead">
+          An Elixir implementation of A2UI, the open protocol for agent-driven interfaces:
+          a pure protocol engine, a Phoenix LiveView renderer and an agent SDK. Agents send
+          interfaces as data; your app draws them with components it trusts.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#install">
+            Get started <.icon name="arrow" class="icon icon-sm" />
+          </a>
+          <a class="button button-secondary" href="#features">Explore the features</a>
+        </div>
+        <div class="install-line">
+          <span class="install-label">mix.exs</span>
+          <code class="install-code">{~s({:a2ui_phoenix, "~> 0.1.0"})}</code>
+          <button
+            type="button"
+            class="install-copy"
+            data-copy-text={~s({:a2ui_phoenix, "~> 0.1.0"})}
+            aria-label="Copy the dependency"
+          >
+            <.icon name="copy" class="icon icon-sm" />
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="ide demo"
+        data-demo
+        style={"--lines: #{hero_line_count()}"}
+        role="group"
+        aria-label="An agent's message and the surface a renderer draws from it"
+      >
+        <div class="ide-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="ide-title">booking <span aria-hidden="true">—</span> agent → renderer</span>
+          <button type="button" class="ide-button demo-replay" data-demo-replay>
+            <.icon name="replay" class="icon icon-xs" /> Replay
+          </button>
+        </div>
+        <div class="demo-body">
+          <div class="demo-code">
+            <div class="ide-tabs">
+              <span class="ide-tab is-active">
+                <.icon name="data" class="icon icon-xs" /> message.json
+              </span>
+              <span class="ide-tab-meta">createSurface · v1.0</span>
+              <span class="stream-bar" aria-hidden="true"><i></i></span>
+            </div>
+            <pre aria-label="A createSurface message, as an agent sends it"><code><span :for={{html, index} <- hero_lines()} class="line" style={"--i: #{index}"}><span class="ln" aria-hidden="true">{index + 1}</span>{html}</span></code></pre>
+          </div>
+          <div class="demo-preview">
+            <div class="ide-tabs">
+              <span class="ide-tab is-active">
+                <.icon name="render" class="icon icon-xs" /> surface: booking
+              </span>
+              <span class="status">
+                <span class="status-wait" aria-hidden="true"><i class="pulse"></i>streaming</span>
+                <span class="status-done">
+                  <.icon name="check" class="icon icon-xs" />rendered
+                </span>
+              </span>
+            </div>
+            <div class="preview-stage">
+              <div class="skeleton" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="surface">
+                <p class="surface-title">Trattoria Roma</p>
+                <label class="field">
+                  <span class="field-label">Your name</span>
+                  <input
+                    type="text"
+                    value="Ada"
+                    data-bind="/booking/name"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                </label>
+                <label class="field">
+                  <span class="field-label">When</span>
+                  <input type="datetime-local" value="2026-10-17T19:30" data-bind="/booking/date" />
+                </label>
+                <button type="button" class="surface-button" data-demo-action>Book a table</button>
+              </div>
+            </div>
+            <div class="preview-foot">
+              <p class="mini-label">data model</p>
+              <dl class="data-model">
+                <div>
+                  <dt>/booking/name</dt>
+                  <dd data-bound="/booking/name">"Ada"</dd>
+                </div>
+                <div>
+                  <dt>/booking/date</dt>
+                  <dd data-bound="/booking/date">"2026-10-17T19:30"</dd>
+                </div>
+              </dl>
+              <div class="sent" data-demo-sent hidden>
+                <p class="mini-label">sent to the agent</p>
+                <pre><code data-demo-sent-code></code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ide-status">
+          <span><i class="status-dot" aria-hidden="true"></i>v1.0</span>
+          <span>{hero_counts().components} components</span>
+          <span class="hide-sm">{hero_counts().bindings} bindings</span>
+          <span class="hide-sm">{hero_counts().actions} action</span>
+          <span class="ide-status-end">
+            <span class="hide-sm">strict validation</span>
+            <span class="status-valid"><.icon name="check" class="icon icon-xs" />valid</span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" aria-label="Protocols and standards">
+      <ul class="standards">
+        <li :for={standard <- Content.standards()}>
+          <span class="standard-name">{standard.name}</span>
+          <span class="standard-note">{standard.note}</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="band" aria-label="In figures">
+      <div class="metrics">
+        <div :for={stat <- Content.stats()} class="metric" data-reveal>
+          <p class="metric-key">{stat.key}</p>
+          <p class="metric-value">{stat.value}</p>
+          <p class="metric-label">{stat.label}</p>
+          <span :if={stat.bar} class="metric-bar" aria-hidden="true">
+            <i style={"width: #{stat.bar}%"}></i>
+            <b :if={stat[:mark]} style={"left: #{stat[:mark]}%"}></b>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="architecture" aria-labelledby="architecture-title">
+      <.section_heading id="architecture-title" number="01" eyebrow="Architecture">
+        <:title>Three packages, one protocol</:title>
+        An agent built with <code>a2ui_agent</code>
+        writes A2UI messages, any transport carries them, and <code>a2ui_phoenix</code>
+        draws them in LiveView and sends the user's actions back. Both stand on <code>a2ui_core</code>, which owns the protocol.
+      </.section_heading>
+
+      <div class="system" data-reveal>
+        <div class="sys-node sys-agent">
+          <p class="sys-kicker">your agent</p>
+          <p class="sys-name"><.icon name="agent" class="icon" />a2ui_agent</p>
+          <ul class="sys-modules">
+            <li :for={module <- Enum.take(package("a2ui_agent").modules, 5)}>{module}</li>
+          </ul>
+        </div>
+        <div class="sys-wire">
+          <p class="wire-label">messages <span aria-hidden="true">→</span></p>
+          <div class="wire-track wire-out" aria-hidden="true"><i></i><i></i><i></i></div>
+          <ul class="wire-chips" aria-label="Transports">
+            <li :for={transport <- Content.transports()}>{transport.name}</li>
+          </ul>
+          <div class="wire-track wire-back" aria-hidden="true"><i></i><i></i></div>
+          <p class="wire-label">
+            <span aria-hidden="true">←</span> actions · errors · function calls
+          </p>
+        </div>
+        <div class="sys-node sys-renderer">
+          <p class="sys-kicker">your phoenix app</p>
+          <p class="sys-name"><.icon name="render" class="icon" />a2ui_phoenix</p>
+          <ul class="sys-modules">
+            <li :for={module <- Enum.take(package("a2ui_phoenix").modules, 5)}>{module}</li>
+          </ul>
+        </div>
+        <div class="sys-core">
+          <p class="sys-name"><.icon name="core" class="icon" />a2ui_core</p>
+          <ul class="sys-modules sys-modules-row">
+            <li :for={module <- package("a2ui_core").modules}>{module}</li>
+          </ul>
+          <p class="sys-note">pure Elixir · no processes · Jason its only dependency</p>
+        </div>
+      </div>
+
+      <div class="cells cells-3">
+        <article :for={package <- Content.packages()} class="cell package" data-reveal>
+          <header class="tile-head">
+            <span class="tile-icon"><.icon name={package.icon} /></span>
+            <div class="tile-title">
+              <h3 class="mono">{package.name}</h3>
+              <p>{package.role}</p>
+            </div>
+            <span class="tile-meta">{package.namespace}</span>
+          </header>
+          <p class="cell-text">{package.summary}</p>
+          <ul class="list">
+            <li :for={point <- package.points}>{point}</li>
+          </ul>
+          <div class="module-chips">
+            <p class="mini-label">modules</p>
+            <ul class="chips">
+              <li :for={module <- package.modules} class="chip">{module}</li>
+            </ul>
+          </div>
+          <div class="dep-line">
+            <code>{package.dep}</code>
+            <button
+              type="button"
+              class="install-copy"
+              data-copy-text={package.dep}
+              aria-label={"Copy the dependency on " <> package.name}
+            >
+              <.icon name="copy" class="icon icon-sm" />
+            </button>
+          </div>
+        </article>
+      </div>
+      <div class="cells">
+        <div class="cell harness" data-reveal>
+          <span class="tile-icon"><.icon name="flask" /></span>
+          <p>
+            <strong class="mono">{Content.harness().name}</strong>
+            <span>{Content.harness().summary} Not published; it keeps the three packages honest.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="lifecycle" aria-labelledby="lifecycle-title">
+      <.section_heading id="lifecycle-title" number="02" eyebrow="Lifecycle">
+        <:title>One turn, end to end</:title>
+        From the renderer's capabilities to the user's next action: what happens at each step, and the module that does it.
+      </.section_heading>
+
+      <div class="lanes" aria-hidden="true">
+        <span class="lane lane-agent"><span>a2ui_agent</span> on the agent</span>
+        <span class="lane lane-renderer"><span>a2ui_phoenix</span> in your app</span>
+      </div>
+      <ol class="cells steps">
+        <li
+          :for={{step, index} <- Enum.with_index(Content.lifecycle(), 1)}
+          class={["cell step", "step-" <> step.side]}
+          data-reveal
+        >
+          <span class="step-num">{pad(index)}</span>
+          <h3>{step.title}</h3>
+          <p>{step.text}</p>
+          <code class="step-module">{breakable(step.module)}</code>
+        </li>
+      </ol>
+    </section>
+
+    <section class="sec" id="features" aria-labelledby="features-title">
+      <.section_heading id="features-title" number="03" eyebrow="Features">
+        <:title>Everything the protocol asks for</:title>
+        Every message, catalog, binding, function and transport of A2UI, from v0.9 to v1.0, and the checks between them, grouped by area.
+      </.section_heading>
+
+      <div class="cells bento">
+        <article
+          :for={group <- Content.feature_groups()}
+          id={"feature-" <> group.id}
+          class={["cell tile", "span-#{group.span}", group[:visual] && "has-visual"]}
+          data-reveal
+        >
+          <div class="tile-body">
+            <header class="tile-head">
+              <span class="tile-icon"><.icon name={group.icon} /></span>
+              <h3>{group.title}</h3>
+              <span class="tile-meta">{pad(length(group.items))}</span>
+            </header>
+            <ul class="list">
+              <li :for={item <- group.items}>{rich(item)}</li>
+            </ul>
+          </div>
+          <.feature_visual :if={group[:visual]} name={group.visual} />
+          <p class="tags">
+            <.package_tag :for={name <- group.packages} name={name} />
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="sec" id="catalog" aria-labelledby="catalog-title">
+      <.section_heading id="catalog-title" number="04" eyebrow="Catalog">
+        <:title>The basic catalog, complete</:title>
+        All {count(Content.components())} components and {count(Content.functions())} functions of the basic catalog (v0.9.1 and v1.0), drawn by
+        <code>a2ui_phoenix</code>
+        and run by <code>a2ui_core</code>, with the MCP catalog and catalogs of your own beside them.
+      </.section_heading>
+
+      <ul class="cells components" data-reveal>
+        <li :for={{kind, name} <- components_flat()} class="cell component">
+          <.wireframe name={name} />
+          <span class="component-name">{name}</span>
+          <span class="component-kind">{kind}</span>
+        </li>
+      </ul>
+
+      <div class="cells cells-3">
+        <div class="cell functions span-2" data-reveal>
+          <header class="tile-head">
+            <span class="tile-icon"><.icon name="data" /></span>
+            <h3>{count(Content.functions())} functions</h3>
+            <span class="tile-meta">basic catalog</span>
+          </header>
+          <dl class="fn-table">
+            <div :for={{kind, names} <- Content.functions()}>
+              <dt>{kind}</dt>
+              <dd><code :for={name <- names}>{name}</code></dd>
+            </div>
+            <div>
+              <dt>System</dt>
+              <dd><code>@index</code><span class="fn-note">v1.0, in list templates</span></dd>
+            </div>
+          </dl>
+        </div>
+        <div class="cell catalogs-side" data-reveal>
+          <header class="tile-head">
+            <span class="tile-icon"><.icon name="mcp" /></span>
+            <h3>MCP catalog</h3>
+          </header>
+          <div :for={catalog <- Content.mcp_catalogs()} class="mcp-version">
+            <span class="version-tag">{catalog.version}</span>
+            <ul class="chips">
+              <li :for={name <- catalog.components ++ catalog.functions} class="chip">{name}</li>
+            </ul>
+          </div>
+          <header class="tile-head tile-head-sub">
+            <span class="tile-icon"><.icon name="catalog" /></span>
+            <h3>Your own catalogs</h3>
+          </header>
+          <p class="cell-text">
+            Validated like the basic one: components drawn by your function components, functions run by your code.
+            <code>catalogId</code>
+            picks a catalog per component and per call.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="transports" aria-labelledby="transports-title">
+      <.section_heading id="transports-title" number="05" eyebrow="Transports">
+        <:title>Any wire, any model</:title>
+        A2UI does not care how messages travel. The packages carry them over the protocols agents already speak, and read them from what models write.
+      </.section_heading>
+
+      <div class="table-wrap" data-reveal>
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th scope="col">transport</th>
+              <th scope="col">how A2UI travels</th>
+              <th scope="col">where</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={transport <- Content.transports()}>
+              <th scope="row"><span class="transport-name">{transport.name}</span></th>
+              <td>{rich(transport.detail)}</td>
+              <td><code class="where">{transport.where}</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cells cells-2">
+        <article :for={format <- Content.formats()} class="cell format" data-reveal>
+          <header class="tile-head">
+            <span class="tile-icon"><.icon name="sparkle" /></span>
+            <h3>{format.name}</h3>
+            <span class="tile-meta">inference format</span>
+          </header>
+          <p class="cell-text">{rich(format.detail)}</p>
+          <.code_panel
+            code={format.sample}
+            language={:json}
+            lang={format.label}
+            title="model output"
+            class="code-compact"
+          />
+        </article>
+      </div>
+    </section>
+
+    <section class="sec" id="code" aria-labelledby="code-title">
+      <.section_heading id="code-title" number="06" eyebrow="Code">
+        <:title>A few lines to get going</:title>
+        Render surfaces in a LiveView, serve an agent over A2A, or drive the protocol engine directly.
+      </.section_heading>
+
+      <div class="cells code-layout" id="install">
+        <div class="cell install" data-reveal>
+          <ol class="install-steps">
+            <li>
+              <h3><span class="step-num">01</span>Add the packages</h3>
+              <.code_panel code={Content.install()} title="mix.exs" class="code-compact" />
+              <p class="note">
+                Version 0.1.0 is not on Hex yet. Until it is, use <code>path:</code>
+                dependencies on a checkout, as the examples do.
+              </p>
+            </li>
+            <li>
+              <h3><span class="step-num">02</span>Add the assets</h3>
+              <p class="cell-text">
+                <code>a2ui_phoenix.js</code>
+                and <code>a2ui_phoenix.css</code>
+                from the renderer's <code>priv/static</code>, in your layout.
+              </p>
+            </li>
+            <li>
+              <h3><span class="step-num">03</span>Render, or serve</h3>
+              <p class="cell-text">
+                Render surfaces in a LiveView, or serve an agent over A2A, as the samples beside this show.
+              </p>
+            </li>
+            <li>
+              <h3><span class="step-num">04</span>Read the guides</h3>
+              <ul class="guides">
+                <li :for={guide <- Content.guides()}>
+                  <code>{guide.package}/{guide.path}</code>
+                  <span>{guide.covers}</span>
+                </li>
+              </ul>
+            </li>
+          </ol>
+          <dl class="requirements">
+            <div :for={{name, need} <- Content.requirements()}>
+              <dt>{name}</dt>
+              <dd>{need}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="cell editor-cell" data-reveal>
+          <div class="ide editor" data-tabs>
+            <div class="ide-bar">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <div class="file-tabs" role="tablist" aria-label="Code samples">
+                <button
+                  :for={{sample, index} <- Enum.with_index(Content.samples())}
+                  type="button"
+                  role="tab"
+                  id={"tab-" <> sample.id}
+                  aria-controls={"panel-" <> sample.id}
+                  aria-selected={to_string(index == 0)}
+                  tabindex={if index == 0, do: "0", else: "-1"}
+                >
+                  <.icon name="drop" class="icon icon-xs" />{sample.label}
+                </button>
+              </div>
+              <button type="button" class="copy" data-copy aria-label="Copy the code">
+                <.icon name="copy" class="icon icon-xs" />
+                <span data-copy-label>Copy</span>
+              </button>
+            </div>
+            <div
+              :for={sample <- Content.samples()}
+              class="tab-panel"
+              role="tabpanel"
+              id={"panel-" <> sample.id}
+              aria-labelledby={"tab-" <> sample.id}
+            >
+              <p class="ide-path"><span>{sample.file}</span><span>{sample.label}</span></p>
+              <div class="code-body">
+                <span class="gutter" aria-hidden="true">{gutter(String.trim_trailing(sample.code))}</span>
+                <pre><code>{SiteWeb.Code.highlight(String.trim_trailing(sample.code), sample.language)}</code></pre>
+              </div>
+            </div>
+            <div class="ide-status">
+              <span><i class="status-dot" aria-hidden="true"></i>elixir</span>
+              <span>UTF-8</span>
+              <span class="ide-status-end">LF · spaces: 2</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="examples" aria-labelledby="examples-title">
+      <.section_heading id="examples-title" number="07" eyebrow="Examples">
+        <:title>Three apps to run and read</:title>
+        In <code>examples/</code>: an agent, a LiveView gallery and a terminal renderer that talk to each other, each with its README and tests.
+      </.section_heading>
+
+      <div class="cells cells-3">
+        <article :for={example <- Content.examples()} class="cell example" data-reveal>
+          <header class="tile-head">
+            <span class="tile-icon"><.icon name={example.icon} /></span>
+            <div class="tile-title">
+              <h3>{example.name}</h3>
+              <p class="mono">{example.path}</p>
+            </div>
+          </header>
+          <p class="cell-text">{example.summary}</p>
+          <ul class="chips">
+            <li :for={item <- example.covers} class="chip">{item}</li>
+          </ul>
+          <.code_panel
+            code={example.run}
+            language={:shell}
+            title="terminal"
+            numbers={false}
+            class="code-compact"
+          />
+        </article>
+      </div>
+
+      <div class="cells scenarios-head">
+        <p class="cell">
+          <span class="mono">examples/gallery</span>
+          — the scenarios, each a scripted agent with its controls and an inspector of every message
+        </p>
+      </div>
+      <ol class="cells scenarios" data-reveal>
+        <li
+          :for={{{name, text}, index} <- Enum.with_index(Content.scenarios(), 1)}
+          class="cell scenario"
+        >
+          <span class="step-num">{pad(index)}</span>
+          <h3>{name}</h3>
+          <p>{rich(text)}</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="sec" id="conformance" aria-labelledby="conformance-title">
+      <.section_heading id="conformance-title" number="08" eyebrow="Conformance">
+        <:title>Checked against the specification, case by case</:title>
+        The upstream YAML suites run against all three packages at a pinned commit. Every case that applies runs and passes; the others are skipped for a stated reason.
+      </.section_heading>
+
+      <div class="pipeline" data-reveal>
+        <p class="mini-label">every change passes</p>
+        <ol class="pipeline-steps">
+          <li :for={{name, detail} <- Content.gates()} class="pipe-step">
+            <span class="pipe-icon"><.icon name="check" class="icon icon-xs" /></span>
+            <span class="pipe-name">{name}</span>
+            <span class="pipe-detail">{rich(detail)}</span>
+          </li>
+        </ol>
+      </div>
+
+      <div class="cells cells-3">
+        <div class="cell report span-2" data-reveal>
+          <header class="report-head">
+            <div>
+              <p class="report-figure">
+                <span class="gradient-text">{suite_totals().run}</span><span class="of">/{suite_totals().total}</span>
+              </p>
+              <p class="report-caption">
+                upstream cases run, <strong>all of them passing</strong>; {suite_totals().skipped} skipped, each for a reason
+              </p>
+            </div>
+            <p class="report-meta mono">a2ui-project/a2ui@{Content.spec_commit()}</p>
+          </header>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th scope="col">suite</th>
+                <th scope="col">run</th>
+                <th scope="col">
+                  <span class="key key-run"></span>passing <span class="key key-skip"></span>skipped
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={suite <- Content.suites()}>
+                <th scope="row"><code>{suite.name}</code></th>
+                <td class="num">{suite.run}<span class="of">/{suite.total}</span></td>
+                <td class="bar-cell">
+                  <span
+                    class="bar"
+                    role="img"
+                    aria-label={"#{suite.run} of #{suite.total} cases run"}
+                  >
+                    <i style={"width: " <> run_share(suite)}></i>
+                  </span>
+                  <span :if={suite.skipped} class="skip">skipped: {suite.skipped}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="cell side-stack" data-reveal>
+          <div>
+            <header class="tile-head">
+              <span class="tile-icon"><.icon name="shield" /></span>
+              <h3>Beyond the suites</h3>
+            </header>
+            <ul class="list">
+              <li :for={corpus <- Content.corpora()}>{corpus}</li>
+            </ul>
+          </div>
+          <div>
+            <header class="tile-head">
+              <span class="tile-icon"><.icon name="flask" /></span>
+              <h3>A pinned specification</h3>
+            </header>
+            <p class="cell-text">
+              Measured against
+              <a href="https://github.com/a2ui-project/a2ui" rel="noopener">a2ui-project/a2ui</a>
+              at <code>{Content.spec_commit()}</code>. Where the packages deliberately differ from the reference implementations, the difference is written down with its reason.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec cta" aria-labelledby="cta-title">
+      <div class="cta-inner" data-reveal>
+        <p class="sec-label"><span class="sec-num">→</span>Get started</p>
+        <h2 id="cta-title">Give your agents an interface.</h2>
+        <p class="sec-lead">
+          Start with the examples, then add a renderer to your Phoenix app or put A2UI in your agent.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#install">
+            Get started <.icon name="arrow" class="icon icon-sm" />
+          </a>
+          <a class="button button-secondary" href="https://a2ui.org" rel="noopener">
+            The A2UI specification <.icon name="external" class="icon icon-sm" />
+          </a>
+        </div>
+      </div>
+      <.code_panel
+        code={Enum.at(Content.examples(), 1).run}
+        language={:shell}
+        title="terminal"
+        numbers={false}
+        class="cta-terminal code-compact"
+        data-reveal
+      />
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a class="brand" href="#top" aria-label="A2UI for Elixir, back to the top">
+          <.logo id="logo-footer" />
+          <span class="brand-name">a2ui</span>
+          <span class="brand-tag">elixir</span>
+        </a>
+        <p>
+          An Elixir implementation of the A2UI protocol. The packages are Apache-2.0 licensed, like the A2UI specification they implement.
+        </p>
+      </div>
+      <nav class="footer-col" aria-label="This page">
+        <p class="mini-label">this page</p>
+        <a :for={{label, id} <- nav_links()} href={"#" <> id}>{label}</a>
+      </nav>
+      <nav class="footer-col" aria-label="Protocols">
+        <p class="mini-label">protocols</p>
+        <a :for={link <- Content.links()} href={link.url} rel="noopener">
+          {link.label} <.icon name="external" class="icon icon-xs" />
+        </a>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <p class="footer-status">
+        <i class="status-dot" aria-hidden="true"></i>
+        <span>
+          946/946 conformance cases passing at
+          <code>a2ui-project/a2ui@{Content.spec_commit()}</code>
+        </span>
+      </p>
+      <p>This page is a Phoenix app, exported to static HTML by <code>mix site.build</code>.</p>
+    </div>
+  </footer>
+</div>

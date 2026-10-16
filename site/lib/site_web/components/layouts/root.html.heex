@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A2UI for Elixir · Agent-driven interfaces for Phoenix</title>
+    <meta
+      name="description"
+      content="An Elixir implementation of the A2UI protocol (v0.9, v0.9.1, v1.0): a pure protocol engine, a Phoenix LiveView renderer and an agent SDK, checked against the upstream conformance suites."
+    />
+    <meta property="og:title" content="A2UI for Elixir" />
+    <meta
+      property="og:description"
+      content="Protocol engine, Phoenix LiveView renderer and agent SDK for A2UI. 946 of 946 runnable conformance cases pass."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#07060c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fbfaff" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script>
+      (function () {
+        var root = document.documentElement;
+        root.classList.add("js");
+        try {
+          var theme = localStorage.getItem("theme");
+          if (theme === "light" || theme === "dark") root.setAttribute("data-theme", theme);
+        } catch (error) {}
+      })();
+    </script>
+    <script defer src="assets/site.js">
+    </script>
+  </head>
+  <body>
+    {@inner_content}
+  </body>
+</html>

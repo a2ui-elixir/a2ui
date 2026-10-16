@@ -117,6 +117,41 @@ jobs:
       - run: mix compile --warnings-as-errors
       - run: mix test
 
+  site:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            site/deps
+            site/_build
+          key: site-${{ runner.os }}-${{ hashFiles('site/mix.lock') }}
+          restore-keys: |
+            site-${{ runner.os }}-
+
+      - run: mix deps.get
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix test
+      - run: mix site.build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: landing-page
+          path: site/dist
+
   package:
     runs-on: ubuntu-latest
     env:

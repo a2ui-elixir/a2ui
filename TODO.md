@@ -426,6 +426,24 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       `UNSUPPORTED_VERSION` code; `Builder.call/3` `:catalog_id`; Express data
       assignments as in Python and `decompile/3`'s `:surface_catalogs`.
 
+### M20 — landing page (2026-10-16)
+
+- [x] M20.1 `site/`: a Phoenix application with the landing page, light and
+      dark: the hero's message streamed into a rendered surface whose data
+      model and action are live; protocols and figures; architecture with
+      each package's modules; a turn's lifecycle; the features by area with
+      the message matrix, bindings, node tree, function calls, streaming
+      parser and error report; the catalog as wireframes; transports and
+      inference formats; code samples; examples and gallery scenarios; the
+      conformance report and the gates.
+- [x] M20.2 `mix site.build`: the page as static files with relative links
+      (checked from disk and under a sub-path); Geist fonts bundled.
+- [x] M20.3 Tests: the content against the repository (catalogs, schemas,
+      README table, `SPEC_PIN`, modules, guides, examples), the rendered page
+      (every feature, anchor and asset), the highlighter, the export; CI job
+      `site`, whose export is kept as an artifact. Checked in a browser at
+      phone, tablet and desktop widths, both themes, reduced motion.
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

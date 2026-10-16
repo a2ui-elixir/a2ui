@@ -25,6 +25,13 @@ with the upstream example surfaces and a live chat with that agent; and a
 renderer that draws surfaces in the terminal. `examples/README.md` says how to
 run them and which features each one exercises.
 
+## Landing page
+
+`site/` is the project's landing page, a small Phoenix application
+(`mix phx.server`, port 4040) that `mix site.build` exports as static files
+for any host. What it says about the packages is tested against this
+repository; `site/README.md` has the details.
+
 ## Conformance
 
 Of the 1144 upstream cases at the pinned commit (`SPEC_PIN`), 946 run and all
