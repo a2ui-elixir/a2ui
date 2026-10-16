@@ -308,6 +308,51 @@ A2UIAgent.A2A.a2ui_messages(parts) |> List.last() |> get_in(["updateComponents",
 `A2UIAgent.A2A` also has the helpers for building and reading A2UI parts and
 for negotiating the A2UI extension.
 
+## MCP and AG-UI
+
+`A2UIAgent.MCP` gives the values an MCP server puts in its responses, as the
+A2UI project's guide to A2UI over MCP describes them. A tool call returns
+A2UI messages in an embedded resource with the MIME type
+`application/a2ui+json`, after a text fallback:
+
+```elixir
+result = A2UIAgent.MCP.tool_result(messages, uri: "a2ui://form", text: "Here is a form.")
+
+Enum.map(result["content"], & &1["type"])
+#=> ["text", "resource"]
+
+A2UIAgent.MCP.a2ui_messages(result) == {:ok, messages}
+#=> true
+```
+
+The client states its renderer capabilities in `initialize`, or in the
+`_meta` of each tool call. `A2UIAgent.MCP.renderer_capabilities/1` reads
+them for the generator:
+
+```elixir
+params = %{"capabilities" => %{"a2ui" => %{"clientCapabilities" => capabilities}}}
+
+{:ok, _processor} =
+  Generator.create_processor(generator, A2UIAgent.MCP.renderer_capabilities(params))
+```
+
+Users' actions come back as calls of the `a2ui_action` tool, which
+`A2UIAgent.MCP.action_tool/0` defines and `A2UIAgent.MCP.action/2` reads.
+
+`A2UIAgent.AGUI` does the same for AG-UI, following the conventions of
+AG-UI's A2UI middleware. A surface is an activity whose snapshots carry all
+its messages so far, so the agent keeps them per surface:
+
+```elixir
+{events, _surfaces} = A2UIAgent.AGUI.snapshots(%{}, messages)
+
+Enum.map(events, &{&1["type"], &1["messageId"]})
+#=> [{"ACTIVITY_SNAPSHOT", "a2ui-surface-form"}]
+```
+
+`A2UIAgent.AGUI.encode/1` writes an event as AG-UI's HTTP binding sends it,
+and `A2UIAgent.AGUI.user_action/2` reads the action a run starts with.
+
 ## Express
 
 Direct JSON is the default format. In Express, the other built-in format,

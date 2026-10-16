@@ -6,12 +6,12 @@ defmodule A2UIPhoenix.Test.SSE do
   # data or without the blank line that ends it is dropped.
 
   def parse(body) do
-    {events, _current} =
+    state =
       body
       |> String.split(~r/\r\n|\r|\n/)
-      |> Enum.reduce({[], nil}, &line/2)
+      |> Enum.reduce(%{events: [], current: nil, last_id: nil}, &line/2)
 
-    Enum.reverse(events)
+    Enum.reverse(state.events)
   end
 
   # The data of each `message` event, decoded as JSON.
@@ -19,16 +19,24 @@ defmodule A2UIPhoenix.Test.SSE do
     for %{event: "message", data: data} <- parse(body), do: Jason.decode!(data)
   end
 
-  defp line("", {events, nil}), do: {events, nil}
-  defp line("", {events, %{data: []}}), do: {events, nil}
+  # A blank line dispatches the event with the last event id seen so far,
+  # which carries over to later events until an `id` line changes it.
+  defp line("", %{current: nil} = state), do: state
+  defp line("", %{current: %{data: []}} = state), do: %{state | current: nil}
 
-  defp line("", {events, current}),
-    do:
-      {[%{event: current.event, data: Enum.join(Enum.reverse(current.data), "\n")} | events], nil}
+  defp line("", %{current: current} = state) do
+    event = %{
+      event: current.event,
+      data: Enum.join(Enum.reverse(current.data), "\n"),
+      id: state.last_id
+    }
 
-  defp line(":" <> _comment, acc), do: acc
+    %{state | events: [event | state.events], current: nil}
+  end
 
-  defp line(text, {events, current}) do
+  defp line(":" <> _comment, state), do: state
+
+  defp line(text, state) do
     {name, value} =
       case String.split(text, ":", parts: 2) do
         [name, " " <> value] -> {name, value}
@@ -36,10 +44,18 @@ defmodule A2UIPhoenix.Test.SSE do
         [name] -> {name, ""}
       end
 
-    {events, field(name, value, current || %{event: "message", data: []})}
+    field(name, value, %{state | current: state.current || %{event: "message", data: []}})
   end
 
-  defp field("data", value, current), do: %{current | data: [value | current.data]}
-  defp field("event", value, current), do: %{current | event: value}
-  defp field(_name, _value, current), do: current
+  defp field("data", value, %{current: current} = state),
+    do: %{state | current: %{current | data: [value | current.data]}}
+
+  defp field("event", value, %{current: current} = state),
+    do: %{state | current: %{current | event: value}}
+
+  defp field("id", value, state) do
+    if String.contains?(value, <<0>>), do: state, else: %{state | last_id: value}
+  end
+
+  defp field(_name, _value, state), do: state
 end

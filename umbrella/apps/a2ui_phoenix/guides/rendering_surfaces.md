@@ -330,3 +330,10 @@ forward "/a2ui/events", A2UIPhoenix.Plug.SSE, source: {MyAgent, :messages, []}
 
 The messages can be any enumerable, including a lazy stream. The response
 ends when the enumerable does or when the client goes away.
+
+A message given as `{id, message}` is sent with an `id:` line. A browser's
+`EventSource` that loses the connection reconnects with the last id it
+received in the `Last-Event-ID` header, and
+`A2UIPhoenix.Plug.SSE.last_event_id/1` reads it, so that the source can
+continue after that message. The `:retry` option sets how long the browser
+waits before it reconnects.

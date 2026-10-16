@@ -349,8 +349,24 @@ golden output and golden validity both.
       them, validated against the corpus; legacy cases in the Elemental and Atom
       formats are optional like the shared ones.
 
-Next, in order: the AG-UI, MCP and WebSocket transports, SSE resumption, and the
-partial items (retry loop, locale formatting, `$dynamicRef`, `unevaluatedItems`).
+### M16 — transports (2026-10-16; conformance unchanged: no suite covers them)
+
+- [x] M16.1 SSE resumption: `{id, message}` events with `id:` lines, the
+      `:retry` option, `last_event_id/1`; the test reader follows the WHATWG
+      rules for `id` (it carries over to later events).
+- [x] M16.2 `A2UIAgent.MCP`: resources, resource contents, tools with
+      `_meta.ui`, tool results with embedded A2UI resources (text fallback,
+      audience), reading messages back, renderer capabilities from
+      `initialize` or a call's `_meta`, the `a2ui_action` and `a2ui_error`
+      tools.
+- [x] M16.3 `A2UIAgent.AGUI`: activity snapshots per surface (all messages so
+      far, `deleteSurface` starts over), reading them back, user actions from
+      `forwardedProps`, text and run events, SSE encoding.
+- [x] M16.4 Guides (agent: MCP and AG-UI; Phoenix: resuming a stream),
+      divergences (no WebSocket binding, MCP catalog not implemented).
+
+Next: the partial items (retry loop, locale formatting, `$dynamicRef`,
+`unevaluatedItems`).
 
 ### Decisions
 

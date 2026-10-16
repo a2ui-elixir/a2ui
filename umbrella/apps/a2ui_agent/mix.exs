@@ -142,6 +142,10 @@ defmodule A2UIAgent.MixProject do
           A2UIAgent.A2A.Request,
           A2UIAgent.A2A.Server,
           A2UIAgent.A2A.Plug
+        ],
+        "MCP and AG-UI": [
+          A2UIAgent.MCP,
+          A2UIAgent.AGUI
         ]
       ],
       deps: [a2ui_core: "https://hexdocs.pm/a2ui_core"]

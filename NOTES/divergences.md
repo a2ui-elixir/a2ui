@@ -391,9 +391,26 @@ and the sample web clients.
 - **Streamed messages can repeat.** The streaming parser emits a message again each time
   it grows (as Python's does), so a `working` update can carry a newer copy of a message
   an earlier update carried. Each copy is a whole, valid message.
-- **Server-sent events carry data only.** `A2UIPhoenix.Plug.SSE` and the A2A plug write
-  `data:` lines (and an optional `event:` type) without `id:` or `retry:` fields, so a
-  client cannot resume a stream with `Last-Event-ID`.
+- **The A2A plug's events carry data only.** `A2UIPhoenix.Plug.SSE` writes `id:` and
+  `retry:` fields when asked and reads `Last-Event-ID`; the A2A plug writes `data:` lines
+  only, since A2A resumes a task with `tasks/resubscribe`, which it does not implement.
+- **MCP follows the A2UI guide; AG-UI follows AG-UI's middleware.** Neither binding has
+  a normative A2UI specification. `A2UIAgent.MCP` builds what the guide "A2UI over MCP"
+  shows (resources and embedded resources with `application/a2ui+json`, `_meta.ui`
+  links, `capabilities.a2ui.clientCapabilities` in `initialize` or a tool call's
+  `_meta`, the `a2ui_action` and `a2ui_error` tools); it is not an MCP server.
+  `A2UIAgent.AGUI` follows the conventions of AG-UI's `a2ui-middleware`: activity
+  snapshots of type `a2ui-surface` with the messages under `a2ui_operations`, and user
+  actions in `forwardedProps.a2uiAction.userAction`. A snapshot replaces its activity,
+  so each one carries all its surface's messages so far. The middleware's tool
+  injection, recovery and lifecycle snapshots belong to AG-UI's side and are not ported.
+- **No WebSocket binding.** A2UI names WebSockets as a possible transport but defines no
+  framing or metadata for one. Inside Phoenix, LiveView (`A2UIPhoenix.Live`) already
+  carries the renderer's two-way traffic over its socket.
+- **The MCP catalog is not implemented.** `catalogs/mcp` (`callMcpTool`, the `McpApp`
+  component and, for v0.9, data functions such as `jmespath`) is an optional catalog
+  that only the TypeScript SDK implements; it needs an MCP client in the renderer, a
+  JMESPath evaluator and the MCP Apps iframe bridge.
 - **ADK integration is out of scope.** The `extensions/adk` cases (`convert_event`,
   `execute_tool`, ADK's `data_model` and `resolve_path`) test adapters to Google's Python
   Agent Development Kit, which has no Elixir runtime; they are skipped as an optional

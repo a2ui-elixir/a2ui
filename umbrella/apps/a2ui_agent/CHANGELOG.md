@@ -29,3 +29,6 @@ First release.
   `message/stream` methods (`A2UIAgent.A2A.Server`), and a plug that serves
   them over HTTP (`A2UIAgent.A2A.Plug`). A format that is not read chunk by
   chunk, such as Express, is answered once the output is complete.
+- MCP and AG-UI: the values an MCP server returns and reads for A2UI
+  (`A2UIAgent.MCP`), and AG-UI activity snapshots, events and user actions
+  (`A2UIAgent.AGUI`).

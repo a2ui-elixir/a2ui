@@ -86,6 +86,47 @@ defmodule A2UIPhoenix.Plug.SSETest do
       refute_received {:pulled, _message}
     end
 
+    test "sends ids and the reconnection delay" do
+      conn = SSE.stream(conn(:get, "/events"), [{1, @create}, {"u-2", @update}], retry: 2500)
+
+      assert String.starts_with?(conn.resp_body, "retry: 2500\n\nid: 1\ndata: ")
+
+      assert [%{id: "1", data: create}, %{id: "u-2", data: update}] =
+               Reader.parse(conn.resp_body)
+
+      assert Jason.decode!(create) == @create
+      assert Jason.decode!(update) == @update
+    end
+
+    test "refuses ids and delays the format cannot hold" do
+      for id <- ["two\nlines", "nul" <> <<0>>] do
+        assert_raise ArgumentError, ~r/event id/, fn ->
+          SSE.stream(conn(:get, "/events"), [{id, @create}])
+        end
+      end
+
+      assert_raise ArgumentError, ~r/milliseconds/, fn ->
+        SSE.stream(conn(:get, "/events"), [], retry: -1)
+      end
+    end
+
+    test "reads the last event id a reconnecting client sends" do
+      assert SSE.last_event_id(conn(:get, "/events")) == nil
+
+      conn = :get |> conn("/events") |> put_req_header("last-event-id", "u-2")
+      assert SSE.last_event_id(conn) == "u-2"
+    end
+
+    test "stops when the client is gone before the delay is sent" do
+      conn =
+        :get
+        |> conn("/events")
+        |> ClosingAdapter.wrap(chunks: 0)
+        |> SSE.stream([@create], retry: 10)
+
+      assert conn.resp_body in [nil, ""]
+    end
+
     test "refuses an event type that is not one line" do
       for name <- ["", "two\nlines", "carriage\rreturn"] do
         assert_raise ArgumentError, ~r/one non-empty line/, fn ->
@@ -139,8 +180,8 @@ defmodule A2UIPhoenix.Plug.SSETest do
           "data: unfinished"
 
       assert Reader.parse(body) == [
-               %{event: "update", data: "first\n\nlast"},
-               %{event: "message", data: "{}"}
+               %{event: "update", data: "first\n\nlast", id: "7"},
+               %{event: "message", data: "{}", id: "7"}
              ]
     end
   end

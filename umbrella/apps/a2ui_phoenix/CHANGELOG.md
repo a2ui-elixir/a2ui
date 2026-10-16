@@ -12,4 +12,6 @@ First release.
   components with ARIA attributes, and a stylesheet that uses the reference
   web renderer's custom properties.
 - Components of other catalogs, passed to a surface by type.
-- `A2UIPhoenix.Plug.SSE`: A2UI messages streamed as server-sent events.
+- `A2UIPhoenix.Plug.SSE`: A2UI messages streamed as server-sent events,
+  with event ids, a reconnection delay and the client's `Last-Event-ID` for
+  resuming a stream.

@@ -24,6 +24,21 @@ defmodule A2UIPhoenix.Plug.SSE do
   `EventSource` reconnects when a response ends, a client using one
   closes it once its stream is complete.
 
+  ## Resuming a stream
+
+  A message given as `{id, message}` is sent with an `id:` line. A
+  browser's `EventSource` that loses the connection reconnects and sends
+  the last id it received in the `Last-Event-ID` header, which
+  `last_event_id/1` reads, so the source can continue after it:
+
+      def messages(conn) do
+        after_id = A2UIPhoenix.Plug.SSE.last_event_id(conn)
+        MyAgent.messages_since(after_id) |> Stream.map(&{&1.seq, &1.message})
+      end
+
+  The `:retry` option tells the client how long to wait before it
+  reconnects.
+
   Options:
 
     * `:source` — for the plug, `{module, function, args}`: called as
@@ -31,6 +46,7 @@ defmodule A2UIPhoenix.Plug.SSE do
       enumerable of messages.
     * `:event` — the event type of every message (default: none, which a
       browser delivers as a `message` event).
+    * `:retry` — the reconnection delay in milliseconds, sent first.
   """
 
   @behaviour Plug
@@ -63,10 +79,13 @@ defmodule A2UIPhoenix.Plug.SSE do
 
   A message is a map (or list) to encode as JSON, or JSON text already
   encoded; text that spans lines is sent as one data line per line, as
-  the event stream format requires. Option: `:event`.
+  the event stream format requires. A `{id, message}` pair is sent with
+  its id. Options: `:event` and `:retry`.
   """
   @spec stream(Plug.Conn.t(), Enumerable.t(), keyword()) :: Plug.Conn.t()
   def stream(%Plug.Conn{} = conn, messages, options \\ []) do
+    retry = retry_line(options[:retry])
+
     conn =
       conn
       |> put_resp_content_type("text/event-stream")
@@ -74,6 +93,13 @@ defmodule A2UIPhoenix.Plug.SSE do
       |> put_resp_header("x-accel-buffering", "no")
       |> send_chunked(200)
 
+    case if(retry == [], do: {:ok, conn}, else: chunk(conn, retry)) do
+      {:ok, conn} -> send_events(conn, messages, options)
+      {:error, _reason} -> conn
+    end
+  end
+
+  defp send_events(conn, messages, options) do
     Enum.reduce_while(messages, conn, fn message, conn ->
       case chunk(conn, event(message, options)) do
         {:ok, conn} -> {:cont, conn}
@@ -84,10 +110,47 @@ defmodule A2UIPhoenix.Plug.SSE do
 
   @doc """
   One event of the stream: its `event:` line if the `:event` option is
-  given, its data lines and the blank line that ends it.
+  given, its `id:` line for a `{id, message}` pair, its data lines and
+  the blank line that ends it.
   """
-  @spec event(map() | list() | String.t(), keyword()) :: iodata()
-  def event(message, options \\ []), do: [event_line(options[:event]), data_lines(message), ?\n]
+  @spec event(map() | list() | String.t() | {String.t() | integer(), term()}, keyword()) ::
+          iodata()
+  def event(message, options \\ [])
+
+  def event({id, message}, options),
+    do: [event_line(options[:event]), id_line(id), data_lines(message), ?\n]
+
+  def event(message, options), do: [event_line(options[:event]), data_lines(message), ?\n]
+
+  @doc """
+  The id of the last event a reconnecting client received (its
+  `Last-Event-ID` header), or `nil`.
+  """
+  @spec last_event_id(Plug.Conn.t()) :: String.t() | nil
+  def last_event_id(%Plug.Conn{} = conn) do
+    case get_req_header(conn, "last-event-id") do
+      [id | _] -> id
+      [] -> nil
+    end
+  end
+
+  defp id_line(id) when is_integer(id), do: ["id: ", Integer.to_string(id), ?\n]
+
+  defp id_line(id) when is_binary(id) do
+    if String.contains?(id, ["\r", "\n", <<0>>]) do
+      raise ArgumentError, "an event id is one line without NUL, got: #{inspect(id)}"
+    end
+
+    ["id: ", id, ?\n]
+  end
+
+  defp retry_line(nil), do: []
+
+  defp retry_line(ms) when is_integer(ms) and ms >= 0,
+    do: ["retry: ", Integer.to_string(ms), "\n\n"]
+
+  defp retry_line(other),
+    do: raise(ArgumentError, "retry is a number of milliseconds, got: #{inspect(other)}")
 
   defp event_line(nil), do: []
 
