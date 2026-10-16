@@ -129,18 +129,31 @@ defmodule A2UIConformance.HarnessTest do
                Dispatcher.resolve(case_for("agent/resolve_catalogs.yaml", "select_catalog"))
     end
 
-    test "agent families: blueprint suites are one area, express and legacy are optional" do
+    test "agent families: blueprint suites are one area, legacy is optional" do
       assert {:ok, A2UIConformance.Handlers.AgentCatalogs} =
                Dispatcher.resolve(case_for("agent/resolve_catalogs.yaml", "resolve_catalogs"))
 
       assert {:unimplemented, "agent SDK"} =
                Dispatcher.resolve(case_for("agent/direct_json/parser.yaml", "fix_payload"))
 
-      assert {:optional, _label} =
+      assert {:ok, A2UIConformance.Handlers.AgentFormats} =
                Dispatcher.resolve(case_for("agent/express/compiler.yaml", "compile"))
+
+      assert {:ok, A2UIConformance.Handlers.Skills} =
+               Dispatcher.resolve(case_for("agent/skill.yaml", "skill_set"))
 
       assert {:optional, _label} =
                Dispatcher.resolve(case_for("agent/legacy/parser.yaml", "select_catalog"))
+    end
+
+    test "a shared agent suite naming a format this library lacks is optional" do
+      elemental =
+        Case.new("agent/multi_catalog_formats.yaml", "n", %{
+          "action" => "compile",
+          "args" => %{"format" => "elemental"}
+        })
+
+      assert {:optional, "Elemental inference format"} = Dispatcher.resolve(elemental)
     end
 
     test "resolve_nodes is only known in its own suite; unknown actions are unknown" do
@@ -169,7 +182,7 @@ defmodule A2UIConformance.HarnessTest do
                SkipPolicy.skip_for(case_for("agent/direct_json/x.yaml", "fix_payload"))
 
       assert {:skip, "optional family without a handler: " <> _} =
-               SkipPolicy.skip_for(case_for("agent/express/x.yaml", "wrap"))
+               SkipPolicy.skip_for(case_for("agent/legacy/x.yaml", "wrap"))
 
       assert nil == SkipPolicy.skip_for(case_for("core/x.yaml", "validate"))
     end

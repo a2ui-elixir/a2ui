@@ -273,6 +273,50 @@ the skips are the same families as before (Express, legacy, v0.8, ADK).
       (key order from ordered input, peers identified by value), guides and
       changelogs updated.
 
+### M13 — Express inference format (2026-10-16; conformance: 940 passed, 223 skipped; 892 of 1115 upstream cases run)
+
+All 151 Express cases pass: the `agent/express` suites (115), the Express cases of
+`multi_catalog_formats` (24) and `request_processor` (8), and `skill.yaml` (4). The
+skipped cases are the legacy agent SDK (94), protocol v0.8 (118) and ADK (11).
+
+- [x] M13.1 `Express.Syntax`: a hand-written lexer and recursive-descent
+      parser for `Express.g4` (strings with escapes, raw and triple-quoted
+      strings, paths, checks, keyword arguments, maps, `_`), with the
+      reference's error lines and columns. `A2UIAgent.BlockLexer` finds tagged
+      blocks without closing them on a tag inside a string or comment.
+- [x] M13.2 `Express.Compiler` (ported from TypeScript): surfaces,
+      `createSurface`/`updateComponents`/`updateDataModel`/`deleteSurface`,
+      `callRendererFunction`, positional and keyword arguments, inline
+      component ids, templates, checks with the implicit bound value, events
+      and function-call actions, static properties, several catalogs
+      (`catalogId=`, ambiguity errors). Errors are `:parse` or `:validation`
+      with the reference's help texts.
+- [x] M13.3 `Express.SchemaHelper` (TypeScript semantics over the document
+      Python reads) and `Express.Decompiler` (Python), including the TypeScript
+      fix for map values written at a non-root path.
+- [x] M13.4 `Express.Prompt` (Python): the rules, signatures, catalog
+      instructions and examples; the golden prompt files match byte for byte.
+      `A2UIAgent.Express` implements `A2UIAgent.Format`, so a generator or a
+      request writes Express with `format: A2UIAgent.Express`.
+- [x] M13.5 Skills: `A2UIAgent.Skill` (PyYAML-compatible frontmatter) and
+      `A2UIAgent.SkillGenerator` (monolithic skill, core skill, catalog skills,
+      skill sets); the golden skills match byte for byte.
+- [x] M13.6 Core: `Catalog.Refs` and `Catalog.inline_refs/4` keep the key
+      order of ordered documents (`ordered: true`).
+- [x] M13.7 A2A: a parser without `parse_chunk/3` is buffered, and the
+      response is parsed when the output is complete.
+- [x] M13.8 Harness: format-aware agent handlers (format overrides, Express
+      decompile on ordered fixtures), the skill actions, ordered YAML loading;
+      `agent/express` is no longer an optional family.
+- [x] M13.9 Guide section and module groups for Express and skills;
+      divergences (prompt and decompiler from Python, compiler from TypeScript,
+      key order, inline ids, error recovery, buffered A2A answers).
+
+Next, in order: the builder and macro suites (`agent/builder` 11,
+`agent/macros` 18, golden files the harness does not load yet), the legacy agent
+SDK (94), the AG-UI, MCP and WebSocket transports, SSE resumption, and the partial
+items (retry loop, locale formatting, `$dynamicRef`, `unevaluatedItems`).
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

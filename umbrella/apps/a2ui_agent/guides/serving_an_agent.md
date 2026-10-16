@@ -307,3 +307,107 @@ A2UIAgent.A2A.a2ui_messages(parts) |> List.last() |> get_in(["updateComponents",
 
 `A2UIAgent.A2A` also has the helpers for building and reading A2UI parts and
 for negotiating the A2UI extension.
+
+## Express
+
+Direct JSON is the default format. In Express, the other built-in format,
+the model writes each component as a call whose arguments come in the order
+its catalog schema declares them, and the agent compiles the result into
+messages. The model's output is a fraction of the size of the JSON it
+stands for.
+
+A generator writes Express when its format is `A2UIAgent.Express`: for every
+request with `Generator.new(configs, format: A2UIAgent.Express)`, or for one
+request with the `:format` option of `create_processor/3`:
+
+```elixir
+{:ok, processor} = Generator.create_processor(generator, capabilities, format: A2UIAgent.Express)
+
+{:ok, snippet} = RequestProcessor.prompt(processor)
+
+snippet |> String.split("\n") |> Enum.at(1)
+#=> "# A2UI Express DSL Output Contract"
+```
+
+The prompt teaches the notation and gives the signature of each component
+and function of the negotiated catalogs, such as
+`TextField(label, value?, placeholder?, variant? (static), weight? (static), checks? (static))`.
+The generator's examples are written in Express too.
+
+The model writes Express between `<a2ui>` and `</a2ui>` tags:
+
+```elixir
+model_output = """
+Here is a form.
+<a2ui>
+surface("form")
+root = Column([name, send])
+name = TextField("Name", $/name)
+send = Button(Text("Send"), action=Event("send", {name: $/name}))
+</a2ui>
+"""
+
+{:ok, [{:text, text}, {:a2ui, [message]}]} = RequestProcessor.parse_response(processor, model_output)
+
+text
+#=> "Here is a form."
+
+Enum.map(message["createSurface"]["components"], &{&1["id"], &1["component"]})
+#=> [{"root", "Column"}, {"name", "TextField"}, {"send", "Button"}, {"send_child", "Text"}]
+```
+
+`surface("form")` starts the surface `form`, and each variable names a
+component. `$/name` binds a value to the data model, and `Event` makes an
+action. A component written inside another gets an id made from its
+parent's: the button's label is `send_child`. In protocol v1.0 the
+components of a new surface come inline in its `createSurface` message.
+The messages are checked against the catalogs as direct JSON ones are, and
+errors have the same categories.
+
+Express is read once the response is complete: its parser has no
+`parse_chunk/3`. Served over A2A, an Express agent sends its answer when the
+model has finished, also for `message/stream`.
+
+`A2UIAgent.Express.Parser.decompile/2` writes messages back as Express, so
+that earlier turns can go into the model's history in the notation it
+writes:
+
+```elixir
+{:ok, express} = A2UIAgent.Express.Parser.decompile(RequestProcessor.parser(processor), message)
+```
+
+`express` holds:
+
+```text
+surface("form")
+root = Column([name, send])
+name = TextField("Name", $/name)
+send = Button(send_child, _, Event("send", {name: $/name}))
+send_child = Text("Send")
+```
+
+Express reads arguments in the order the catalog document declares them, so
+a catalog must be read with its key order kept. `A2UICore.Catalog.Basic`,
+`A2UIAgent.CatalogConfig.from_path/2` and `A2UIAgent.CatalogProvider` keep
+it. A catalog built from a map, such as the result of a plain
+`Jason.decode/1`, has its properties ordered by name; decode with
+`objects: :ordered_objects` instead.
+
+### Skills
+
+An Express prompt can also be packaged as skills: markdown files that an
+agent framework loads when a task needs them.
+`A2UIAgent.SkillGenerator.skill_set/2` makes a core skill with the rules of
+the notation and one skill for each catalog:
+
+```elixir
+{:ok, format} = A2UIAgent.Express.new([basic])
+{:ok, skills} = A2UIAgent.SkillGenerator.skill_set(format)
+
+Enum.map(skills, & &1.filename)
+#=> ["a2ui-core/SKILL.md", "a2ui-basic/SKILL.md"]
+```
+
+`A2UIAgent.SkillGenerator.skill/2` makes one skill with the whole prompt
+instead. `A2UIAgent.Skill.to_markdown/1` gives a skill's file, and
+`A2UIAgent.Skill.export/2` writes skills into a directory.

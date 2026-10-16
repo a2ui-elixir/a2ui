@@ -8,7 +8,7 @@ and an agent SDK, checked against the upstream conformance suites.
 |---|---|---|
 | `a2ui_core` | `A2UICore` | Protocol engine: messages, catalogs, surface state, node resolution, function calls. Pure Elixir; Jason is its only dependency. |
 | `a2ui_phoenix` | `A2UIPhoenix` | LiveView renderer: the basic catalog as function components, two-way bindings, actions, and an SSE plug. |
-| `a2ui_agent` | `A2UIAgent` | Agent SDK: catalog negotiation, prompts, validated parsing of streamed model output, and an A2A server. |
+| `a2ui_agent` | `A2UIAgent` | Agent SDK: catalog negotiation, prompts in the direct JSON and Express formats, validated parsing of streamed model output, skills, and an A2A server. |
 | `a2ui_conformance` | `A2UIConformance` | Test harness for the upstream YAML conformance suites. Not published. |
 
 Each package has a README and a guide under `umbrella/apps/*/guides`.
@@ -18,15 +18,15 @@ divergences from the reference implementations.
 
 ## Conformance
 
-Of the 1115 upstream cases at the pinned commit (`SPEC_PIN`), 741 run and all
+Of the 1115 upstream cases at the pinned commit (`SPEC_PIN`), 892 run and all
 of them pass. The others are skipped, each for a stated reason:
 
 | Suite family | Cases | Run | Skipped |
 |---|---:|---:|---|
 | `core` | 572 | 533 | 39 for protocol v0.8 |
-| `agent` (shared suites) | 107 | 71 | 36 written in the Express format |
+| `agent` (shared suites) | 107 | 107 | none |
 | `agent/direct_json` | 163 | 124 | 39 for v0.8 catalogs |
-| `agent/express` | 115 | 0 | the optional Express format |
+| `agent/express` | 115 | 115 | none |
 | `agent/legacy` | 133 | 0 | the optional legacy SDK (39 of them v0.8) |
 | `extensions/a2a` | 14 | 13 | 1 v0.8 payload |
 | `extensions/adk` | 11 | 0 | adapters for Google's Python ADK |

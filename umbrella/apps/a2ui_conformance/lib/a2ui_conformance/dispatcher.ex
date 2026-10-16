@@ -57,9 +57,8 @@ defmodule A2UIConformance.Dispatcher do
 
   @agent_area "agent SDK"
 
-  # Agent suite families outside the blueprint direct_json SDK.
+  # Agent suite families this library does not implement.
   @optional_agent_scopes %{
-    "agent/express" => "Express inference format",
     "agent/legacy" => "legacy agent SDK"
   }
 
@@ -127,6 +126,17 @@ defmodule A2UIConformance.Dispatcher do
     {"agent/direct_json", "wrap"} => A2UIConformance.Handlers.AgentFormats,
     {"agent/direct_json", "parse_response"} => A2UIConformance.Handlers.AgentFormats,
     {"agent/direct_json", "parse_chunk"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/express", "compile"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/express", "decompile"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/express", "generate_prompt_snippet"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/express", "unwrap"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/express", "wrap"} => A2UIConformance.Handlers.AgentFormats,
+    {"agent/express", "parse_response"} => A2UIConformance.Handlers.AgentFormats,
+    # agent SDK: skills
+    {"agent", "from_format"} => A2UIConformance.Handlers.Skills,
+    {"agent", "core_syntax"} => A2UIConformance.Handlers.Skills,
+    {"agent", "from_catalog"} => A2UIConformance.Handlers.Skills,
+    {"agent", "skill_set"} => A2UIConformance.Handlers.Skills,
     # A2A extension
     {"extensions/a2a", "create_a2ui_part"} => A2UIConformance.Handlers.A2A,
     {"extensions/a2a", "is_a2ui_part"} => A2UIConformance.Handlers.A2A,
@@ -137,10 +147,9 @@ defmodule A2UIConformance.Dispatcher do
     {"extensions/a2a", "handle_rpc"} => A2UIConformance.Handlers.A2A
   }
 
-  # Inference formats other than direct JSON, which a shared agent suite
-  # names in `args.format` or `args.format_override`.
+  # Inference formats this library does not implement, which a shared
+  # agent suite names in `args.format` or `args.format_override`.
   @optional_formats %{
-    "express" => "Express inference format",
     "elemental" => "Elemental inference format",
     "atom" => "Atom inference format"
   }

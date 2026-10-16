@@ -41,7 +41,9 @@ defmodule A2UIAgent.A2A.Server do
   `message/stream` answers with a stream of JSON-RPC responses: the
   task (`submitted`), a `working` status update for each chunk that
   completes parts, and a final status update. A stream that stops
-  parsing fails the task.
+  parsing fails the task. A format that reads a response only once it
+  is complete (`A2UIAgent.Express`) answers with one `working` update
+  at the end of the stream, holding every part.
 
   ## Options
 
@@ -300,9 +302,21 @@ defmodule A2UIAgent.A2A.Server do
   end
 
   defp reader(%Request{processor: nil}), do: {:text, false, ""}
-  defp reader(%Request{processor: processor}), do: {:parser, RequestProcessor.parser(processor)}
+
+  # A format that is read only once the response is complete (such as
+  # Express) buffers the chunks and answers at the end.
+  defp reader(%Request{processor: processor}) do
+    %module{} = parser = RequestProcessor.parser(processor)
+
+    if Code.ensure_loaded?(module) and function_exported?(module, :parse_chunk, 3),
+      do: {:parser, parser},
+      else: {:buffer, parser, []}
+  end
 
   defp read_chunk(_chunk, :failed, _request, _options), do: {:halt, :failed}
+
+  defp read_chunk(chunk, {:buffer, parser, chunks}, _request, _options),
+    do: {[], {:buffer, parser, [chunks | chunk]}}
 
   defp read_chunk(chunk, {:parser, parser}, request, options) do
     case A2A.chunk_parts(parser, chunk, request.version) do
@@ -333,6 +347,13 @@ defmodule A2UIAgent.A2A.Server do
   end
 
   defp finish(:failed, _request, _state, _options), do: {[], :failed}
+
+  defp finish({:buffer, parser, chunks} = reader, request, state, options) do
+    text = IO.iodata_to_binary(chunks)
+    parts = A2A.response_parts(parser, text, request.version, fallback_text: String.trim(text))
+    final = result(request.id, status_update(request, state, [], true, options))
+    {working(request, parts, options) ++ [final], reader}
+  end
 
   defp finish(reader, request, state, options),
     do: {[result(request.id, status_update(request, state, [], true, options))], reader}

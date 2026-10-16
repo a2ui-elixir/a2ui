@@ -106,6 +106,21 @@ defmodule A2UIAgent.MixProject do
           A2UIAgent.DirectJson.Parser,
           A2UIAgent.DirectJson.JsonReader
         ],
+        Express: [
+          A2UIAgent.Express,
+          A2UIAgent.Express.Prompt,
+          A2UIAgent.Express.Parser,
+          A2UIAgent.Express.Compiler,
+          A2UIAgent.Express.Decompiler,
+          A2UIAgent.Express.Syntax,
+          A2UIAgent.Express.SchemaHelper,
+          A2UIAgent.Express.Catalogs,
+          A2UIAgent.BlockLexer
+        ],
+        Skills: [
+          A2UIAgent.Skill,
+          A2UIAgent.SkillGenerator
+        ],
         A2A: [
           A2UIAgent.A2A,
           A2UIAgent.A2A.Agent,

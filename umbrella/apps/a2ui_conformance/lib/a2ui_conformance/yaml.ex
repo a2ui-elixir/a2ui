@@ -36,6 +36,8 @@ defmodule A2UIConformance.Yaml do
   # Mappings decode to Elixir maps. yamerl's default (proplists) cannot
   # tell an empty mapping `{}` from an empty sequence `[]`.
   @decode_options [:str_node_as_binary, {:map_node_format, :map}]
+  @ordered_options [:str_node_as_binary, :detailed_constr]
+  @scalar_nodes [:yamerl_bool, :yamerl_int, :yamerl_float]
 
   @block_indicator ~r/:\s*[|>][0-9]*[+-]?\s*$/
 
@@ -178,6 +180,34 @@ defmodule A2UIConformance.Yaml do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  @doc """
+  Loads a YAML file with its mappings as `Jason.OrderedObject`s, in
+  document order, for a case whose expectations depend on the order of
+  a mapping's keys.
+  """
+  @spec load_file_ordered(Path.t()) :: {:ok, [term()]} | {:error, term()}
+  def load_file_ordered(path) do
+    with {:ok, contents} <- File.read(path) do
+      docs = :yamerl.decode(to_charlist(heal_lone_surrogate_escapes(contents)), @ordered_options)
+      {:ok, Enum.map(docs, &ordered/1)}
+    end
+  catch
+    :error, reason -> {:error, reason}
+  end
+
+  # yamerl's detailed nodes keep a mapping's pairs in order.
+  defp ordered({:yamerl_doc, root}), do: ordered(root)
+
+  defp ordered({:yamerl_map, _module, _tag, _pres, pairs}),
+    do: %Jason.OrderedObject{values: Enum.map(pairs, fn {k, v} -> {ordered(k), ordered(v)} end)}
+
+  defp ordered({:yamerl_seq, _module, _tag, _pres, entries, _count}),
+    do: Enum.map(entries, &ordered/1)
+
+  defp ordered({:yamerl_str, _module, _tag, _pres, text}), do: to_string(text)
+  defp ordered({:yamerl_null, _module, _tag, _pres}), do: nil
+  defp ordered({type, _module, _tag, _pres, value}) when type in @scalar_nodes, do: value
 
   @doc false
   @spec normalize(term()) :: term()

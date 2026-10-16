@@ -10,7 +10,13 @@ defmodule A2UIAgent.Format do
   module); `create/3` turns a spec into a format for a set of catalogs,
   the way an agent does once per request after negotiating catalogs.
 
-  `A2UIAgent.DirectJson` is the built-in format.
+  `A2UIAgent.DirectJson` and `A2UIAgent.Express` are the built-in
+  formats.
+
+  A format that implements the optional callbacks `c:catalogs/1`,
+  `c:base_rules/1`, `c:catalog_instructions/2` and `c:examples/2` (the
+  pieces its prompt is made of) can also be packaged as skills
+  (`A2UIAgent.SkillGenerator`).
   """
 
   alias A2UICore.{Catalog, Error}
@@ -32,6 +38,20 @@ defmodule A2UIAgent.Format do
 
   @doc "A fresh parser for the format's catalogs."
   @callback parser(struct()) :: struct()
+
+  @doc "The format's active catalogs, in order."
+  @callback catalogs(struct()) :: [Catalog.t()]
+
+  @doc "The catalog-independent rules of the prompt."
+  @callback base_rules(struct()) :: String.t()
+
+  @doc "The prompt's part for one catalog (by id), or for all of them (`nil`)."
+  @callback catalog_instructions(struct(), String.t() | nil) :: String.t()
+
+  @doc "The prompt's examples for one catalog (by id), or for all of them (`nil`)."
+  @callback examples(struct(), String.t() | nil) :: {:ok, String.t()} | {:error, Error.t()}
+
+  @optional_callbacks catalogs: 1, base_rules: 1, catalog_instructions: 2, examples: 2
 
   @doc """
   Creates the format a spec names for `catalogs`, passing `examples`.

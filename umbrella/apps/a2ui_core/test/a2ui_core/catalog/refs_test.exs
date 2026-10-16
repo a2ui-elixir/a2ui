@@ -2,6 +2,7 @@ defmodule A2UICore.Catalog.RefsTest do
   @moduledoc false
   use ExUnit.Case, async: true
 
+  alias A2UICore.{Catalog, KeyOrder}
   alias A2UICore.Catalog.Refs
 
   @peer %{
@@ -199,6 +200,62 @@ defmodule A2UICore.Catalog.RefsTest do
 
       assert Refs.inline(%{"$ref" => "nowhere.json"}, root, [], MapSet.new()) ==
                %{"$ref" => "nowhere.json"}
+    end
+  end
+
+  describe "ordered documents" do
+    defp ordered(json), do: Jason.decode!(json, objects: :ordered_objects)
+
+    test "inline/4 keeps the target's keys in order and adds the siblings' last" do
+      root =
+        ordered(
+          ~s|{"$defs": {"Base": {"type": "object", "properties": {"z": {}, "a": {}}, "required": ["z"]}}}|
+        )
+
+      node =
+        ordered(
+          ~s|{"x": {"description": "d", "$ref": "#/$defs/Base", "properties": {"m": {}, "a": {"type": "string"}}, "required": ["z", "m"]}, "y": [{"$ref": "#/$defs/Gone"}]}|
+        )
+
+      inlined = Refs.inline(node, root, [], MapSet.new())
+
+      assert Jason.encode!(inlined) ==
+               ~s|{"x":{"type":"object","properties":{"z":{},"a":{"type":"string"},"m":{}},| <>
+                 ~s|"required":["z","m"],"description":"d"},"y":[{"$ref":"#/$defs/Gone"}]}|
+    end
+
+    test "query/2 and strip_envelope/1 read ordered objects" do
+      document = ordered(~s|{"a": {"b/c": 1}}|)
+      assert Refs.query(document, "#/a/b~1c") == 1
+      assert Refs.query(document, "#/a/x") == nil
+
+      schema =
+        ordered(
+          ~s|{"title": "T", "allOf": [{"$ref": "x"}, {"properties": {"component": {}, "id": {}, "k": {}}, "required": ["component", "k"]}]}|
+        )
+
+      assert Jason.encode!(Refs.strip_envelope(schema)) ==
+               ~s|{"allOf":[{"properties":{"k":{}},"required":["k"]},{"$ref":"x"}]}|
+    end
+
+    test "a catalog inlines its peers' ordered documents" do
+      peer =
+        ~s|{"catalogId": "acme/peer", "protocolVersion": "v1.0", "components": {"Badge": {"type": "object", "properties": {"component": {"const": "Badge"}, "zeta": {}, "alpha": {}}}}}|
+        |> ordered()
+        |> Catalog.from_json!()
+
+      own =
+        ~s|{"catalogId": "acme/own", "protocolVersion": "v1.0", "components": {"Tag": {"type": "object", "allOf": [{"$ref": "acme/peer#/components/Badge"}]}}}|
+        |> ordered()
+        |> Catalog.from_json!()
+
+      [linked, _peer] = Catalog.link_catalogs([own, peer])
+      document = Catalog.to_json(linked, ordered: true)
+      inlined = Catalog.inline_refs(linked, document, document, ordered: true)
+      tag = inlined |> KeyOrder.get("components") |> KeyOrder.get("Tag")
+
+      assert Jason.encode!(tag) ==
+               ~s|{"type":"object","allOf":[{"type":"object","properties":{"zeta":{},"alpha":{}}}]}|
     end
   end
 

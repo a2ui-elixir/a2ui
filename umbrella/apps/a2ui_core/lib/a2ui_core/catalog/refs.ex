@@ -16,7 +16,13 @@ defmodule A2UICore.Catalog.Refs do
   `normalize/2` rewrites references into the common types and into the
   catalog itself as local `#/$defs/…` pointers; `inline/4` writes local
   and peer references inline, keeping references to common types.
+
+  `query/2`, `inline/4` and `strip_envelope/1` also read documents whose
+  objects are `Jason.OrderedObject`s, and keep their key order.
   """
+
+  alias A2UICore.KeyOrder
+  alias Jason.OrderedObject
 
   @moduledoc since: "0.1.0"
 
@@ -267,10 +273,9 @@ defmodule A2UICore.Catalog.Refs do
     |> Enum.reduce_while(document, fn token, node ->
       token = token |> String.replace("~1", "/") |> String.replace("~0", "~")
 
-      case node do
-        %{^token => child} -> {:cont, child}
-        _other -> {:halt, nil}
-      end
+      if is_map(node) and KeyOrder.has_key?(node, token),
+        do: {:cont, KeyOrder.get(node, token)},
+        else: {:halt, nil}
     end)
   end
 
@@ -292,7 +297,24 @@ defmodule A2UICore.Catalog.Refs do
   def inline(node, root, peers, preserved),
     do: do_inline(node, {:root, root}, %{peers: peers, preserved: preserved, visited: []})
 
-  defp do_inline(%{"$ref" => ref} = node, scope, ctx) when is_binary(ref) do
+  defp do_inline(%OrderedObject{} = node, scope, ctx) do
+    case KeyOrder.get(node, "$ref") do
+      ref when is_binary(ref) -> inline_ref(node, ref, scope, ctx)
+      _none -> map_inline(node, scope, ctx)
+    end
+  end
+
+  defp do_inline(%{"$ref" => ref} = node, scope, ctx) when is_binary(ref),
+    do: inline_ref(node, ref, scope, ctx)
+
+  defp do_inline(%{} = node, scope, ctx), do: map_inline(node, scope, ctx)
+
+  defp do_inline(list, scope, ctx) when is_list(list),
+    do: Enum.map(list, &do_inline(&1, scope, ctx))
+
+  defp do_inline(other, _scope, _ctx), do: other
+
+  defp inline_ref(node, ref, scope, ctx) do
     case target(ref, scope, ctx) do
       {key, document, pointer} ->
         expand(node, key, document, pointer, scope, ctx)
@@ -305,12 +327,8 @@ defmodule A2UICore.Catalog.Refs do
     end
   end
 
-  defp do_inline(%{} = node, scope, ctx), do: map_inline(node, scope, ctx)
-
-  defp do_inline(list, scope, ctx) when is_list(list),
-    do: Enum.map(list, &do_inline(&1, scope, ctx))
-
-  defp do_inline(other, _scope, _ctx), do: other
+  defp map_inline(%OrderedObject{values: values} = node, scope, ctx),
+    do: %{node | values: Enum.map(values, fn {k, v} -> {k, do_inline(v, scope, ctx)} end)}
 
   defp map_inline(node, scope, ctx),
     do: Map.new(node, fn {k, v} -> {k, do_inline(v, scope, ctx)} end)
@@ -365,7 +383,7 @@ defmodule A2UICore.Catalog.Refs do
         |> do_inline(scope_ref, %{ctx | visited: [key | ctx.visited]})
         |> strip_inherited_component(pointer)
 
-      siblings = node |> Map.delete("$ref") |> map_inline(scope, ctx)
+      siblings = node |> drop_keys(["$ref"]) |> map_inline(scope, ctx)
       merge_siblings(resolved, siblings)
     else
       _visited_or_missing -> if key in ctx.visited, do: node, else: map_inline(node, scope, ctx)
@@ -375,22 +393,43 @@ defmodule A2UICore.Catalog.Refs do
   defp scope_document({:root, root}), do: root
   defp scope_document({:peer, peer}), do: peer.document
 
+  # The keys beside a `$ref` override the target's, where they stand:
+  # objects merge key by key and lists gain the items they lack.
   defp merge_siblings(%{} = resolved, siblings) do
-    Enum.reduce(siblings, resolved, fn {key, value}, acc ->
-      case {acc, value} do
-        {%{^key => %{} = existing}, %{}} ->
-          Map.put(acc, key, Map.merge(existing, value))
+    Enum.reduce(pairs(siblings), resolved, fn {key, value}, acc ->
+      existing = KeyOrder.get(acc, key)
 
-        {%{^key => existing}, list} when is_list(existing) and is_list(list) ->
-          Map.put(acc, key, existing ++ Enum.reject(list, &(&1 in existing)))
+      merged =
+        cond do
+          is_map(existing) and is_map(value) ->
+            put_all(existing, pairs(value))
 
-        _other ->
-          Map.put(acc, key, value)
-      end
+          is_list(existing) and is_list(value) ->
+            existing ++ Enum.reject(value, &(&1 in existing))
+
+          true ->
+            value
+        end
+
+      put_key(acc, key, merged)
     end)
   end
 
   defp merge_siblings(resolved, _siblings), do: resolved
+
+  defp pairs(%OrderedObject{values: values}), do: values
+  defp pairs(%{} = map), do: Map.to_list(map)
+
+  defp put_all(object, pairs),
+    do: Enum.reduce(pairs, object, fn {key, value}, acc -> put_key(acc, key, value) end)
+
+  defp put_key(%OrderedObject{} = object, key, value), do: KeyOrder.put(object, key, value)
+  defp put_key(%{} = map, key, value), do: Map.put(map, key, value)
+
+  defp drop_keys(%OrderedObject{values: values} = object, keys),
+    do: %{object | values: Enum.reject(values, fn {key, _value} -> key in keys end)}
+
+  defp drop_keys(%{} = map, keys), do: Map.drop(map, keys)
 
   defp strip_inherited_component(%{} = node, "#/components/" <> name) do
     if String.contains?(name, "/"), do: node, else: strip_envelope(node)
@@ -407,17 +446,16 @@ defmodule A2UICore.Catalog.Refs do
   @spec strip_envelope(map()) :: map()
   def strip_envelope(schema) do
     schema
-    |> Map.drop(["unevaluatedProperties", "additionalProperties", "title"])
-    |> update_present("properties", &if(is_map(&1), do: Map.drop(&1, @envelope_keys), else: &1))
+    |> drop_keys(["unevaluatedProperties", "additionalProperties", "title"])
+    |> update_present("properties", &if(is_map(&1), do: drop_keys(&1, @envelope_keys), else: &1))
     |> update_present("required", &if(is_list(&1), do: &1 -- @envelope_keys, else: &1))
     |> update_present("allOf", &strip_members/1)
   end
 
   defp strip_members(members) when is_list(members) do
     {specific, inherited} =
-      Enum.split_with(members, fn
-        %{"properties" => %{"component" => _}} -> true
-        _other -> false
+      Enum.split_with(members, fn member ->
+        is_map(member) and member |> KeyOrder.get("properties") |> declares_component?()
       end)
 
     Enum.map(specific ++ inherited, fn
@@ -428,10 +466,12 @@ defmodule A2UICore.Catalog.Refs do
 
   defp strip_members(other), do: other
 
+  defp declares_component?(properties),
+    do: is_map(properties) and KeyOrder.has_key?(properties, "component")
+
   defp update_present(map, key, fun) do
-    case map do
-      %{^key => value} -> Map.put(map, key, fun.(value))
-      _other -> map
-    end
+    if KeyOrder.has_key?(map, key),
+      do: put_key(map, key, fun.(KeyOrder.get(map, key))),
+      else: map
   end
 end

@@ -10,7 +10,14 @@ First release.
   catalogs' documents, the protocol schemas they use and few-shot examples,
   written as the reference SDKs write it, and a parser for complete and
   streamed responses that checks messages the way a renderer would.
-- `A2UIAgent.PayloadValidator`.
+- The Express inference format (`A2UIAgent.Express`): a prompt with the
+  notation's rules and the signatures of the negotiated catalogs' components
+  and functions, a compiler from Express blocks to validated messages and a
+  decompiler back, written as the reference SDKs write them.
+- Skills (`A2UIAgent.Skill`, `A2UIAgent.SkillGenerator`): a format's prompt
+  packaged as one skill or as a core skill and one skill per catalog.
+- `A2UIAgent.PayloadValidator` and `A2UIAgent.BlockLexer`.
 - A2A: A2UI parts, extension negotiation, the `message/send` and
   `message/stream` methods (`A2UIAgent.A2A.Server`), and a plug that serves
-  them over HTTP (`A2UIAgent.A2A.Plug`).
+  them over HTTP (`A2UIAgent.A2A.Plug`). A format that is not read chunk by
+  chunk, such as Express, is answered once the output is complete.

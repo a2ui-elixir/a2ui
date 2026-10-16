@@ -16,6 +16,28 @@ defmodule A2UIConformance.AgentFixtures do
   @spec path(String.t()) :: Path.t()
   def path(relative), do: Path.join([Registry.reference_root(), "conformance", relative])
 
+  @doc """
+  The case's mapping read with its key order (`Jason.OrderedObject`s),
+  for inputs whose key order shows in the output.
+  """
+  @spec ordered_case(A2UIConformance.Case.t()) :: Jason.OrderedObject.t()
+  def ordered_case(%A2UIConformance.Case{suite: suite, name: name}) do
+    key = {__MODULE__, :ordered_suite, suite}
+
+    cases =
+      case :persistent_term.get(key, nil) do
+        nil ->
+          {:ok, [cases]} = A2UIConformance.Yaml.load_file_ordered(path(suite))
+          :persistent_term.put(key, cases)
+          cases
+
+        cases ->
+          cases
+      end
+
+    Enum.find(cases, &(A2UICore.KeyOrder.get(&1, "name") == name))
+  end
+
   @doc "Reads a conformance-relative JSON file."
   @spec load_json(String.t()) :: term()
   def load_json(relative), do: relative |> path() |> File.read!() |> Jason.decode!()

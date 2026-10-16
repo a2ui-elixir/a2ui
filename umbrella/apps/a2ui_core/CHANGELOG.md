@@ -10,7 +10,8 @@ First release.
 - Catalogs: catalog documents read into a model and written back
   (`A2UICore.Catalog.to_json/2`, in the document's key order on request), the
   self-contained schema messages are validated against, references into
-  peer catalogs, the basic catalog of each version with its functions
+  peer catalogs (inlined with `A2UICore.Catalog.inline_refs/4`, which also
+  keeps key order), the basic catalog of each version with its functions
   implemented, composition constraints, and `en-US` formatting behind a
   pluggable `A2UICore.Formatter`.
 - `A2UICore.Processor`: surfaces, components and data models updated by

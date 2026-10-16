@@ -3,7 +3,7 @@ defmodule A2UIConformance.Handlers.AgentFormats do
 
   # The inference-format actions of the agent harness
   # (python/a2ui_agent/tests/conformance/test_conformance.py), for the
-  # direct JSON format:
+  # direct JSON and Express formats (`args.format`):
   #
   #   * compile / decompile (`test_compiler_conformance`,
   #     `test_decompiler_conformance`; in multi_catalog_formats.yaml
@@ -16,13 +16,26 @@ defmodule A2UIConformance.Handlers.AgentFormats do
 
   import ExUnit.Assertions
 
-  alias A2UIAgent.{DirectJson, Generator, RequestProcessor}
+  alias A2UIAgent.{DirectJson, Express, Generator, RequestProcessor}
   alias A2UIAgent.DirectJson.Parser
   alias A2UIConformance.{AgentFixtures, Case, Matchers}
 
   @multi_catalog_suite "agent/multi_catalog_formats.yaml"
 
+  # The surface the harness's Express formats compile statements before
+  # any `surface` line into (`CONFORMANCE_SURFACE_ID`).
+  @surface_id "default_surface"
+
   @impl true
+  def run(%Case{action: "decompile"} = test_case, _context) do
+    # Express writes map and event context keys in the order the
+    # messages give them, so it reads the case's messages in order.
+    ordered = A2UICore.KeyOrder.get(AgentFixtures.ordered_case(test_case), "messages")
+    raw = Map.put(test_case.raw, "ordered_messages", ordered)
+    run_action("decompile", raw, test_case.suite == @multi_catalog_suite)
+    :ok
+  end
+
   def run(%Case{action: action} = test_case, _context) do
     run_action(action, test_case.raw, test_case.suite == @multi_catalog_suite)
     :ok
@@ -31,32 +44,32 @@ defmodule A2UIConformance.Handlers.AgentFormats do
   # -- compile and decompile ---------------------------------------------------------
 
   defp run_action("compile", raw, sorted?) do
-    parser = make_parser!(raw["args"])
+    %module{} = parser = make_parser!(raw["args"])
 
     case raw do
       %{"expect_error" => expected} ->
-        AgentFixtures.expect_error(expected, fn -> Parser.compile(parser, raw["input"]) end)
+        AgentFixtures.expect_error(expected, fn -> module.compile(parser, raw["input"]) end)
 
       %{"expect" => expected} ->
-        assert {:ok, compiled} = Parser.compile(parser, raw["input"])
+        assert {:ok, compiled} = module.compile(parser, raw["input"])
         compiled = drop_present(compiled, raw["expect_present"] || [])
         assert_messages(expected, compiled, sorted?)
     end
   end
 
   defp run_action("decompile", raw, sorted?) do
-    parser = make_parser!(raw["args"])
+    %module{} = parser = make_parser!(raw["args"])
     messages = raw["messages"]
-    notation = Parser.decompile(messages)
+    notation = decompile!(parser, raw["ordered_messages"] || messages)
     expect_snippet(notation, raw["expect_contains"], raw["expect_absent"])
 
     if raw["expect_round_trip"] do
-      assert {:ok, recompiled} = Parser.compile(parser, notation)
+      assert {:ok, recompiled} = module.compile(parser, notation)
       assert_messages(messages, recompiled, sorted?)
     end
 
     if Map.has_key?(raw, "expect_recompiled") do
-      assert {:ok, recompiled} = Parser.compile(parser, notation)
+      assert {:ok, recompiled} = module.compile(parser, notation)
       assert_messages(raw["expect_recompiled"], recompiled, false)
     end
   end
@@ -64,23 +77,25 @@ defmodule A2UIConformance.Handlers.AgentFormats do
   # -- response parsing --------------------------------------------------------------
 
   defp run_action("unwrap", raw, _sorted?) do
-    assert_raw_parts(raw["expect"], Parser.unwrap(raw["input"]))
+    module = parser_module(raw["args"])
+    assert_raw_parts(raw["expect"], module.unwrap(raw["input"]))
   end
 
   defp run_action("wrap", raw, _sorted?) do
-    output = raw["parts"] |> Enum.map(&raw_part/1) |> Parser.wrap()
+    module = parser_module(raw["args"])
+    output = raw["parts"] |> Enum.map(&raw_part/1) |> module.wrap()
 
     if Map.has_key?(raw, "expect_output"), do: assert(output == raw["expect_output"])
     expect_snippet(output, raw["expect_contains"], nil)
-    if raw["expect_round_trip"], do: assert_raw_parts(raw["parts"], Parser.unwrap(output))
+    if raw["expect_round_trip"], do: assert_raw_parts(raw["parts"], module.unwrap(output))
   end
 
   defp run_action("parse_response", raw, _sorted?) do
     args = raw["args"]
-    parser = make_parser!(args)
+    %module{} = parser = make_parser!(args)
 
     parse = fn ->
-      Parser.parse_response(parser, raw["input"], wrapped: Map.get(args, "wrapped", true))
+      module.parse_response(parser, raw["input"], wrapped: Map.get(args, "wrapped", true))
     end
 
     case raw do
@@ -129,8 +144,8 @@ defmodule A2UIConformance.Handlers.AgentFormats do
         end)
 
       _expect ->
-        assert {:ok, format} = make_format(raw["args"])
-        assert {:ok, snippet} = DirectJson.prompt(format)
+        assert {:ok, %module{} = format} = make_format(raw["args"])
+        assert {:ok, snippet} = module.prompt(format)
 
         if file = raw["expect_file"],
           do:
@@ -140,7 +155,7 @@ defmodule A2UIConformance.Handlers.AgentFormats do
             )
 
         expect_snippet(snippet, raw["expect_contains"], raw["expect_absent"])
-        if raw["expect_deterministic"], do: assert({:ok, ^snippet} = DirectJson.prompt(format))
+        if raw["expect_deterministic"], do: assert({:ok, ^snippet} = module.prompt(format))
     end
   end
 
@@ -153,15 +168,15 @@ defmodule A2UIConformance.Handlers.AgentFormats do
 
       _expect ->
         expect = raw["expect"] || %{}
-        assert {:ok, format} = make_format(args)
+        assert {:ok, %module{} = format} = make_format(args)
 
         if expect["parser_state_isolated"] do
-          first = probe(DirectJson.parser(format), args["probe_chunks"])
+          first = probe(module.parser(format), args["probe_chunks"])
           assert Enum.any?(first, &(&1 != []))
-          assert probe(DirectJson.parser(format), args["probe_chunks"]) == first
+          assert probe(module.parser(format), args["probe_chunks"]) == first
         end
 
-        assert {:ok, snippet} = DirectJson.prompt(format)
+        assert {:ok, snippet} = module.prompt(format)
 
         expect_snippet(
           snippet,
@@ -178,13 +193,18 @@ defmodule A2UIConformance.Handlers.AgentFormats do
     generator =
       Generator.new(configs,
         examples: AgentFixtures.examples(args),
-        format: format_spec(args),
+        format: format_spec(args["format"], args),
         accepts_inline_catalogs: args["accepts_inline_catalogs"] == true
       )
 
+    override =
+      if Map.has_key?(args, "format_override"),
+        do: [format: format_spec(args["format_override"], args)],
+        else: []
+
     create = fn ->
       with {:ok, processor} <-
-             Generator.create_processor(generator, args["renderer_capabilities"]),
+             Generator.create_processor(generator, args["renderer_capabilities"], override),
            {:ok, snippet} <- RequestProcessor.prompt(processor) do
         {:ok, {processor, snippet}}
       end
@@ -232,9 +252,20 @@ defmodule A2UIConformance.Handlers.AgentFormats do
 
   # -- helpers ---------------------------------------------------------------------------
 
-  defp format_spec(args) do
+  defp format_spec("express", args),
+    do: {Express, allowed_messages: args["allowed_messages"], surface_id: @surface_id}
+
+  defp format_spec(_direct_json, args) do
     {DirectJson,
      allowed_messages: args["allowed_messages"], progressive_keys: args["progressive_keys"]}
+  end
+
+  defp parser_module(%{"format" => "express"}), do: Express.Parser
+  defp parser_module(_args), do: Parser
+
+  defp make_parser!(%{"format" => "express"} = args) do
+    {:ok, parser} = Express.Parser.new(AgentFixtures.catalogs_for(args), surface_id: @surface_id)
+    parser
   end
 
   defp make_parser!(args) do
@@ -244,17 +275,21 @@ defmodule A2UIConformance.Handlers.AgentFormats do
     parser
   end
 
+  defp decompile!(%Express.Parser{} = parser, messages) do
+    assert {:ok, notation} = Express.Parser.decompile(parser, messages)
+    notation
+  end
+
+  defp decompile!(%Parser{}, messages), do: Parser.decompile(messages)
+
   defp make_format(args) do
     catalogs =
       if Map.has_key?(args, "catalogs") or Map.has_key?(args, "catalog"),
         do: AgentFixtures.catalogs_for(args),
         else: []
 
-    DirectJson.new(catalogs,
-      examples: AgentFixtures.examples(args),
-      allowed_messages: args["allowed_messages"],
-      progressive_keys: args["progressive_keys"]
-    )
+    {module, options} = format_spec(args["format"], args)
+    module.new(catalogs, Keyword.put(options, :examples, AgentFixtures.examples(args)))
   end
 
   defp probe(parser, chunks) do
@@ -292,7 +327,8 @@ defmodule A2UIConformance.Handlers.AgentFormats do
     )
   end
 
-  defp prompt(args), do: with({:ok, format} <- make_format(args), do: DirectJson.prompt(format))
+  defp prompt(args),
+    do: with({:ok, %module{} = format} <- make_format(args), do: module.prompt(format))
 
   defp expect_snippet(snippet, contains, absent) do
     for fragment <- contains || [],

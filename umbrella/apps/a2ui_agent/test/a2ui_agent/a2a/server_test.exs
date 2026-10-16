@@ -3,9 +3,10 @@ defmodule A2UIAgent.A2A.ServerTest do
 
   import ExUnit.CaptureLog
 
-  alias A2UIAgent.{A2A, CatalogConfig, Generator, RequestProcessor}
+  alias A2UIAgent.{A2A, CatalogConfig, Express, Generator, RequestProcessor}
   alias A2UIAgent.A2A.{Request, Server}
   alias A2UIAgent.Test.Fixtures
+  alias A2UICore.Catalog
 
   @clock "2026-10-14T12:00:00Z"
 
@@ -470,6 +471,26 @@ defmodule A2UIAgent.A2A.ServerTest do
       messages = A2A.a2ui_messages(parts)
       assert create in messages
       assert List.last(messages) == update
+    end
+
+    test "answers a format read only when complete once, at the end" do
+      chunks = ["Here.\n<a2ui>\nroot = Te", "xt(\"Hi\")\n</a2ui>"]
+
+      generator =
+        Generator.new([CatalogConfig.new(Catalog.Basic.catalog("v1.0"))], format: Express)
+
+      assert {:stream, events, []} =
+               Server.handle(
+                 body("message/stream", user([], v1_capabilities())),
+                 fn _ -> {:ok, chunks} end,
+                 options(generator: generator)
+               )
+
+      assert [_task, working, final] = Enum.map(events, & &1["result"])
+      assert final["final"] == true
+      parts = working["status"]["message"]["parts"]
+      assert [%{"kind" => "text", "text" => "Here."}, _a2ui] = parts
+      assert [%{"createSurface" => %{"surfaceId" => "main"}}] = A2A.a2ui_messages(parts)
     end
 
     test "runs the agent once the stream is read past the task" do

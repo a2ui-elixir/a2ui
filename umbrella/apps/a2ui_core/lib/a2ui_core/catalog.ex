@@ -420,14 +420,24 @@ defmodule A2UICore.Catalog do
   catalog's document) and its references into the catalog's peers
   inline, keeping references to common types. A prompt uses this to find
   the common types a catalog reaches through its peers.
-  """
-  @spec inline_refs(t(), term(), map()) :: term()
-  def inline_refs(%__MODULE__{} = catalog, node, root) when is_map(root),
-    do: Refs.inline(node, root, peer_entries(catalog), ValidationSchema.common_names())
 
-  defp peer_entries(catalog) do
+  With `ordered: true` the peers' documents are read as
+  `to_json(peer, ordered: true)`, so that a node read from an ordered
+  document keeps its key order wherever it is inlined.
+  """
+  @spec inline_refs(t(), term(), map(), keyword()) :: term()
+  def inline_refs(%__MODULE__{} = catalog, node, root, options \\ []) when is_map(root) do
+    peers = peer_entries(catalog, Keyword.get(options, :ordered, false))
+    Refs.inline(node, root, peers, ValidationSchema.common_names())
+  end
+
+  defp peer_entries(catalog, ordered \\ false) do
     Enum.map(catalog.peers, fn peer ->
-      %{catalog_id: peer.catalog_id, schema_id: peer.schema_id, document: to_json(peer)}
+      %{
+        catalog_id: peer.catalog_id,
+        schema_id: peer.schema_id,
+        document: to_json(peer, ordered: ordered)
+      }
     end)
   end
 

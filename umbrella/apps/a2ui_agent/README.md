@@ -6,9 +6,12 @@ renderer, puts the matching schemas in the model's prompt and reads the
 model's output back as validated A2UI messages, from a complete response or
 chunk by chunk while it streams.
 
-It supports protocol versions v0.9, v0.9.1 and v1.0. The inference format is
-direct JSON: the model writes message lists between `<a2ui-json>` and
-`</a2ui-json>` tags.
+It supports protocol versions v0.9, v0.9.1 and v1.0, and two inference
+formats. In direct JSON, the default, the model writes message lists between
+`<a2ui-json>` and `</a2ui-json>` tags. In Express (`A2UIAgent.Express`) it
+writes a compact notation between `<a2ui>` and `</a2ui>` tags, which the agent
+compiles into messages. An Express prompt can also be packaged as skills
+(`A2UIAgent.SkillGenerator`).
 
 ## Usage
 
@@ -45,6 +48,10 @@ transport connects the two.
 Catalogs can also be loaded from files (`A2UIAgent.CatalogConfig.from_path/2`)
 or sent by the renderer itself (`inlineCatalogs`, with
 `accepts_inline_catalogs: true`).
+
+For Express, pass `format: A2UIAgent.Express` to `Generator.new/2` (every
+request) or `Generator.create_processor/3` (one request). Express responses
+are parsed once they are complete.
 
 ## Serving over A2A
 
