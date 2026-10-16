@@ -609,14 +609,21 @@
           <header class="report-head">
             <div>
               <p class="report-figure">
-                <span class="gradient-text">{suite_totals().run}</span><span class="of">/{suite_totals().total}</span>
+                <span class="gradient-text">{suite_totals().run}</span><span class="of">/{suite_totals().run}</span>
               </p>
               <p class="report-caption">
-                upstream cases run, <strong>all of them passing</strong>; {suite_totals().skipped} skipped, each for a reason
+                upstream cases that apply, <strong>all passing</strong>. The suites hold {suite_totals().total} cases; the other {suite_totals().skipped} do not apply to these packages:
               </p>
             </div>
             <p class="report-meta mono">a2ui-project/a2ui@{Content.spec_commit()}</p>
           </header>
+          <ul class="skip-reasons" aria-label={"Why #{suite_totals().skipped} cases are skipped"}>
+            <li :for={reason <- Content.skip_reasons()}>
+              <span class="skip-count">{reason.count}</span>
+              <span class="skip-text"><strong>{reason.title}</strong> {reason.detail}</span>
+              <span class="skip-suites">{Enum.join(reason.suites, " · ")}</span>
+            </li>
+          </ul>
           <table class="report-table">
             <thead>
               <tr>

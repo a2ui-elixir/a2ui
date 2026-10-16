@@ -70,6 +70,30 @@ defmodule Site.ContentTest do
     assert String.starts_with?(commit, Content.spec_commit())
   end
 
+  test "the skip reasons account for every skipped case, suite by suite" do
+    totals = SiteWeb.PageHTML.suite_totals()
+    assert Enum.sum(Enum.map(Content.skip_reasons(), & &1.count)) == totals.skipped
+
+    # Each suite's reasons add up to its skipped cases; a reason with no count is all of them.
+    counts =
+      for suite <- Content.suites(), suite.skipped, into: %{} do
+        parts =
+          for [_, n, what] <- Regex.scan(~r/(\d+) ([^,]+)/, suite.skipped),
+              do: {String.to_integer(n), what}
+
+        parts = if parts == [], do: [{suite.total - suite.run, suite.skipped}], else: parts
+        assert Enum.sum(Enum.map(parts, &elem(&1, 0))) == suite.total - suite.run, suite.name
+        {suite.name, parts}
+      end
+
+    v0_8 = for {_suite, parts} <- counts, {n, what} <- parts, what =~ "v0.8", do: n
+    [protocol | _] = Content.skip_reasons()
+    assert Enum.sum(v0_8) == protocol.count
+
+    names = Enum.map(Content.suites(), & &1.name)
+    for reason <- Content.skip_reasons(), suite <- reason.suites, do: assert(suite in names)
+  end
+
   test "the modules the page names exist" do
     sources =
       @root

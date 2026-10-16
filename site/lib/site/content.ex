@@ -525,6 +525,40 @@ defmodule Site.Content do
     ]
   end
 
+  @doc """
+  Why the skipped cases are skipped: how many, the reason, and the suites
+  they come from.
+  """
+  def skip_reasons do
+    [
+      %{
+        count: 118,
+        title: "Protocol v0.8.",
+        detail: "The older wire format. The packages implement v0.9, v0.9.1 and v1.0.",
+        suites: ["core", "agent/direct_json", "agent/legacy", "extensions/a2a"]
+      },
+      %{
+        count: 67,
+        title: "Superseded rules.",
+        detail:
+          "Cases of the earlier agent interface whose rules the blueprint suites replaced. The Python SDK no longer runs them and the TypeScript SDK skips them too.",
+        suites: ["agent/legacy"]
+      },
+      %{
+        count: 11,
+        title: "Google's Python ADK.",
+        detail: "Adapters to the Python Agent Development Kit, which has no Elixir runtime.",
+        suites: ["extensions/adk"]
+      },
+      %{
+        count: 2,
+        title: "Elemental and Atom.",
+        detail: "Two other inference formats. The packages implement direct JSON and Express.",
+        suites: ["agent/legacy"]
+      }
+    ]
+  end
+
   @doc "What every change has to pass, in order: a short name and the command or check."
   def gates do
     [

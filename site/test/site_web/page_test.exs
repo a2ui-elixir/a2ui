@@ -94,8 +94,12 @@ defmodule SiteWeb.PageTest do
       if suite.skipped, do: assert(report =~ "skipped: " <> suite.skipped)
     end
 
-    assert report =~ "946/1144"
-    assert report =~ "198 skipped"
+    assert report =~ "946/946 upstream cases that apply, all passing"
+    assert report =~ "The suites hold 1144 cases; the other 198 do not apply"
+
+    for reason <- Content.skip_reasons() do
+      assert report =~ "#{reason.count} #{reason.title} #{reason.detail}"
+    end
   end
 
   test "the code samples and the hero's message are shown whole", %{doc: doc} do
