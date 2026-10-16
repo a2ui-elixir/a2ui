@@ -1,31 +1,37 @@
 defmodule A2UIConformance.Handlers.FromJson do
   @moduledoc false
 
-  # `from_json` (reference harness `validate_from_json_case`, L972-1022):
-  # builds a catalog from a catalog document (inline, or `catalogPath`
-  # into the reference checkout) and checks what the case expects of it:
-  # id and protocol version, that listed components and functions exist,
-  # that its schema is self-contained, and that listed component payloads
-  # validate (or fail). An unknown `expect` key fails the case.
+  # `from_json` (reference harness `validate_from_json_case`): builds a
+  # catalog from a catalog document (inline, or `catalogPath` into the
+  # reference checkout), links the peers of `peerCatalogPaths`, and checks
+  # what the case expects of it: id and protocol version, that listed
+  # components and functions exist, that its validation schema is
+  # self-contained, that it matches the library's own implementation of
+  # the catalog (`matchesBuiltinCatalog`), and that listed component
+  # payloads validate (or fail). An unknown `expect` key fails the case.
 
   @behaviour A2UIConformance.Handler
 
   import ExUnit.Assertions
 
-  alias A2UIConformance.{Case, CatalogFixtures, Matchers, Registry}
-  alias A2UICore.Catalog
+  alias A2UIConformance.{Case, CaseCatalog, CatalogFixtures, Matchers}
+  alias A2UICore.{Catalog, SemVer}
   alias A2UICore.Validation.Payload
 
-  @expect_keys ~w(catalogId components functions invalidComponents protocolVersion
-                  selfContained theme validComponents)
+  @expect_keys ~w(catalogId components functions invalidComponents matchesBuiltinCatalog
+                  protocolVersion selfContained theme validComponents)
+
+  # Every component carries these fields; `matchesBuiltinCatalog` leaves
+  # them out when it compares component shapes.
+  @envelope_fields ["id", "component"]
 
   @impl true
   def run(%Case{raw: raw, protocol_version: version}, _context) do
-    schema = document(raw)
+    schema = CaseCatalog.document(raw)
 
     catalog_id =
       CatalogFixtures.catalog_id(raw) ||
-        if(raw["catalogPath"], do: schema["catalogId"])
+        if(raw["catalogPath"], do: CaseCatalog.plain(schema)["catalogId"])
 
     result = Catalog.from_json(schema, catalog_id: catalog_id, protocol_version: version)
 
@@ -41,17 +47,8 @@ defmodule A2UIConformance.Handlers.FromJson do
         flunk("catalog failed to load: #{Exception.message(error)}")
 
       {{:ok, catalog}, nil} ->
-        check(catalog, raw["expect"] || %{})
+        catalog |> CaseCatalog.with_peers(raw) |> check(raw["expect"] || %{})
         :ok
-    end
-  end
-
-  @doc false
-  @spec document(map()) :: map()
-  def document(raw) do
-    case raw["catalogPath"] do
-      nil -> raw["catalogSchema"] || raw["catalog"] || raw["schema"] || raw
-      path -> [Registry.reference_root(), path] |> Path.join() |> File.read!() |> Jason.decode!()
     end
   end
 
@@ -70,8 +67,90 @@ defmodule A2UIConformance.Handlers.FromJson do
       "function"
     )
 
-    if expected["selfContained"], do: assert_self_contained(Catalog.to_schema(catalog))
+    if expected["selfContained"], do: assert_self_contained(Catalog.validation_schema(catalog))
+    if expected["matchesBuiltinCatalog"], do: assert_matches_builtin(catalog)
     check_payloads(catalog, expected)
+  end
+
+  # The loaded catalog is equivalent to the library's own implementation
+  # of the catalog with its id: the same id and protocol version, the
+  # same property and required names for each component, and the same
+  # signature for each function.
+  defp assert_matches_builtin(catalog) do
+    builtin =
+      CaseCatalog.sdk_catalog(catalog.catalog_id) ||
+        flunk("the library has no catalog #{inspect(catalog.catalog_id)}")
+
+    assert SemVer.to_canonical(catalog.protocol_version) ==
+             SemVer.to_canonical(builtin.protocol_version),
+           "protocolVersion mismatch"
+
+    assert component_shapes(catalog) == component_shapes(builtin), "Component mismatch"
+    assert function_signatures(catalog) == function_signatures(builtin), "Function mismatch"
+  end
+
+  defp component_shapes(catalog) do
+    schema = Catalog.validation_schema(catalog)
+
+    Map.new(schema["components"] || %{}, fn {name, component} ->
+      {properties, required} = schema_shape(schema, component, [])
+
+      {name,
+       %{
+         properties: properties |> MapSet.difference(MapSet.new(@envelope_fields)) |> Enum.sort(),
+         required: required |> MapSet.difference(MapSet.new(@envelope_fields)) |> Enum.sort()
+       }}
+    end)
+  end
+
+  # The property and required names a schema declares, merging `allOf`
+  # members and following local references (`seen` holds the references
+  # being followed).
+  defp schema_shape(document, %{} = schema, seen) do
+    own =
+      {MapSet.new(Map.keys(schema["properties"] || %{})), MapSet.new(schema["required"] || [])}
+
+    referenced =
+      case schema["$ref"] do
+        "#" <> _ = ref ->
+          if ref in seen,
+            do: {MapSet.new(), MapSet.new()},
+            else: schema_shape(document, resolve(document, ref), [ref | seen])
+
+        _other ->
+          {MapSet.new(), MapSet.new()}
+      end
+
+    members = Enum.map(schema["allOf"] || [], &schema_shape(document, &1, seen))
+    Enum.reduce([referenced | members], own, &union_shape/2)
+  end
+
+  defp schema_shape(_document, _schema, _seen), do: {MapSet.new(), MapSet.new()}
+
+  defp union_shape({properties, required}, {acc_properties, acc_required}),
+    do: {MapSet.union(acc_properties, properties), MapSet.union(acc_required, required)}
+
+  defp resolve(document, "#" <> pointer) do
+    pointer
+    |> String.split("/")
+    |> Enum.drop(1)
+    |> Enum.reduce(document, fn token, node ->
+      token = token |> String.replace("~1", "/") |> String.replace("~0", "~")
+      if is_map(node), do: node[token]
+    end)
+  end
+
+  # Each catalog function's signature; system functions (`@index`), which
+  # the library registers for evaluation, are left out.
+  defp function_signatures(catalog) do
+    for {name, function} <- catalog.functions, not String.starts_with?(name, "@"), into: %{} do
+      {name,
+       %{
+         "returnType" => function.return_type || "any",
+         "allowedCallers" => function.allowed_callers || "rendererOnly",
+         "requiresUserActivation" => function.requires_user_activation == true
+       }}
+    end
   end
 
   defp list_only(names) when is_list(names), do: names

@@ -44,8 +44,9 @@ defmodule A2UICore.Resolution.DataContext do
   any other single-`@` key is an `INVALID_RESERVED_KEY` error.
   """
 
-  alias A2UICore.Catalog
-  alias A2UICore.State.DataModel
+  alias A2UICore.{Catalog, SemVer}
+  alias A2UICore.Functions.System
+  alias A2UICore.State.{DataModel, Surface}
   alias A2UICore.Validation.{Payload, ReservedKeys}
 
   @moduledoc since: "0.1.0"
@@ -56,6 +57,8 @@ defmodule A2UICore.Resolution.DataContext do
             data_model: nil,
             catalog: nil,
             catalogs: %{},
+            protocol_version: nil,
+            surface_id: nil,
             locale: nil
 
   @type t :: %__MODULE__{
@@ -65,6 +68,8 @@ defmodule A2UICore.Resolution.DataContext do
           data_model: DataModel.t() | nil,
           catalog: Catalog.t() | nil,
           catalogs: %{optional(String.t()) => Catalog.t()},
+          protocol_version: String.t() | nil,
+          surface_id: String.t() | nil,
           locale: String.t() | nil
         }
 
@@ -77,16 +82,22 @@ defmodule A2UICore.Resolution.DataContext do
   Creates a root scope at `path` (default `"/"`). The stored path always
   ends with a slash.
 
-  Options: `:data_model`, `:catalog` (the default catalog), `:catalogs`
-  (`%{catalog_id => catalog}` reachable by `catalogId`), `:locale`.
+  Options: `:data_model`, `:catalog` (the default catalog, if any),
+  `:catalogs` (`%{catalog_id => catalog}` reachable by `catalogId`),
+  `:protocol_version` (default: the default catalog's), `:surface_id`
+  (for messages), `:locale`.
   """
   @spec new(String.t(), keyword()) :: t()
   def new(path \\ "/", options \\ []) when is_binary(path) do
+    catalog = options[:catalog]
+
     %__MODULE__{
       path: with_trailing_slash(path),
       data_model: options[:data_model],
-      catalog: options[:catalog],
+      catalog: catalog,
       catalogs: Keyword.get(options, :catalogs, %{}),
+      protocol_version: options[:protocol_version] || (catalog && catalog.protocol_version),
+      surface_id: options[:surface_id],
       locale: options[:locale]
     }
   end
@@ -95,15 +106,15 @@ defmodule A2UICore.Resolution.DataContext do
   Creates the root scope for a `A2UICore.State.Surface`: its data
   model, its default catalog and the catalogs it can reach.
   """
-  @spec for_surface(A2UICore.State.Surface.t(), keyword()) :: t()
-  def for_surface(%A2UICore.State.Surface{} = surface, options \\ []) do
-    catalogs = surface.catalogs
-
+  @spec for_surface(Surface.t(), keyword()) :: t()
+  def for_surface(%Surface{} = surface, options \\ []) do
     new(
       Keyword.get(options, :path, "/"),
       data_model: surface.data_model,
-      catalog: Map.get(catalogs, surface.catalog_id),
-      catalogs: catalogs,
+      catalog: Surface.default_catalog(surface),
+      catalogs: surface.catalogs,
+      protocol_version: Surface.protocol_version(surface),
+      surface_id: surface.id,
       locale: Keyword.get(options, :locale, surface.metadata[:locale])
     )
   end
@@ -168,10 +179,13 @@ defmodule A2UICore.Resolution.DataContext do
 
   @doc """
   Whether bindings use the v1.0 `@path`/`@call` spelling, decided by
-  the default catalog's protocol version.
+  the scope's protocol version (that of its surface, which outlives a
+  missing default catalog).
   """
   @spec v1?(t()) :: boolean()
-  def v1?(%__MODULE__{catalog: %Catalog{} = catalog}), do: Catalog.v1?(catalog)
+  def v1?(%__MODULE__{protocol_version: version}) when is_binary(version),
+    do: SemVer.at_least(version, "v1.0")
+
   def v1?(%__MODULE__{}), do: false
 
   @doc """
@@ -300,7 +314,7 @@ defmodule A2UICore.Resolution.DataContext do
   defp check_reserved(_context, _object, false), do: :ok
 
   defp check_reserved(context, object, true),
-    do: ReservedKeys.check(Map.keys(object), context.catalog.protocol_version)
+    do: ReservedKeys.check(Map.keys(object), context.protocol_version)
 
   defp resolve_entries(context, object, v1?, effects) do
     Enum.reduce(object, {%{}, effects}, fn {key, value}, {acc, effects} ->
@@ -314,26 +328,80 @@ defmodule A2UICore.Resolution.DataContext do
 
   defp call_function(context, value, name, effects) do
     raw_args = Map.get(value, "args", %{})
-    catalog_id = value["catalogId"] || value["catalog_id"]
 
-    case execute(context, name, raw_args, catalog_id) do
+    case execute(context, name, raw_args, call_catalog(context, value)) do
       {:ok, result, found} -> {result, Enum.reverse(found) ++ effects}
       {:error, payload, found} -> {nil, [{:error, payload} | Enum.reverse(found) ++ effects]}
     end
   end
 
+  # The catalog a call names: from v1.0 `{:named, id}` whenever it carries
+  # a `catalogId` key (an empty one names a catalog too), else `:default`.
+  # Before v1.0 a call always runs in the surface catalog.
+  defp call_catalog(context, value) do
+    cond do
+      not v1?(context) -> :default
+      Map.has_key?(value, "catalogId") -> {:named, value["catalogId"]}
+      Map.has_key?(value, "catalog_id") -> {:named, value["catalog_id"]}
+      true -> :default
+    end
+  end
+
   # Arguments are validated as written (a `DynamicBoolean` admits a
   # nested call), then resolved, and the resolved values are handed to
-  # the function.
-  defp execute(context, name, raw_args, catalog_id) do
+  # the function. From v1.0 a system function (`@index`) belongs to no
+  # catalog and skips catalog resolution.
+  defp execute(context, name, raw_args, catalog) do
     with :ok <- check_argument_count(name, raw_args),
-         {:ok, catalog} <- target_catalog(context, catalog_id),
-         {:ok, _validated} <- validate(catalog, name, raw_args),
-         {:ok, function} <- find_function(catalog, name) do
+         {:ok, function} <- find_callee(context, name, raw_args, catalog) do
       {resolved, effects} = resolve(context, raw_args, [])
       run(function, resolved || %{}, context, Enum.reverse(effects), name)
     else
       {:error, %A2UICore.Error{} = error} -> {:error, error_payload(error, name), []}
+    end
+  end
+
+  defp find_callee(context, "@" <> _ = name, raw_args, catalog) do
+    if v1?(context),
+      do: system_function(context, name, raw_args, catalog),
+      else: catalog_function(context, name, raw_args, catalog)
+  end
+
+  defp find_callee(context, name, raw_args, catalog),
+    do: catalog_function(context, name, raw_args, catalog)
+
+  defp system_function(_context, name, _raw_args, {:named, _id}) do
+    {:error,
+     A2UICore.Error.new(
+       :expression,
+       "EXPRESSION_ERROR",
+       "System function '#{name}' belongs to no catalog and must not name a catalogId"
+     )}
+  end
+
+  defp system_function(context, name, raw_args, :default) do
+    version = context.protocol_version
+
+    with {:ok, _args} <- Payload.validate_system_function(name, raw_args, version) do
+      case Enum.find(System.functions(version), &(&1.name == name)) do
+        nil ->
+          {:error,
+           A2UICore.Error.new(
+             :expression,
+             "EXPRESSION_ERROR",
+             "System function '#{name}' not found."
+           )}
+
+        function ->
+          {:ok, function}
+      end
+    end
+  end
+
+  defp catalog_function(context, name, raw_args, catalog) do
+    with {:ok, catalog} <- target_catalog(context, name, catalog),
+         {:ok, _validated} <- Payload.validate_function(catalog, name, raw_args) do
+      find_function(catalog, name)
     end
   end
 
@@ -363,9 +431,10 @@ defmodule A2UICore.Resolution.DataContext do
 
   defp check_argument_count(_name, _raw_args), do: :ok
 
-  defp target_catalog(context, nil), do: {:ok, context.catalog}
-
-  defp target_catalog(context, catalog_id) do
+  # A call runs in the catalog it names, looked up among the catalogs the
+  # scope reaches, or else in the default catalog; there is no other
+  # fallback.
+  defp target_catalog(context, _name, {:named, catalog_id}) do
     case Map.fetch(context.catalogs, catalog_id) do
       {:ok, catalog} ->
         {:ok, catalog}
@@ -376,20 +445,34 @@ defmodule A2UICore.Resolution.DataContext do
     end
   end
 
-  defp validate(nil, name, _raw_args) do
+  defp target_catalog(%__MODULE__{catalog: nil, surface_id: nil}, name, :default) do
     {:error,
-     A2UICore.Error.new(:catalog, "CATALOG_ERROR", "Function '#{name}' not found in catalog.")}
+     A2UICore.Error.new(
+       :catalog,
+       "CATALOG_ERROR",
+       "Function call '#{name}' names no catalogId and the context has no default catalog."
+     )}
   end
 
-  defp validate(catalog, name, raw_args), do: Payload.validate_function(catalog, name, raw_args)
+  defp target_catalog(%__MODULE__{catalog: nil} = context, name, :default) do
+    {:error,
+     A2UICore.Error.new(
+       :catalog,
+       "CATALOG_ERROR",
+       "Function call '#{name}' names no catalogId and surface #{context.surface_id} " <>
+         "has no default catalogId."
+     )}
+  end
+
+  defp target_catalog(context, _name, :default), do: {:ok, context.catalog}
 
   defp find_function(catalog, name) do
     case Catalog.get_function(catalog, name) do
       nil ->
         {:error,
          A2UICore.Error.new(
-           :catalog,
-           "CATALOG_ERROR",
+           :expression,
+           "EXPRESSION_ERROR",
            "Function '#{name}' not found in catalog '#{catalog.catalog_id}'."
          )}
 
@@ -409,8 +492,12 @@ defmodule A2UICore.Resolution.DataContext do
      }}
   end
 
+  # A call whose catalog cannot be resolved is a catalog fault, not a
+  # broken expression: the function may exist in a catalog the surface
+  # does not have.
   defp error_payload(%A2UICore.Error{} = error, expression) do
-    payload = %{code: "EXPRESSION_ERROR", message: error.message, expression: expression}
+    code = if error.category == :catalog, do: "CATALOG_ERROR", else: "EXPRESSION_ERROR"
+    payload = %{code: code, message: error.message, expression: expression}
     if error.details == [], do: payload, else: Map.put(payload, :details, error.details)
   end
 

@@ -88,7 +88,10 @@ alias A2UICore.{Processor, Validation}
 processor = Processor.new([basic, shop], validation: Validation.Config.strict())
 ```
 
-The first catalog is the default for surfaces that name none.
+A surface's default catalog is the one its `createSurface` names. A v1.0
+surface may name none: it then has no default, and each component and
+function call on it names its own `catalogId`. Before v1.0 the first
+catalog is the default for a surface that names none.
 `A2UICore.Processor.process/3` takes a payload as the transport delivers it
 (one message, a list of messages, or a `%{"messages" => [...]}` wrapper) and
 applies the messages in order:
@@ -286,28 +289,27 @@ renderer call functions in the agent.
 
 ### The agent calls the renderer
 
-A `callRendererFunction` message runs a catalog function and produces an
-`{:rpc_response, message}` effect, the message to send back. The function
-runs in the data context of the surface given as `:surface_id` (the first
-surface otherwise):
+A `callRendererFunction` message runs a function of the catalog it names
+and produces an `{:rpc_response, message}` effect, the message to send back.
+The function runs in the data context of the surface the message names in
+`surfaceId`; arguments that are bindings or calls are resolved there first.
+A message that names no surface runs in a context of its own, with an empty
+data model:
 
 ```elixir
 {:ok, processor, [rpc_response: response]} =
-  Processor.process(
-    processor,
-    %{
-      "version" => "v1.0",
-      "callRendererFunction" => %{
-        "functionCallId" => "fc-1",
-        "callFunction" => %{
-          "@call" => "cartTotal",
-          "catalogId" => shop.catalog_id,
-          "args" => %{"taxRate" => 0.25}
-        }
+  Processor.process(processor, %{
+    "version" => "v1.0",
+    "callRendererFunction" => %{
+      "functionCallId" => "fc-1",
+      "surfaceId" => "checkout",
+      "callFunction" => %{
+        "@call" => "cartTotal",
+        "catalogId" => shop.catalog_id,
+        "args" => %{"taxRate" => 0.25}
       }
-    },
-    surface_id: "checkout"
-  )
+    }
+  })
 
 response
 #=> %{
@@ -320,7 +322,8 @@ The agent may only call functions whose `allowedCallers` is `agentOnly` or
 `rendererOrAgent`. A function that does not say is renderer-only. A function
 with `requiresUserActivation` runs only when the message is processed with
 `user_activated: true`. Failures still produce a response: it carries an
-`error` with a code such as `INVALID_FUNCTION_CALL` or `EXECUTION_ERROR`.
+`error` with a code such as `INVALID_FUNCTION_CALL` (also for a `surfaceId`
+that names no surface) or `EXECUTION_ERROR`.
 
 ### The renderer calls the agent
 

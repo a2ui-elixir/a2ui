@@ -136,19 +136,21 @@ end
 defmodule A2UICore.Message.Operation.CallRendererFunction do
   @moduledoc """
   A `callRendererFunction` message (v1.0): the agent asks the renderer
-  to run function `call` with `args`, from the catalog `catalog_id`.
+  to run function `call` with `args`, from the catalog `catalog_id`,
+  in the context of surface `surface_id` (or of no surface when `nil`).
   The answer must carry `function_call_id`.
   """
 
   @moduledoc since: "0.1.0"
 
   @enforce_keys [:function_call_id, :call]
-  defstruct [:function_call_id, :call, :catalog_id, version: "v1.0", args: %{}]
+  defstruct [:function_call_id, :call, :catalog_id, :surface_id, version: "v1.0", args: %{}]
 
   @type t :: %__MODULE__{
           function_call_id: String.t(),
           call: String.t(),
           catalog_id: String.t() | nil,
+          surface_id: String.t() | nil,
           args: map(),
           version: String.t()
         }

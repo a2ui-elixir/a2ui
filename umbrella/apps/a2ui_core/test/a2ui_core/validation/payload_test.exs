@@ -128,7 +128,23 @@ defmodule A2UICore.Validation.PayloadTest do
       component = %{"id" => "t", "component" => "Text", "text" => unknown}
       {_error, details} = failure(Payload.validate_component(catalog, component))
 
-      assert {"unrecognized_function", "functions.nope"} in details
+      assert details == [{"unrecognized_function", "components.t.text"}]
+    end
+
+    test "a v1.0 component's catalogId must be a string", %{v10: catalog} do
+      component = %{"id" => "t", "component" => "Text", "text" => "hi", "catalogId" => 5}
+      {_error, details} = failure(Payload.validate_component(catalog, component))
+
+      assert {"type_mismatch", "components.t.catalogId"} in details
+    end
+
+    test "a system function call may not name a catalog", %{v10: catalog} do
+      call = %{"@call" => "@index", "catalogId" => catalog.catalog_id, "args" => %{}}
+      component = %{"id" => "t", "component" => "Text", "text" => call}
+      {error, details} = failure(Payload.validate_component(catalog, component))
+
+      assert error.message =~ "System function '@index' belongs to no catalog"
+      assert Enum.any?(details, fn {_code, path} -> path == "components.t.text.catalogId" end)
     end
 
     test "reserved directive keys are rejected in v1.0", %{v10: catalog} do

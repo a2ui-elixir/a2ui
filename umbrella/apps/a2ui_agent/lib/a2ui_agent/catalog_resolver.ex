@@ -46,7 +46,10 @@ defmodule A2UIAgent.CatalogResolver do
           {:ok, [Catalog.t()]} | {:error, Error.t()}
   def resolve(configs, capabilities, options \\ [])
 
-  def resolve(configs, nil, _options), do: {:ok, Enum.map(configs, & &1.transformed)}
+  def resolve(configs, nil, _options) do
+    pristine = Enum.map(configs, & &1.catalog)
+    {:ok, configs |> Enum.map(& &1.transformed) |> Catalog.link_catalogs(pristine)}
+  end
 
   def resolve([], _capabilities, _options),
     do:
@@ -62,7 +65,14 @@ defmodule A2UIAgent.CatalogResolver do
          {:ok, entry} <- entry(capabilities, key),
          {:ok, inline} <- inline_catalogs(entry, key, version) do
       inline = if options[:accepts_inline_catalogs], do: inline, else: []
-      activate(registered, entry["supportedCatalogIds"], inline)
+
+      # Inactive registered catalogs stay resolvable as peers, and so do the
+      # unpruned catalogs transformers start from; inline catalogs are peers
+      # only when active. Linking returns per-request copies.
+      with {:ok, active} <- activate(registered, entry["supportedCatalogIds"], inline) do
+        pristine = Enum.map(configs, & &1.catalog)
+        {:ok, Catalog.link_catalogs(active, pristine ++ registered)}
+      end
     end
   end
 

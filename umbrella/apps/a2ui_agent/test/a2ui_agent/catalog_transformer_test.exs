@@ -57,7 +57,11 @@ defmodule A2UIAgent.CatalogTransformerTest do
     assert schema["$defs"]["anyComponent"]["oneOf"] == [%{"$ref" => "#/components/Card"}]
     # The kept function still references Color through its arguments.
     assert Map.has_key?(schema["$defs"], "Color")
-    refute Map.has_key?(schema["$defs"], "Unused")
+
+    # A definition no entry referenced is not the pruned entries' to take.
+    document = Catalog.to_json(pruned)
+    assert Map.keys(document["components"]) == ["Card"]
+    assert Map.has_key?(document["$defs"], "Unused")
   end
 
   test "pruning both kinds drops the definitions nothing reaches", %{catalog: c} do

@@ -1,4 +1,4 @@
-a2ui-project/a2ui commit: ce03d005c0575ff6708da583d9e7658a34df2d5d
-date: 2026-10-10
-source: reference/a2ui (git clone --depth 1)
-notes: conformance/core + specification/v0_9_1, v1_0 validated against this pin
+a2ui-project/a2ui commit: 5d74ffb9d8401b70337d143d6a79f6e9c46d098d
+date: 2026-10-16
+source: reference/a2ui (git fetch --depth 1)
+notes: conformance core, agent and extensions + specification v0_9, v0_9_1, v1_0 validated against this pin

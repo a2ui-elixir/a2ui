@@ -25,14 +25,25 @@ defmodule A2UICore.Resolution.DynamicValuesTest do
       "required" => ["call"]
     }
 
+    echo_v10 = %{
+      "type" => "object",
+      "properties" => %{"@call" => %{"const" => "echo"}, "args" => %{"type" => "object"}},
+      "required" => ["@call"]
+    }
+
+    implementations = %{"echo" => fn args, _ctx -> {:ok, %{"echoed" => args}} end}
+
     other =
       %{"catalogId" => "urn:test:other", "functions" => %{"echo" => echo}}
       |> Catalog.from_json!(protocol_version: "v0.9")
-      |> Catalog.put_implementations(%{
-        "echo" => fn args, _ctx -> {:ok, %{"echoed" => args}} end
-      })
+      |> Catalog.put_implementations(implementations)
 
-    {:ok, other: other}
+    other_v10 =
+      %{"catalogId" => "urn:test:other", "functions" => %{"echo" => echo_v10}}
+      |> Catalog.from_json!(protocol_version: "v1.0")
+      |> Catalog.put_implementations(implementations)
+
+    {:ok, other: other, other_v10: other_v10}
   end
 
   defp context(version, data \\ @data, options \\ []) do
@@ -213,13 +224,22 @@ defmodule A2UICore.Resolution.DynamicValuesTest do
       assert [%{code: "missing_field"}] = error.details
     end
 
-    test "without a catalog no function is available" do
+    test "without a default catalog a call that names none cannot run" do
       ctx = DataContext.new("/", data_model: DataModel.new(@data))
 
       assert {nil, [{:error, error}]} =
                DataContext.resolve_dynamic_value(ctx, %{"call" => "x", "args" => %{}})
 
-      assert error.message == "Function 'x' not found in catalog."
+      assert error.message ==
+               "Function call 'x' names no catalogId and the context has no default catalog."
+
+      ctx = DataContext.new("/", data_model: DataModel.new(@data), surface_id: "s1")
+
+      assert {nil, [{:error, error}]} =
+               DataContext.resolve_dynamic_value(ctx, %{"call" => "x", "args" => %{}})
+
+      assert error.message ==
+               "Function call 'x' names no catalogId and surface s1 has no default catalogId."
     end
 
     test "too many arguments" do
@@ -241,25 +261,35 @@ defmodule A2UICore.Resolution.DynamicValuesTest do
                DataContext.resolve_dynamic_value(ctx, call)
     end
 
-    test "catalogId selects another catalog", %{other: other} do
-      ctx = context("v0.9", @data, catalogs: %{"urn:test:other" => other})
+    test "from v1.0 catalogId selects another catalog", %{other_v10: other} do
+      ctx = context("v1.0", @data, catalogs: %{"urn:test:other" => other})
 
       call = %{
-        "call" => "echo",
+        "@call" => "echo",
         "catalogId" => "urn:test:other",
-        "args" => %{"who" => %{"path" => "/user/name"}}
+        "args" => %{"who" => %{"@path" => "/user/name"}}
       }
 
       assert DataContext.resolve_dynamic_value(ctx, call) ==
                {%{"echoed" => %{"who" => "Ada"}}, []}
     end
 
-    test "an unknown catalogId is an error" do
-      ctx = context("v0.9")
-      call = %{"call" => "echo", "catalogId" => "urn:missing", "args" => %{}}
+    test "before v1.0 a call runs in the default catalog whatever catalogId it names",
+         %{other: other} do
+      ctx = context("v0.9", @data, catalogs: %{"urn:test:other" => other})
+      call = %{"call" => "echo", "catalogId" => "urn:test:other", "args" => %{}}
+
+      assert {nil, [{:error, error}]} = DataContext.resolve_dynamic_value(ctx, call)
+      assert error.message =~ "Unrecognized function 'echo'"
+    end
+
+    test "from v1.0 an unknown catalogId is an error" do
+      ctx = context("v1.0")
+      call = %{"@call" => "echo", "catalogId" => "urn:missing", "args" => %{}}
 
       assert {nil, [{:error, error}]} = DataContext.resolve_dynamic_value(ctx, call)
       assert error.message == "Catalog not found: urn:missing"
+      assert error.code == "CATALOG_ERROR"
     end
 
     test "a function declared without an implementation yields nil" do

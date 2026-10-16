@@ -5,9 +5,11 @@ defmodule A2UICore.RPC do
   Two directions meet here.
 
   **The agent calls a renderer function** (`callRendererFunction`).
-  `call_renderer_function/3` resolves the function in a catalog, checks
-  that an agent may call it, validates its arguments, runs it and returns
-  the `rendererFunctionResponse` message to send back. It always returns
+  `call_renderer_function/3` resolves the function in the catalog the
+  call names, checks that an agent may call it, resolves its arguments
+  against the data of the surface the call names (or against an empty
+  data model), validates them, runs it and returns the
+  `rendererFunctionResponse` message to send back. It always returns
   one: every failure is an error response, never an exception.
 
   **The renderer calls an agent function** (`callAgentFunction`).
@@ -28,16 +30,18 @@ defmodule A2UICore.RPC do
   ## Error codes
 
   Responses and rejections use `INVALID_FUNCTION_CALL` (an unknown
-  catalog or function, a caller or activation violation, bad arguments,
-  a malformed call), `EXECUTION_ERROR`, `TIMEOUT`, `CANCELLED`,
-  `DISPOSED`, `DUPLICATE` and `UNKNOWN_ERROR` (an agent error without a
-  code).
+  surface, catalog or function, a caller or activation violation, bad
+  arguments, a malformed call), `EXECUTION_ERROR` (the function failed,
+  or an argument's expression did), `TIMEOUT`, `CANCELLED`, `DISPOSED`,
+  `DUPLICATE` and `UNKNOWN_ERROR` (an agent error without a code).
   """
 
   alias A2UICore.{Catalog, Error, Version}
   alias A2UICore.Catalog.Function
   alias A2UICore.Message.Operation.{AgentFunctionResponse, CallRendererFunction}
   alias A2UICore.Message.RendererToAgent
+  alias A2UICore.Resolution.DataContext
+  alias A2UICore.State.DataModel
   alias A2UICore.Validation.Payload
 
   @moduledoc since: "0.1.0"
@@ -114,12 +118,19 @@ defmodule A2UICore.RPC do
   Executes an agent's `callRendererFunction` and returns the
   `rendererFunctionResponse` message.
 
+  The function runs in the catalog the call names (`catalogId`). Its
+  arguments are resolved against `:context`, the data context of the
+  surface the call names (`surfaceId`); a call that names no surface
+  runs in a context of its own, with an empty data model and the call's
+  catalog as its default catalog. An argument whose expression fails
+  makes the call fail with `EXECUTION_ERROR`; the resolved arguments are
+  then validated against the function's schema.
+
   Options:
 
-    * `:catalog` — the catalog used when the call names no `catalogId`
-      (a surface's default catalog);
-    * `:context` — the `A2UICore.Resolution.DataContext` passed to the
-      function;
+    * `:context` — the `A2UICore.Resolution.DataContext` of the surface
+      the call names (`nil` when there is no such surface, which fails the
+      call);
     * `:user_activated` — whether the call happens inside a user gesture,
       which functions that require activation need (default `false`).
   """
@@ -127,12 +138,15 @@ defmodule A2UICore.RPC do
   def call_renderer_function(%__MODULE__{} = rpc, %CallRendererFunction{} = call, options \\ []) do
     outcome =
       with :ok <- ensure_live(rpc),
-           {:ok, catalog} <- resolve_catalog(rpc, call, options),
+           :ok <- check_surface(call, options[:context]),
+           {:ok, catalog} <- resolve_catalog(rpc, call),
            :ok <- check_version(catalog, call),
            {:ok, function} <- find_function(catalog, call),
            :ok <- check_permissions(function, call, options[:user_activated] == true),
-           {:ok, arguments} <- validate_arguments(catalog, call) do
-        execute(function, arguments, options[:context])
+           context = options[:context] || own_context(rpc, catalog, call),
+           {:ok, resolved} <- resolve_arguments(call.args, context),
+           {:ok, arguments} <- validate_arguments(catalog, call.call, resolved) do
+        execute(function, arguments, context)
       end
 
     RendererToAgent.function_response(call.function_call_id, outcome, version: call.version)
@@ -141,7 +155,13 @@ defmodule A2UICore.RPC do
   defp ensure_live(%__MODULE__{disposed?: true}), do: {:error, "DISPOSED", @disposed_message}
   defp ensure_live(%__MODULE__{}), do: :ok
 
-  defp resolve_catalog(rpc, %CallRendererFunction{catalog_id: id}, _options)
+  defp check_surface(%CallRendererFunction{surface_id: nil}, _context), do: :ok
+  defp check_surface(%CallRendererFunction{surface_id: id}, %DataContext{surface_id: id}), do: :ok
+
+  defp check_surface(%CallRendererFunction{surface_id: id}, _context),
+    do: {:error, "INVALID_FUNCTION_CALL", "Surface not found: #{id}"}
+
+  defp resolve_catalog(rpc, %CallRendererFunction{catalog_id: id})
        when is_binary(id) and id != "" do
     case Enum.find(rpc.catalogs, &(&1.catalog_id == id)) do
       nil -> {:error, "INVALID_FUNCTION_CALL", "Catalog not found: #{id}"}
@@ -149,15 +169,33 @@ defmodule A2UICore.RPC do
     end
   end
 
-  defp resolve_catalog(_rpc, _call, options) do
-    case options[:catalog] do
-      %Catalog{} = catalog ->
-        {:ok, catalog}
+  defp resolve_catalog(_rpc, _call),
+    do: {:error, "INVALID_FUNCTION_CALL", "No catalog available for function resolution."}
 
-      nil ->
-        {:error, "INVALID_FUNCTION_CALL", "No catalog available for function resolution."}
-    end
+  # The surface-independent root context of a call that names no surface.
+  defp own_context(rpc, catalog, call) do
+    DataContext.new("/",
+      data_model: DataModel.new(%{}),
+      catalog: catalog,
+      catalogs: Map.new(rpc.catalogs, &{&1.catalog_id, &1}),
+      surface_id: "_rpc_fallback_#{call.function_call_id || "default"}"
+    )
   end
+
+  # Each argument is resolved on its own; the first expression error
+  # fails the call.
+  defp resolve_arguments(args, %DataContext{} = context) when is_map(args) do
+    Enum.reduce_while(args, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
+      {resolved, effects} = DataContext.resolve_dynamic_value(context, value)
+
+      case Enum.find(effects, &match?({:error, %{code: "EXPRESSION_ERROR"}}, &1)) do
+        nil -> {:cont, {:ok, Map.put(acc, key, resolved)}}
+        {:error, error} -> {:halt, {:error, "EXECUTION_ERROR", error.message}}
+      end
+    end)
+  end
+
+  defp resolve_arguments(args, _context), do: {:ok, args}
 
   defp check_version(%Catalog{protocol_version: catalog_version}, %CallRendererFunction{} = call) do
     if catalog_version && call.version &&
@@ -195,7 +233,7 @@ defmodule A2UICore.RPC do
     end
   end
 
-  defp validate_arguments(catalog, %CallRendererFunction{call: name, args: args}) do
+  defp validate_arguments(catalog, name, args) do
     case Payload.validate_function(catalog, name, args) do
       {:ok, arguments} ->
         {:ok, arguments}

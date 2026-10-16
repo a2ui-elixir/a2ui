@@ -26,23 +26,29 @@ defmodule A2UICore.Processor do
   Within one `updateComponents` the update is atomic — a failing batch
   leaves the surface untouched.
 
-    * `createSurface` — the surface's catalog is the one named by
-      `catalogId`, or the processor's first catalog; the message's
-      version must be compatible with it (`A2UICore.Version`); a theme is
-      validated against the catalog. Inline `dataModel` and `components`
-      are applied right after the surface is created.
+    * `createSurface` — the surface's default catalog is the one named
+      by `catalogId`. A v1.0 surface may name none and then has no
+      default catalog; before v1.0 the processor's first catalog is the
+      fallback. The message's version must be compatible with the catalog
+      (`A2UICore.Version`) and a theme is validated against it. The
+      surface can use every catalog of its protocol version. Inline
+      `dataModel` and `components` are applied right after the surface is
+      created.
     * `updateComponents` — each component takes the catalog named by its
       `catalogId`, else the one it already has (when its type is
-      unchanged), else the surface's. With a validation configuration
-      the batch is validated as a whole before it is committed
-      (`A2UICore.Validation.ComponentsUpdate`).
+      unchanged), else the surface's default; from v1.0 a component that
+      names none on a surface without a default catalog is an error, and
+      so is a function call nested in it whose catalog does not resolve.
+      With a validation configuration the batch is validated as a whole
+      before it is committed (`A2UICore.Validation.ComponentsUpdate`).
     * `updateDataModel` — writes into the surface's data model.
     * `deleteSurface` — removes the surface; an unknown id is ignored.
-    * `callRendererFunction` — runs the function (see `A2UICore.RPC`) in
-      the first surface's data context, or in the one of the
-      `:surface_id` option, and comes back as an `{:rpc_response, message}`
-      effect: the `rendererFunctionResponse` to send to the agent. Calls
-      that require user activation need the `:user_activated` option.
+    * `callRendererFunction` — runs the function (see `A2UICore.RPC`)
+      against the data of the surface its `surfaceId` names, or of no
+      surface when it names none, and comes back as an
+      `{:rpc_response, message}` effect: the `rendererFunctionResponse` to
+      send to the agent. Calls that require user activation need the
+      `:user_activated` option.
     * `agentFunctionResponse` — settles the pending agent call it answers
       and comes back as an `{:rpc_settled, call_id, outcome}` effect.
       Neither changes surface state.
@@ -69,6 +75,7 @@ defmodule A2UICore.Processor do
   """
 
   alias A2UICore.{Catalog, Error, Message, RPC, SemVer, Version}
+  alias A2UICore.Error.Detail
   alias A2UICore.Message.Operation
 
   alias A2UICore.Message.Operation.{
@@ -82,7 +89,7 @@ defmodule A2UICore.Processor do
 
   alias A2UICore.Resolution.DataContext
   alias A2UICore.State.{Component, Components, Surface, SurfaceGroup}
-  alias A2UICore.Validation.{ComponentsUpdate, Config, Payload}
+  alias A2UICore.Validation.{ComponentsUpdate, Config, NestedCalls, Payload}
 
   @moduledoc since: "0.1.0"
 
@@ -122,6 +129,10 @@ defmodule A2UICore.Processor do
   def new([], _options), do: raise(ArgumentError, "At least one catalog must be provided.")
 
   def new([%Catalog{} | _] = catalogs, options) do
+    # Linking returns copies, so catalogs shared with other processors
+    # never see this processor's peers.
+    catalogs = Catalog.link_catalogs(catalogs)
+
     %__MODULE__{
       catalogs: catalogs,
       group: SurfaceGroup.new(),
@@ -192,9 +203,7 @@ defmodule A2UICore.Processor do
   where `processor` holds whatever was applied before the failure.
 
   Options: `:user_activated` — the messages are processed inside a user
-  gesture (functions that require activation run only then);
-  `:surface_id` — the surface whose data and catalog `callRendererFunction`
-  uses (the first one by default).
+  gesture (functions that require activation run only then).
   """
   @spec process(t(), term(), keyword()) :: {:ok, t(), [effect()]} | {:error, Error.t(), t()}
   def process(%__MODULE__{} = processor, payload, options \\ []) do
@@ -263,12 +272,13 @@ defmodule A2UICore.Processor do
     {:ok, %{processor | group: group}, effects}
   end
 
+  # A call that names a surface is resolved against that surface's data;
+  # see `A2UICore.RPC.call_renderer_function/3`.
   defp dispatch(processor, %CallRendererFunction{} = operation, options) do
-    surface = rpc_surface(processor, options[:surface_id])
+    surface = operation.surface_id && surface(processor, operation.surface_id)
 
     response =
       RPC.call_renderer_function(processor.rpc, operation,
-        catalog: surface && Surface.default_catalog(surface),
         context: surface && DataContext.for_surface(surface),
         user_activated: options[:user_activated] == true
       )
@@ -280,9 +290,6 @@ defmodule A2UICore.Processor do
     {rpc, settlements} = RPC.handle_agent_function_response(processor.rpc, operation)
     {:ok, %{processor | rpc: rpc}, settled(settlements)}
   end
-
-  defp rpc_surface(processor, nil), do: processor |> surfaces() |> List.first()
-  defp rpc_surface(processor, id), do: surface(processor, id)
 
   defp settled(settlements) do
     for settlement <- settlements do
@@ -307,7 +314,7 @@ defmodule A2UICore.Processor do
 
   defp create_surface(processor, %CreateSurface{surface_id: id} = operation) do
     result =
-      with {:ok, catalog} <- default_catalog(processor, operation.catalog_id),
+      with {:ok, catalog} <- surface_catalog(processor, operation),
            :ok <- ensure_new(processor, id),
            theme = theme(operation.theme),
            :ok <- check_theme(catalog, id, theme),
@@ -325,14 +332,24 @@ defmodule A2UICore.Processor do
     attempt(processor, result)
   end
 
-  defp default_catalog(%__MODULE__{catalogs: [first | _]}, nil), do: {:ok, first}
+  # The surface's default catalog. From v1.0 it is optional: a surface
+  # that names none has none, and every component and function call on
+  # it names its own. Before v1.0 the first catalog is the fallback.
+  defp surface_catalog(processor, %CreateSurface{catalog_id: nil} = operation) do
+    if v1?(operation.version),
+      do: {:ok, nil},
+      else: {:ok, hd(processor.catalogs)}
+  end
 
-  defp default_catalog(processor, catalog_id) do
+  defp surface_catalog(processor, %CreateSurface{catalog_id: catalog_id}) do
     case find_catalog(processor, catalog_id) do
       nil -> {:error, catalog_not_found(catalog_id)}
       catalog -> {:ok, catalog}
     end
   end
+
+  defp v1?(version) when is_binary(version), do: SemVer.at_least(version, "v1.0")
+  defp v1?(_version), do: false
 
   defp find_catalog(%__MODULE__{catalogs: catalogs}, catalog_id),
     do: Enum.find(catalogs, &(&1.catalog_id == catalog_id))
@@ -353,6 +370,7 @@ defmodule A2UICore.Processor do
   defp theme(theme), do: theme
 
   defp check_theme(_catalog, _id, theme) when theme == %{}, do: :ok
+  defp check_theme(nil, _id, _theme), do: :ok
 
   defp check_theme(catalog, id, theme) do
     case Payload.validate_theme(catalog, theme) do
@@ -370,6 +388,8 @@ defmodule A2UICore.Processor do
          )}
     end
   end
+
+  defp check_version(nil, _operation), do: :ok
 
   defp check_version(%Catalog{protocol_version: catalog_version} = catalog, operation) do
     message_version = operation.version
@@ -392,14 +412,17 @@ defmodule A2UICore.Processor do
   end
 
   defp build_surface(processor, catalog, theme, operation) do
+    version = if catalog, do: catalog.protocol_version, else: operation.version
+    default = if catalog, do: %{catalog.catalog_id => catalog}, else: %{}
+
     available =
       for candidate <- processor.catalogs,
-          Version.catalog_compatible?(candidate.protocol_version, catalog.protocol_version),
-          into: %{catalog.catalog_id => catalog},
+          Version.catalog_compatible?(candidate.protocol_version, version),
+          into: default,
           do: {candidate.catalog_id, candidate}
 
     Surface.new(operation.surface_id,
-      catalog_id: catalog.catalog_id,
+      catalog_id: catalog && catalog.catalog_id,
       catalogs: available,
       theme: theme,
       send_data_model: operation.send_data_model,
@@ -438,7 +461,7 @@ defmodule A2UICore.Processor do
     with {:ok, surface} <- fetch_surface(processor, surface_id),
          :ok <- ensure_list(components),
          {:ok, incoming} <- build_components(processor, surface, components),
-         :ok <- validate_update(processor, surface, incoming) do
+         :ok <- check_update(processor, surface, incoming) do
       merged = Enum.reduce(incoming, surface.components, &Components.put(&2, &1))
       surface = Surface.put_components(surface, merged)
 
@@ -481,10 +504,12 @@ defmodule A2UICore.Processor do
   end
 
   defp build_component(processor, surface, raw) do
+    v1? = v1?(Surface.protocol_version(surface))
+
     with {:ok, id} <- component_id(raw),
          existing = Components.get(surface.components, id),
-         {:ok, type} <- component_type(raw, existing, id),
-         {:ok, catalog} <- component_catalog(processor, surface, raw, existing) do
+         {:ok, type} <- component_type(raw, existing, id, v1?),
+         {:ok, catalog} <- component_catalog(processor, surface, raw, existing, v1?) do
       properties = Map.drop(raw, ["id", "component", "catalogId"])
       {:ok, Component.new(id, type, properties, catalog_id: catalog.catalog_id)}
     end
@@ -501,12 +526,12 @@ defmodule A2UICore.Processor do
      )}
   end
 
-  defp component_type(raw, existing, id) do
+  # From v1.0 every component in `updateComponents` names its type, as
+  # the specification's `Component` schema requires, so an update cannot
+  # leave out the type of the component it replaces.
+  defp component_type(raw, existing, id, v1?) do
     case {raw["component"], existing} do
       {type, _existing} when is_binary(type) and type != "" ->
-        {:ok, type}
-
-      {_none, %Component{type: type}} ->
         {:ok, type}
 
       {_none, nil} ->
@@ -516,29 +541,87 @@ defmodule A2UICore.Processor do
            "VALIDATION_FAILED",
            "Cannot create component #{id} without a type."
          )}
+
+      {_none, %Component{}} when v1? ->
+        {:error,
+         Error.new(
+           :validation,
+           "VALIDATION_FAILED",
+           "Component #{id} is missing the required 'component' field.",
+           details: [
+             Detail.new(
+               "missing_field",
+               "'component' is a required property",
+               "components.#{id}.component"
+             )
+           ]
+         )}
+
+      {_none, %Component{type: type}} ->
+        {:ok, type}
     end
   end
 
-  defp component_catalog(processor, surface, raw, existing) do
+  # The catalog a component runs in: the one it names (from v1.0 any
+  # string, an empty one included, names a catalog; before v1.0 only a
+  # non-empty value does), else, before v1.0, the catalog of the
+  # component it replaces, else the surface's default catalog.
+  defp component_catalog(processor, surface, raw, existing, v1?) do
+    catalog_id = raw["catalogId"]
+
+    cond do
+      v1? and not is_nil(catalog_id) and not is_binary(catalog_id) ->
+        non_string_catalog(raw["id"])
+
+      names_catalog?(catalog_id, v1?) ->
+        resolve_component_catalog(processor, surface, raw)
+
+      true ->
+        unnamed_component_catalog(surface, raw, existing, v1?)
+    end
+  end
+
+  defp unnamed_component_catalog(surface, raw, existing, v1?) do
     default = Surface.default_catalog(surface)
 
     cond do
-      is_binary(raw["catalogId"]) and raw["catalogId"] != "" ->
-        resolve_component_catalog(processor, raw, default)
-
-      existing != nil and raw["component"] in [nil, "", existing.type] ->
+      not v1? and existing != nil and raw["component"] in [nil, "", existing.type] ->
         {:ok, Map.get(surface.catalogs, existing.catalog_id) || default}
 
-      true ->
+      default != nil ->
         {:ok, default}
+
+      true ->
+        {:error,
+         Error.new(
+           :catalog,
+           "CATALOG_ERROR",
+           "Component #{raw["id"]} names no catalogId and surface #{surface.id} has no " <>
+             "default catalogId."
+         )}
     end
   end
 
-  defp resolve_component_catalog(processor, raw, default) do
+  defp names_catalog?(catalog_id, true), do: not is_nil(catalog_id)
+  defp names_catalog?(catalog_id, false), do: catalog_id not in [nil, false, "", 0]
+
+  defp non_string_catalog(id) do
+    {:error,
+     Error.new(
+       :validation,
+       "VALIDATION_FAILED",
+       "Component #{id} has a non-string 'catalogId'.",
+       details: [
+         Detail.new("type_mismatch", "'catalogId' must be a string", "components.#{id}.catalogId")
+       ]
+     )}
+  end
+
+  defp resolve_component_catalog(processor, surface, raw) do
     catalog_id = raw["catalogId"]
 
     with %Catalog{} = catalog <- find_catalog(processor, catalog_id) || :missing,
-         :ok <- check_component_version(raw["id"], catalog, default) do
+         :ok <- check_component_version(raw["id"], catalog, surface) do
       {:ok, catalog}
     else
       :missing -> {:error, catalog_not_found(catalog_id)}
@@ -546,18 +629,48 @@ defmodule A2UICore.Processor do
     end
   end
 
-  defp check_component_version(id, %Catalog{} = catalog, %Catalog{} = default) do
-    if catalog.protocol_version && default.protocol_version &&
-         not Version.catalog_compatible?(catalog.protocol_version, default.protocol_version) do
+  defp check_component_version(id, %Catalog{} = catalog, surface) do
+    surface_version = Surface.protocol_version(surface)
+
+    if catalog.protocol_version && surface_version &&
+         not Version.catalog_compatible?(catalog.protocol_version, surface_version) do
       {:error,
        Error.new(
          :catalog,
          "CATALOG_ERROR",
          "Component #{id} catalog '#{catalog.catalog_id}' has different protocol version " <>
-           "#{catalog.protocol_version} than default catalog #{default.protocol_version}."
+           "#{NestedCalls.label(catalog.protocol_version)} than surface #{surface.id} " <>
+           "(#{NestedCalls.label(surface_version)})."
        )}
     else
       :ok
+    end
+  end
+
+  # From v1.0 the nested-call pass runs first: a call whose catalog does
+  # not resolve fails the batch at once, and its argument errors are
+  # reported together with the component schema errors.
+  defp check_update(processor, surface, incoming) do
+    nested =
+      if v1?(Surface.protocol_version(surface)),
+        do: NestedCalls.check(surface, incoming, processor.catalogs, processor.validation),
+        else: :ok
+
+    case nested do
+      {:error, %Error{category: :catalog}} = error ->
+        error
+
+      :ok ->
+        validate_update(processor, surface, incoming)
+
+      {:error, nested_error} ->
+        case validate_update(processor, surface, incoming) do
+          {:error, %Error{category: :validation} = error} ->
+            {:error, NestedCalls.merge(nested_error, error)}
+
+          _ok_or_other ->
+            {:error, nested_error}
+        end
     end
   end
 
@@ -569,7 +682,9 @@ defmodule A2UICore.Processor do
 
     catalog_for = fn %Component{catalog_id: id} -> Map.get(surface.catalogs, id) || default end
 
-    ComponentsUpdate.validate(surface.components, incoming, catalog_for, config)
+    ComponentsUpdate.validate(surface.components, incoming, catalog_for, config,
+      default_catalog_id: surface.catalog_id
+    )
   end
 
   # -- updateDataModel ----------------------------------------------------------
@@ -611,10 +726,10 @@ defmodule A2UICore.Processor do
 
     * `:versions` — the protocol versions to describe (required);
     * `:include_inline_catalogs` — add each catalog's definition under
-      `"inlineCatalogs"`: its schema from v1.0 on, else a legacy inline
-      catalog whose components are `allOf` envelopes over
-      `:component_envelope_ref` (default
-      `#{@default_envelope_ref}`).
+      `"inlineCatalogs"`: its document (`A2UICore.Catalog.to_json/2`)
+      from v1.0 on, else a legacy inline catalog whose components are
+      `allOf` envelopes over `:component_envelope_ref` (default
+      `#{@default_envelope_ref}`), built from the resolved schemas.
 
   Returns `{:error, error}` when no version is given.
   """
@@ -654,7 +769,7 @@ defmodule A2UICore.Processor do
 
   defp inline_catalog(catalog, version, envelope) do
     if SemVer.at_least(version, "v1.0"),
-      do: Catalog.to_schema(catalog),
+      do: Catalog.to_json(catalog),
       else: legacy_inline_catalog(catalog, envelope)
   end
 
@@ -662,15 +777,15 @@ defmodule A2UICore.Processor do
     %{"catalogId" => catalog.catalog_id}
     |> put_present("components", legacy_components(catalog, envelope))
     |> put_present("functions", legacy_functions(catalog))
-    |> put_present("theme", legacy_theme(catalog.theme))
+    |> put_present("theme", legacy_theme(Catalog.resolved_theme_schema(catalog)))
   end
 
   defp put_present(map, _key, value) when value in [%{}, [], nil], do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
 
   defp legacy_components(catalog, envelope) do
-    Map.new(catalog.components, fn {name, component} ->
-      schema = component.schema
+    Map.new(catalog.components, fn {name, _component} ->
+      schema = map_or_empty(Catalog.resolved_component_schema(catalog, name))
       properties = schema |> Map.get("properties", %{}) |> Map.drop(["id", "component"])
       required = schema |> Map.get("required", []) |> Enum.reject(&(&1 in ["id", "component"]))
 
@@ -688,17 +803,19 @@ defmodule A2UICore.Processor do
   end
 
   defp legacy_functions(catalog) do
-    catalog.functions
-    |> Enum.sort_by(&elem(&1, 0))
-    |> Enum.map(fn {name, function} ->
-      schema = function.schema
+    Enum.map(catalog.function_order, fn name ->
+      function = catalog.functions[name]
+      schema = map_or_empty(Catalog.resolved_function_schema(catalog, name))
 
       %{"name" => name}
-      |> put_present("description", description(schema))
+      |> put_present("description", function.description || description(schema))
       |> Map.put("returnType", function.return_type || schema["returnType"] || "any")
       |> Map.put("parameters", parameters(schema))
     end)
   end
+
+  defp map_or_empty(%{} = schema), do: schema
+  defp map_or_empty(_schema), do: %{}
 
   defp description(%{"description" => description}) when is_binary(description), do: description
   defp description(_schema), do: nil
@@ -708,7 +825,7 @@ defmodule A2UICore.Processor do
   defp parameters(schema) when schema == %{}, do: %{"type" => "object", "properties" => %{}}
   defp parameters(schema), do: schema
 
-  defp legacy_theme(theme) when map_size(theme) == 0, do: nil
+  defp legacy_theme(theme) when not is_map(theme) or map_size(theme) == 0, do: nil
   defp legacy_theme(%{"properties" => properties}), do: properties
   defp legacy_theme(theme), do: theme
 
@@ -738,8 +855,8 @@ defmodule A2UICore.Processor do
   defp data_models(surfaces, version) do
     compatible =
       Enum.filter(surfaces, fn surface ->
-        case Surface.default_catalog(surface) do
-          %Catalog{protocol_version: surface_version} when is_binary(surface_version) ->
+        case Surface.protocol_version(surface) do
+          surface_version when is_binary(surface_version) ->
             Version.catalog_compatible?(surface_version, version)
 
           _none ->
@@ -755,9 +872,9 @@ defmodule A2UICore.Processor do
   defp data_models_by_surface_version(surfaces) do
     versions =
       surfaces
-      |> Enum.map(&Surface.default_catalog/1)
+      |> Enum.map(&Surface.protocol_version/1)
       |> Enum.flat_map(fn
-        %Catalog{protocol_version: version} when is_binary(version) -> [version]
+        version when is_binary(version) -> [NestedCalls.label(version)]
         _none -> []
       end)
       |> Enum.uniq()

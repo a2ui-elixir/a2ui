@@ -93,13 +93,14 @@ defmodule A2UICore.Message.Encode do
       |> put_if("catalogId", op.catalog_id)
       |> put_if("args", empty_map_to_nil(op.args))
 
-    %{
-      "version" => version,
-      "callRendererFunction" => %{
-        "functionCallId" => op.function_call_id,
-        "callFunction" => call_function
-      }
-    }
+    body =
+      put_if(
+        %{"functionCallId" => op.function_call_id, "callFunction" => call_function},
+        "surfaceId",
+        op.surface_id
+      )
+
+    %{"version" => version, "callRendererFunction" => body}
   end
 
   def to_map(%AgentFunctionResponse{} = op, overrides) do

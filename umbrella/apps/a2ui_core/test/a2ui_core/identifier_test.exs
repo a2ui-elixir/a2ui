@@ -25,13 +25,16 @@ defmodule A2UICore.IdentifierTest do
       refute Identifier.valid?(42)
     end
 
-    test "rejects strings that start with a digit after the @ strip" do
-      refute Identifier.valid?("@1stItem")
-      assert Identifier.valid?("@index")
+    test "a leading @ is ignored only when allowed, and a digit may not follow it" do
+      refute Identifier.valid?("@index")
+      assert Identifier.valid?("@index", allow_leading_at: true)
+      refute Identifier.valid?("@1stItem", allow_leading_at: true)
+      refute Identifier.valid?("@", allow_leading_at: true)
     end
 
-    test "rejects double @@ prefix (only one @ stripped)" do
+    test "rejects double @@ prefix (only one @ ignored)" do
       refute Identifier.valid?("@@path")
+      refute Identifier.valid?("@@path", allow_leading_at: true)
     end
   end
 

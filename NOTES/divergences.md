@@ -49,25 +49,19 @@ them or documented as a skip with a reason.
 
 ## Catalogs
 
-- **`protocolVersion` is not emitted by `Catalog.to_schema/1`.** The reference drops
-  it from the consolidated document as well; the catalog struct carries the version.
-- **Local `$ref`s are not inlined.** The Python catalog rewrites `#/$defs/…` pointers
-  into copies of their targets before validating. Here the self-contained schema keeps
-  the pointers and the schema engine resolves them at validation time, which accepts
-  and rejects the same documents.
-- **Union members are sorted.** Generated `anyComponent` / `anyFunction` lists and the
-  `oneOf` / `anyOf` unions are ordered by name (maps carry no insertion order). The
-  `catalog_schema` handler compares unions as sets of references.
-- **`anyFunction` is synthesized when referenced but undefined.** A catalog that uses
-  `FunctionCall` without declaring functions gets `"anyFunction": {"not": {}}`, so the
-  bundle stays self-contained and no function call validates.
-- **Catalogs are filtered by an authored `anyComponent` / `anyFunction`.** Only the
-  names those unions list are kept. Python inlines local refs before applying the
-  filter, which makes it dead code there; the intent (and the TypeScript behaviour) is
-  to restrict the catalog.
-- **`flatten: true`** is an extra `Catalog.from_json/2` option: it merges `allOf`
-  component envelopes into one `properties` / `required` schema. The harness uses it
-  for inline `catalog_schema` cases, whose expectations describe the flat shape.
+- **Key order comes from ordered input.** Python dicts keep the order a document was
+  read in, which orders a catalog's components and functions (and so the
+  `anyComponent` / `anyFunction` unions) and every key `to_json` writes. Elixir maps
+  have no order: a catalog read from a `Jason.OrderedObject`
+  (`Jason.decode(text, objects: :ordered_objects)`) keeps its document's order, and
+  `Catalog.to_json(catalog, ordered: true)` writes it back in the reference's order; a
+  catalog read from a map lists its entries, and writes its keys, by name. Comparisons in
+  the harness ignore key order and the order of `enum` values and `required` names, as
+  the reference harness does.
+- **Peers are identified by value.** Python tells peer catalogs apart by object
+  identity. A catalog value has none, so a peer is identified by its catalog id, `$id`
+  and the names of its components and functions; two catalogs that agree on all four
+  count as one peer.
 - **`inf` / `nan` strings are not numbers.** Python's `float("inf")` succeeds; the BEAM
   has no non-finite floats, so `Coerce.to_float/1` rejects them and the numeric
   functions treat them as non-numeric.
@@ -93,9 +87,6 @@ them or documented as a skip with a reason.
   catalog its surface actually uses. The reference binds the first catalog's schema into
   the envelope check, so a component of a second catalog could only be validated there
   by accident.
-- **Calls into another catalog pass the schema stage.** A function call naming a
-  `catalogId` other than the component's own is checked for well-formed identifiers
-  only; the catalog's own `anyFunction` union would reject it.
 - **`allowed_messages` is enforced.** `ValidationConfig.allowed_messages` is declared
   but never read in the Python SDK. The processor rejects other actions with
   `INVALID_ACTION`.
@@ -171,12 +162,6 @@ them or documented as a skip with a reason.
 - **An omitted `allowedCallers` means `rendererOnly`.** The protocol guide defines the
   default and Python's handler applies it; `A2UICore.Catalog.Function` keeps `nil` for
   "omitted" and the RPC reads it as `rendererOnly`.
-- **The wire format requires a `catalogId`.** A `callRendererFunction` without
-  `callFunction.catalogId` fails envelope validation, so the "no catalog id" resolution
-  (the surface's default catalog) is reachable only through the `:catalog` option of
-  `RPC.call_renderer_function/3`.
-- **The first surface supplies the call context.** As in Python, `callRendererFunction`
-  executes in the data context of the first surface unless `:surface_id` names one.
 
 ## Phoenix renderer
 
@@ -233,10 +218,14 @@ transformers and resolution, `validate_payload`, and the direct JSON format
 - **A lone surrogate escape reads as U+FFFD.** Python strings can hold an unpaired
   surrogate from `\uD83D`; an Elixir string cannot. A surrogate pair cut by the end of a
   streamed chunk still heals before the pair, as in Python.
-- **JSON is written with Jason.** Prompt schemas and decompiled blocks list object keys
-  in Jason's order (sorted for objects of up to 32 keys) rather than in the order the
-  source document had, and non-ASCII characters are written as UTF-8 rather than
-  `\uXXXX` escapes (`json.dumps` defaults to `ensure_ascii=True`).
+- **JSON keeps its source's key order.** A prompt writes the protocol schemas in the
+  order they are published in and each catalog document in the order it was read in
+  (see "Key order comes from ordered input"), so it equals the reference's byte for byte
+  (the conformance golden prompts check it). An example message keeps its order when it
+  is a `Jason.OrderedObject`; a map is written in Jason's order (sorted for objects of up
+  to 32 keys). Non-ASCII characters are written as UTF-8 rather than `\uXXXX` escapes
+  (`json.dumps` defaults to `ensure_ascii=True`; the TypeScript and Dart SDKs write
+  UTF-8 as well).
 - **Pruning messages reads the allowlist once.** `SchemaPruning.prune_messages/2` keeps a
   definition when one of its properties is named in the allowlist. Python also adds
   definitions whose properties name a definition added earlier in its iteration, which

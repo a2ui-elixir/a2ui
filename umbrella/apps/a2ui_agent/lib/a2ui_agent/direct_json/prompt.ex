@@ -13,7 +13,7 @@ defmodule A2UIAgent.DirectJson.Prompt do
 
   alias A2UIAgent.{Catalogs, SchemaPruning}
   alias A2UIAgent.DirectJson.Parser
-  alias A2UICore.{Catalog, Error}
+  alias A2UICore.{Catalog, Error, KeyOrder}
   alias A2UICore.Schema.Source
 
   @moduledoc since: "0.1.0"
@@ -64,7 +64,10 @@ defmodule A2UIAgent.DirectJson.Prompt do
   The schemas that describe the catalogs to the model: the
   agent-to-renderer schema of the catalogs' protocol version (pruned to
   `allowed_messages` unless that is `nil`), the common types those
-  schemas use, then one section per catalog schema.
+  schemas use, then one section per catalog document
+  (`A2UICore.Catalog.to_json/2`), each as compact JSON. The protocol
+  schemas keep the key order they are published in, and the catalog
+  documents the order of the documents they were read from.
 
   The catalogs must be non-empty and share a protocol version.
   """
@@ -78,21 +81,42 @@ defmodule A2UIAgent.DirectJson.Prompt do
       a2r =
         if allowed_messages, do: SchemaPruning.prune_messages(a2r, allowed_messages), else: a2r
 
-      catalog_schemas = Enum.map(catalogs, &Catalog.to_schema/1)
+      ordered_a2r = KeyOrder.like(a2r, Source.ordered_document(version, :agent_to_renderer))
+
+      # Each catalog is shown as its document, cross-catalog references
+      # kept as written; the common types it reaches through its peers stay
+      # in the common types section.
+      catalogs = Catalog.link_catalogs(catalogs)
+      catalog_schemas = Enum.map(catalogs, &Catalog.to_json/1)
+
+      peer_resolved =
+        for {catalog, document} <- Enum.zip(catalogs, catalog_schemas), catalog.peers != [] do
+          Catalog.inline_refs(
+            catalog,
+            Map.take(document, ["components", "functions", "theme"]),
+            document
+          )
+        end
 
       common =
         SchemaPruning.prune_common_types(
           Source.document(version, :common_types) || %{},
-          catalog_schemas ++ [a2r]
+          catalog_schemas ++ peer_resolved ++ [a2r]
         )
 
+      ordered_common = KeyOrder.like(common, Source.ordered_document(version, :common_types))
+
       sections =
-        [@schema_start, "### Agent to Renderer Schema:\n#{compact(a2r)}"] ++
+        [@schema_start, "### Agent to Renderer Schema:\n#{compact(ordered_a2r)}"] ++
           if(map_size(common["$defs"] || %{}) > 0,
-            do: ["### Common Types Schema:\n#{compact(common)}"],
+            do: ["### Common Types Schema:\n#{compact(ordered_common)}"],
             else: []
           ) ++
-          Enum.map(catalog_schemas, &"### Catalog Schema:\n#{compact(&1)}") ++ [@schema_end]
+          Enum.map(
+            catalogs,
+            &"### Catalog Schema:\n#{compact(Catalog.to_json(&1, ordered: true))}"
+          ) ++
+          [@schema_end]
 
       {:ok, Enum.join(sections, "\n\n")}
     end
@@ -120,7 +144,8 @@ defmodule A2UIAgent.DirectJson.Prompt do
 
   @doc """
   Each example turn as an `<a2ui-json>` block, separated by blank lines;
-  `""` without examples.
+  `""` without examples. A message given as a `Jason.OrderedObject`
+  keeps its key order.
   """
   @spec examples([[map()]] | nil) :: String.t()
   def examples(turns) when turns in [nil, []], do: ""

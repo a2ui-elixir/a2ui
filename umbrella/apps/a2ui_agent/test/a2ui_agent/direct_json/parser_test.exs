@@ -213,12 +213,29 @@ defmodule A2UIAgent.DirectJson.ParserTest do
     end
 
     test "stops at the first message that does not read or validate", %{parser: parser} do
-      bad = update([%{"id" => "root", "component" => "Nope"}])
-
       assert stream(parser, ["<a2ui-json>[1,"]) == [[]]
 
-      assert stream(parser, ["<a2ui-json>" <> Jason.encode!([delete(), bad, delete("s2")])]) ==
-               [[{:a2ui, [delete()]}]]
+      {:ok, parser} = Parser.new([basic_v09()])
+      bad = update([%{"id" => "root", "component" => "Nope"}], "s1", "v0.9")
+      messages = [delete("s1", "v0.9"), bad, delete("s2", "v0.9")]
+
+      assert stream(parser, ["<a2ui-json>" <> Jason.encode!(messages)]) ==
+               [[{:a2ui, [delete("s1", "v0.9")]}]]
+    end
+
+    test "a v1.0 components update that does not validate is an error at once",
+         %{parser: parser} do
+      {:ok, parser, [{:a2ui, [_delete]}]} =
+        Parser.parse_chunk(parser, "<a2ui-json>[" <> Jason.encode!(delete()) <> ",")
+
+      {:ok, parser, []} =
+        Parser.parse_chunk(
+          parser,
+          ~s({"version": "v1.0", "updateComponents": {"surfaceId": ) <>
+            ~s("s1", "components": [{"id": "root", "component": "Nope")
+        )
+
+      assert {:error, %Error{category: :validation}} = Parser.parse_chunk(parser, "}")
     end
 
     test "tracks the catalog each streamed surface was created with" do
@@ -227,8 +244,11 @@ defmodule A2UIAgent.DirectJson.ParserTest do
       {:ok, parser} = Parser.new([a, b])
       card = update([%{"id" => "root", "component" => "Card"}])
 
-      assert stream(parser, ["<a2ui-json>" <> Jason.encode!([create("s1", "a"), card])]) ==
-               [[{:a2ui, [create("s1", "a")]}]]
+      assert {:error, %Error{category: :validation}} =
+               Parser.parse_chunk(
+                 parser,
+                 "<a2ui-json>" <> Jason.encode!([create("s1", "a"), card])
+               )
 
       messages = [create("s1", "a"), delete(), card]
 

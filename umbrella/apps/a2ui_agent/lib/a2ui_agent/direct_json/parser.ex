@@ -55,7 +55,7 @@ defmodule A2UIAgent.DirectJson.Parser do
           block: String.t(),
           run_started: boolean(),
           held_space: String.t(),
-          emitted: [String.t()]
+          emitted: [map()]
         }
 
   @typedoc "A part of a parsed response."
@@ -231,6 +231,11 @@ defmodule A2UIAgent.DirectJson.Parser do
   closes, and so do the messages after it. When the block closes it is
   compiled in full, so a block that does not validate is an error then.
 
+  From v1.0 a component is held back until its object closes, so an
+  `updateComponents` message holds only closed components. Later chunks
+  cannot make such a message valid, so one that does not validate is an
+  error on the chunk that closes the offending component.
+
   With `wrapped: false` the whole response is one block without tags. A
   response is either wrapped or not: every chunk must say the same.
   """
@@ -255,8 +260,9 @@ defmodule A2UIAgent.DirectJson.Parser do
       stream(%{parser | held: ""}, parser.held <> chunk, [])
     else
       parser = %{parser | block: parser.block <> chunk}
-      {parser, parts} = emit_ready(parser, parser.block, [])
-      {:ok, parser, Enum.reverse(parts)}
+
+      with {:ok, parser, parts} <- emit_ready(parser, parser.block, []),
+           do: {:ok, parser, Enum.reverse(parts)}
     end
   end
 
@@ -267,10 +273,10 @@ defmodule A2UIAgent.DirectJson.Parser do
 
     case scan_block(block, 0) do
       {nil, readable} ->
-        {parser, parts} =
-          emit_ready(%{parser | block: block}, binary_part(block, 0, readable), parts)
+        parser = %{parser | block: block}
 
-        {:ok, parser, Enum.reverse(parts)}
+        with {:ok, parser, parts} <- emit_ready(parser, binary_part(block, 0, readable), parts),
+             do: {:ok, parser, Enum.reverse(parts)}
 
       {close, _readable} ->
         [{^close, length}] = Regex.run(close_tag_re(), block, return: :index, offset: close)
@@ -327,37 +333,65 @@ defmodule A2UIAgent.DirectJson.Parser do
     items =
       JsonReader.read_partial_items(clean_start(block), parser.progressive_keys, whole_item_keys)
 
-    ready = ready_messages(parser.catalogs, items, parser.emitted, %{}, [])
-    emit_changed(parser, ready, parts)
+    with {:ok, ready} <- ready_messages(parser, items, parser.emitted, %{}, []) do
+      {parser, parts} = emit_changed(parser, ready, parts)
+      {:ok, parser, parts}
+    end
   end
 
   # The messages that read and validate, in order, up to the first that
   # does not. A create message waits until its object closes, since a
   # renderer accepts it only once. A message emitted before, after the
   # same messages, validated then and is not checked again.
-  defp ready_messages(_catalogs, [], _emitted, _surfaces, ready), do: Enum.reverse(ready)
+  defp ready_messages(_parser, [], _emitted, _surfaces, ready), do: {:ok, Enum.reverse(ready)}
 
-  defp ready_messages(catalogs, [{envelope, closed?} | rest], emitted, surfaces, ready) do
+  defp ready_messages(parser, [{envelope, closed?} | rest], emitted, surfaces, ready) do
     {seen?, emitted} =
       case emitted do
         [^envelope | later] -> {true, later}
         _changed -> {false, []}
       end
 
-    if is_map(envelope) and
-         (seen? or (ready_to_check?(envelope, closed?) and valid?(catalogs, envelope, surfaces))),
-       do:
-         ready_messages(catalogs, rest, emitted, track_surfaces(surfaces, envelope), [
-           envelope | ready
-         ]),
-       else: Enum.reverse(ready)
+    case check_ready(parser, envelope, closed?, seen?, surfaces) do
+      :ok ->
+        surfaces = track_surfaces(surfaces, envelope)
+        ready_messages(parser, rest, emitted, surfaces, [envelope | ready])
+
+      :wait ->
+        {:ok, Enum.reverse(ready)}
+
+      {:error, _error} = error ->
+        error
+    end
   end
 
-  defp ready_to_check?(envelope, closed?),
-    do: closed? or not Map.has_key?(envelope, "createSurface")
+  defp check_ready(_parser, envelope, _closed?, _seen?, _surfaces) when not is_map(envelope),
+    do: :wait
 
-  defp valid?(catalogs, envelope, surfaces),
-    do: PayloadValidator.validate(catalogs, [envelope], surface_catalog_ids: surfaces) == :ok
+  defp check_ready(_parser, _envelope, _closed?, true, _surfaces), do: :ok
+
+  defp check_ready(parser, envelope, closed?, false, surfaces) do
+    if closed? or not Map.has_key?(envelope, "createSurface"),
+      do: check_envelope(parser, envelope, surfaces),
+      else: :wait
+  end
+
+  defp check_envelope(parser, envelope, surfaces) do
+    case PayloadValidator.validate(parser.catalogs, [envelope], surface_catalog_ids: surfaces) do
+      :ok -> :ok
+      {:error, _error} = error -> if settled?(parser, envelope), do: error, else: :wait
+    end
+  end
+
+  # A v1.0 components update, whose components have all closed.
+  defp settled?(parser, envelope) do
+    v1?(parser) and is_binary(envelope["version"]) and
+      match?(%{"surfaceId" => id} when is_binary(id), envelope["updateComponents"]) and
+      truthy?(envelope["updateComponents"]["components"])
+  end
+
+  defp truthy?(value) when is_number(value), do: value != 0
+  defp truthy?(value), do: value not in [nil, false, "", [], %{}]
 
   defp track_surfaces(surfaces, envelope) do
     surfaces =

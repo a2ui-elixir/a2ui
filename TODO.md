@@ -236,6 +236,43 @@ the copyright holder in the LICENSE files ("lab-elixir-a2ui contributors");
 a license review of upstream text reproduced verbatim because the suites
 compare it exactly (the direct JSON prompt rules, error messages).
 
+### M12 — spec bump to `5d74ffb` (2026-10-16; conformance: 788 passed, 374 skipped; 741 of 1115 upstream cases run)
+
+56 upstream commits since `ce03d00`. Everything the new suites run passes;
+the skips are the same families as before (Express, legacy, v0.8, ADK).
+
+- [x] M12.1 Vendored schemas copied: `callRendererFunction.surfaceId`,
+      `IndexSystemFunction` without `returnType`, the coercion descriptions
+      of `DynamicBoolean` and `CheckRule` (both already implemented in the
+      basic functions and the binder), key order.
+- [x] M12.2 Catalog model, after the reference's catalog rewrite:
+      `Catalog.to_json/2` writes the document back (in its key order with
+      `ordered: true`), `validation_schema/1` (components flattened, common
+      types bundled), peer catalogs for cross-catalog `$ref`s
+      (`with_peer_catalogs/2`, `link_catalogs/2`), resolved entry schemas,
+      `copy_with/2` for transformers; `@` names rejected in catalog documents
+      from v1.0. New: `Catalog.Document`, `Catalog.Refs`,
+      `Catalog.SchemaCleaner`, `Catalog.ValidationSchema`, `KeyOrder`.
+- [x] M12.3 v1.0 catalog resolution: components and function calls run in
+      the catalog they name or the surface's default; a v1.0 surface may have
+      none; the calls nested in a batch are checked before it commits
+      (`Validation.NestedCalls`); system calls skip catalog resolution.
+- [x] M12.4 RPC: `surfaceId` picks the evaluation context (a context of its
+      own with an empty data model without one, an error for an unknown
+      surface); arguments are resolved, then validated; a call must name its
+      catalog. Capabilities: v1.0 inline catalogs are `to_json` documents,
+      earlier ones are built from the resolved schemas.
+- [x] M12.5 Agent: the golden prompts (`expect_file`) are compared byte for
+      byte and match; pruning goes through `copy_with/2`; catalog files and
+      example files keep their key order; the v1.0 streaming parser fails on
+      the chunk that closes a component that cannot validate.
+- [x] M12.6 Harness: `validation_schema`, `round_trip` and `to_json`
+      actions (upstream dropped `catalog_schema`), `evaluate_function` on a
+      surface, peer catalogs for catalog cases.
+- [x] M12.7 Unit tests for the new modules; README scoreboard, divergences
+      (key order from ordered input, peers identified by value), guides and
+      changelogs updated.
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

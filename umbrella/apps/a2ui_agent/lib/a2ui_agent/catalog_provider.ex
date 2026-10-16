@@ -20,7 +20,7 @@ defmodule A2UIAgent.CatalogProvider do
   Every failure is an `A2UICore.Error` of category `:catalog`.
   """
 
-  alias A2UICore.{Catalog, Error, Version}
+  alias A2UICore.{Catalog, Error, KeyOrder, Version}
 
   @moduledoc since: "0.1.0"
 
@@ -30,7 +30,9 @@ defmodule A2UIAgent.CatalogProvider do
   @doc """
   Reads a catalog document from a filesystem path or a `file://` URL.
 
-  The file must hold a JSON object.
+  The file must hold a JSON object. Its key order orders the catalog's
+  components and functions, and the document `A2UICore.Catalog.to_json/2`
+  writes.
   """
   @spec load_file(String.t(), [option()]) :: {:ok, Catalog.t()} | {:error, Error.t()}
   def load_file(path, options \\ []) when is_binary(path) do
@@ -42,7 +44,9 @@ defmodule A2UIAgent.CatalogProvider do
   end
 
   @doc """
-  Loads a catalog from a decoded catalog document.
+  Loads a catalog from a decoded catalog document: a map, or a
+  `Jason.OrderedObject` (decoded with `objects: :ordered_objects`) to
+  keep its key order.
   """
   @spec load_document(term(), [option()]) :: {:ok, Catalog.t()} | {:error, Error.t()}
   def load_document(document, options \\ [])
@@ -69,10 +73,15 @@ defmodule A2UIAgent.CatalogProvider do
     with {:ok, catalog_id} <- settle_catalog_id(document, options[:catalog_id], source),
          {:ok, version} <- settle_version(document, options[:protocol_version], source) do
       document
-      |> Map.put("catalogId", catalog_id)
+      |> put_catalog_id(catalog_id)
       |> Catalog.from_json(catalog_id: catalog_id, protocol_version: version)
     end
   end
+
+  defp put_catalog_id(%Jason.OrderedObject{} = document, catalog_id),
+    do: KeyOrder.put(document, "catalogId", catalog_id)
+
+  defp put_catalog_id(document, catalog_id), do: Map.put(document, "catalogId", catalog_id)
 
   # -- reading ------------------------------------------------------------------
 
@@ -108,8 +117,8 @@ defmodule A2UIAgent.CatalogProvider do
   end
 
   defp decode(text, path) do
-    case Jason.decode(text) do
-      {:ok, document} when is_map(document) ->
+    case Jason.decode(text, objects: :ordered_objects) do
+      {:ok, %Jason.OrderedObject{} = document} ->
         {:ok, document}
 
       {:ok, _other} ->
@@ -130,7 +139,7 @@ defmodule A2UIAgent.CatalogProvider do
        do: {:error, catalog_error("Provider 'catalog_id' must be a non-empty string.")}
 
   defp settle_catalog_id(document, provided, source) do
-    case Map.get(document, "catalogId") do
+    case KeyOrder.get(document, "catalogId") do
       nil when is_nil(provided) ->
         {:error,
          catalog_error(
@@ -159,7 +168,7 @@ defmodule A2UIAgent.CatalogProvider do
 
   defp settle_version(document, provided, source) do
     with {:ok, provided} <- provided_version(provided) do
-      case Map.get(document, "protocolVersion") do
+      case KeyOrder.get(document, "protocolVersion") do
         nil when is_nil(provided) ->
           {:error,
            catalog_error(

@@ -87,8 +87,58 @@ defmodule A2UICore.State.Surface do
   The surface's default catalog, or `nil` when it has none.
   """
   @spec default_catalog(t()) :: A2UICore.Catalog.t() | nil
+  def default_catalog(%__MODULE__{catalog_id: nil}), do: nil
+
   def default_catalog(%__MODULE__{catalog_id: catalog_id, catalogs: catalogs}),
     do: Map.get(catalogs, catalog_id)
+
+  @doc """
+  The surface's protocol version: its default catalog's, or, for a v1.0
+  surface without a default catalog, the version it was created under.
+  """
+  @spec protocol_version(t()) :: String.t() | nil
+  def protocol_version(%__MODULE__{} = surface) do
+    case default_catalog(surface) do
+      %{protocol_version: version} when is_binary(version) -> version
+      _none -> surface.version
+    end
+  end
+
+  @doc """
+  The catalog an item on the surface runs in: the one `catalog_id`
+  names (`nil` names none; an empty string names a catalog too), else
+  the default catalog. `subject` describes the item in the error, as in
+  `"Function call 'formatString'"`.
+  """
+  @spec resolve_catalog(t(), String.t() | nil, String.t()) ::
+          {:ok, A2UICore.Catalog.t()} | {:error, A2UICore.Error.t()}
+  def resolve_catalog(surface, catalog_id, subject \\ "Item")
+
+  def resolve_catalog(%__MODULE__{} = surface, nil, subject) do
+    case default_catalog(surface) do
+      nil ->
+        {:error,
+         A2UICore.Error.new(
+           :catalog,
+           "CATALOG_ERROR",
+           "#{subject} names no catalogId and surface #{surface.id} has no default catalogId."
+         )}
+
+      catalog ->
+        {:ok, catalog}
+    end
+  end
+
+  def resolve_catalog(%__MODULE__{catalogs: catalogs}, catalog_id, _subject) do
+    case Map.fetch(catalogs, catalog_id) do
+      {:ok, catalog} ->
+        {:ok, catalog}
+
+      :error ->
+        {:error,
+         A2UICore.Error.new(:catalog, "CATALOG_ERROR", "Catalog not found: #{catalog_id}")}
+    end
+  end
 
   @doc """
   Writes into the surface's data model; see `A2UICore.State.DataModel.set/3`.

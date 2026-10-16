@@ -5,6 +5,7 @@ defmodule A2UICore.RPCTest do
   alias A2UICore.{Catalog, Error, RPC}
   alias A2UICore.Message.Operation.{AgentFunctionResponse, CallRendererFunction}
   alias A2UICore.Resolution.DataContext
+  alias A2UICore.State.DataModel
 
   @catalog_id "https://example.test/catalogs/tools"
 
@@ -121,16 +122,72 @@ defmodule A2UICore.RPCTest do
       assert %{"version" => "v0.9", "rendererFunctionResponse" => %{"value" => %{}}} = response
     end
 
-    test "a call without a catalog id uses the catalog option" do
+    test "a call must name its catalog" do
       call = call("echo", %{"a" => 1}, catalog_id: nil)
 
       assert %{"error" => %{"code" => "INVALID_FUNCTION_CALL", "message" => message}} =
                outcome(RPC.call_renderer_function(rpc(), call))
 
       assert message == "No catalog available for function resolution."
+    end
 
-      assert %{"value" => %{"a" => 1}} =
-               outcome(RPC.call_renderer_function(rpc(), call, catalog: catalog()))
+    test "a call that names a surface needs that surface's context" do
+      call = call("echo", %{}, surface_id: "s1")
+
+      assert %{
+               "error" => %{
+                 "code" => "INVALID_FUNCTION_CALL",
+                 "message" => "Surface not found: s1"
+               }
+             } =
+               outcome(RPC.call_renderer_function(rpc(), call))
+
+      other = DataContext.new("/", surface_id: "s2")
+
+      assert %{"error" => %{"message" => "Surface not found: s1"}} =
+               outcome(RPC.call_renderer_function(rpc(), call, context: other))
+
+      context =
+        DataContext.new("/",
+          surface_id: "s1",
+          protocol_version: "v1.0",
+          data_model: DataModel.new(%{"n" => 2})
+        )
+
+      call = call("echo", %{"n" => %{"@path" => "/n"}}, surface_id: "s1")
+
+      assert %{"value" => %{"n" => 2}} =
+               outcome(RPC.call_renderer_function(rpc(), call, context: context))
+    end
+
+    test "without a surface the arguments see an empty data model" do
+      call = call("echo", %{"n" => %{"@path" => "/n"}, "k" => 1})
+
+      assert %{"value" => %{"n" => nil, "k" => 1}} =
+               outcome(RPC.call_renderer_function(rpc(), call))
+
+      assert %{"value" => %DataContext{} = context} =
+               outcome(RPC.call_renderer_function(rpc(), call("wantsContext")))
+
+      assert context.surface_id == "_rpc_fallback_c1"
+      assert context.catalog.catalog_id == @catalog_id
+      assert Map.keys(context.catalogs) == [@catalog_id]
+    end
+
+    test "resolved arguments are validated; a failing expression is EXECUTION_ERROR" do
+      call = call("double", %{"amount" => %{"@path" => "/missing"}})
+
+      assert %{"error" => %{"code" => "INVALID_FUNCTION_CALL", "message" => message}} =
+               outcome(RPC.call_renderer_function(rpc(), call))
+
+      assert message =~ "Invalid arguments for function 'double'"
+
+      call = call("echo", %{"x" => %{"@call" => "nope", "args" => %{}}})
+
+      assert %{"error" => %{"code" => "EXECUTION_ERROR", "message" => message}} =
+               outcome(RPC.call_renderer_function(rpc(), call))
+
+      assert message =~ "nope"
     end
 
     test "an unknown catalog or function is INVALID_FUNCTION_CALL" do
@@ -219,11 +276,17 @@ defmodule A2UICore.RPCTest do
       assert message =~ "not callable"
     end
 
-    test "the function receives the context" do
-      context = DataContext.new("/")
+    test "the function receives the context of the surface the call names" do
+      context = DataContext.new("/", surface_id: "s1")
 
       assert %{"value" => ^context} =
-               outcome(RPC.call_renderer_function(rpc(), call("wantsContext"), context: context))
+               outcome(
+                 RPC.call_renderer_function(
+                   rpc(),
+                   call("wantsContext", %{}, surface_id: "s1"),
+                   context: context
+                 )
+               )
     end
 
     test "a disposed handler answers DISPOSED" do

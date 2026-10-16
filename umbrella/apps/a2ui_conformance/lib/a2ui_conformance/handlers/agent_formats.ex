@@ -131,6 +131,14 @@ defmodule A2UIConformance.Handlers.AgentFormats do
       _expect ->
         assert {:ok, format} = make_format(raw["args"])
         assert {:ok, snippet} = DirectJson.prompt(format)
+
+        if file = raw["expect_file"],
+          do:
+            assert(
+              snippet == File.read!(AgentFixtures.path(file)),
+              "snippet differs from #{file}"
+            )
+
         expect_snippet(snippet, raw["expect_contains"], raw["expect_absent"])
         if raw["expect_deterministic"], do: assert({:ok, ^snippet} = DirectJson.prompt(format))
     end

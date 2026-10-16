@@ -6,6 +6,7 @@ defmodule A2UICore.CatalogTest do
   alias A2UICore.Catalog.Component
   alias A2UICore.Catalog.Function
   alias A2UICore.Error
+  alias A2UICore.Functions.System
 
   @card %{
     "type" => "object",
@@ -73,29 +74,26 @@ defmodule A2UICore.CatalogTest do
       assert Catalog.v1?(catalog)
     end
 
-    test "cross-document references become local" do
+    test "the validation schema's references are local; the document keeps them as written" do
       catalog = Catalog.from_json!(v1_document(), protocol_version: "v1.0")
-      schema = Catalog.to_schema(catalog)
+      schema = Catalog.validation_schema(catalog)
 
-      refs =
-        schema["components"]["Card"]["allOf"]
-        |> Enum.flat_map(fn
-          %{"$ref" => ref} -> [ref]
-          _inline -> []
-        end)
-
-      assert refs == ["#/$defs/ComponentCommon", "#/$defs/CatalogComponentCommon"]
+      assert schema |> refs() |> Enum.all?(&String.starts_with?(&1, "#/"))
       assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
       assert schema["catalogId"] == "urn:test:v1"
+      assert Catalog.to_schema(catalog) == schema
+
+      assert Catalog.to_json(catalog)["components"]["Card"] == @card
     end
 
     test "referenced common types are bundled, unreferenced ones are not" do
-      schema =
-        v1_document() |> Catalog.from_json!(protocol_version: "v1.0") |> Catalog.to_schema()
+      defs =
+        v1_document()
+        |> Catalog.from_json!(protocol_version: "v1.0")
+        |> Catalog.validation_schema()
+        |> Map.fetch!("$defs")
 
-      defs = schema["$defs"]
-
-      for name <- ~w(ComponentCommon ComponentId DynamicString DataBinding FunctionCall) do
+      for name <- ~w(ComponentId DynamicString DataBinding FunctionCall AccessibilityAttributes) do
         assert Map.has_key?(defs, name), "expected #{name} to be bundled"
       end
 
@@ -173,12 +171,15 @@ defmodule A2UICore.CatalogTest do
       assert schema["$defs"]["anyFunction"] == %{"not" => %{}}
     end
 
-    test "system functions stay out of the schema's function map" do
-      document = v1_document(%{"functions" => %{"double" => @double, "@index" => @double}})
-      catalog = Catalog.from_json!(document, protocol_version: "v1.0")
+    test "system functions are added in code and stay out of the documents" do
+      catalog =
+        v1_document()
+        |> Catalog.from_json!(protocol_version: "v1.0")
+        |> Catalog.put_system_functions(System.functions("v1.0"))
 
       assert Map.has_key?(catalog.functions, "@index")
       assert Map.keys(catalog.schema["functions"]) == ["double"]
+      assert Map.keys(Catalog.to_json(catalog)["functions"]) == ["double"]
     end
 
     test "theme comes from the top level or from $defs" do
@@ -186,7 +187,8 @@ defmodule A2UICore.CatalogTest do
 
       top = Catalog.from_json!(v1_document(%{"theme" => theme}), protocol_version: "v1.0")
       assert top.theme == theme
-      assert top.schema["$defs"]["theme"] == theme
+      assert top.schema["$defs"]["theme"]["properties"] == theme["properties"]
+      assert Catalog.to_json(top)["theme"] == theme
 
       nested =
         Catalog.from_json!(
@@ -195,6 +197,7 @@ defmodule A2UICore.CatalogTest do
         )
 
       assert nested.theme == theme
+      assert Catalog.to_json(nested)["$defs"]["theme"] == theme
     end
 
     test "instructions are kept" do
@@ -229,12 +232,21 @@ defmodule A2UICore.CatalogTest do
   describe "from_json/2 errors" do
     test "missing catalog id" do
       assert error_message(Catalog.from_json(%{"components" => %{}}, protocol_version: "v1.0")) ==
-               "catalog_id must be provided or exist in catalog_schema."
+               "catalog_id must be provided or exist in catalog schema."
     end
 
-    test "missing protocol version" do
-      assert error_message(Catalog.from_json(%{"catalogId" => "x"})) ==
-               "protocol_version must be provided."
+    test "the protocol version defaults to the document's, else 0.9" do
+      assert Catalog.from_json!(%{"catalogId" => "x"}).protocol_version == "0.9"
+
+      assert Catalog.from_json!(%{"catalogId" => "x", "protocolVersion" => "1.0"}).protocol_version ==
+               "1.0"
+    end
+
+    test "from v1.0 a document may not declare a function in the @ namespace" do
+      document = v1_document(%{"functions" => %{"@index" => @double}})
+
+      assert error_message(Catalog.from_json(document, protocol_version: "v1.0")) ==
+               "Invalid UAX #31 function identifier: '@index'"
     end
 
     test "unsupported protocol version" do
@@ -341,13 +353,13 @@ defmodule A2UICore.CatalogTest do
         |> get_in(["components", "Label"])
 
       assert label["properties"]["component"] == %{"const" => "Label"}
-      assert label["properties"]["id"] == %{"$ref" => "#/$defs/ComponentId"}
+      assert label["properties"]["id"]["$ref"] == "#/$defs/ComponentId"
       assert label["required"] == ["id", "text", "component"]
       assert label["unevaluatedProperties"] == false
       refute Map.has_key?(label, "additionalProperties")
     end
 
-    test "an existing component property gains a const and becomes required" do
+    test "an existing component property becomes the component's const and is required" do
       document = %{
         "catalogId" => "urn:test:v1",
         "components" => %{
@@ -364,17 +376,12 @@ defmodule A2UICore.CatalogTest do
         |> Catalog.to_schema()
         |> get_in(["components", "Label"])
 
-      assert label["properties"]["component"] == %{"type" => "string", "const" => "Label"}
+      assert label["properties"]["component"] == %{"const" => "Label"}
       assert "component" in label["required"]
     end
 
-    test "v1.0 allOf envelopes are left alone unless flattened" do
+    test "v1.0 allOf envelopes are merged into one properties schema" do
       catalog = Catalog.from_json!(v1_document(), protocol_version: "v1.0")
-      assert %{"allOf" => [_ | _]} = catalog.schema["components"]["Card"]
-    end
-
-    test "flatten merges the envelope into one properties schema" do
-      catalog = Catalog.from_json!(v1_document(), protocol_version: "v1.0", flatten: true)
       card = catalog.schema["components"]["Card"]
 
       refute Map.has_key?(card, "allOf")
@@ -383,10 +390,10 @@ defmodule A2UICore.CatalogTest do
       assert card["unevaluatedProperties"] == false
 
       assert Map.keys(card["properties"]) |> Enum.sort() ==
-               ~w(accessibility catalogId child component id metadata title weight)
+               ~w(accessibility child component id metadata title weight)
     end
 
-    test "flatten keeps schemas it cannot merge" do
+    test "flattening keeps the parts it cannot merge" do
       conditional = %{
         "type" => "object",
         "allOf" => [
@@ -397,12 +404,15 @@ defmodule A2UICore.CatalogTest do
       }
 
       document = %{"catalogId" => "x", "components" => %{"Odd" => conditional}}
-      catalog = Catalog.from_json!(document, protocol_version: "v1.0", flatten: true)
+      catalog = Catalog.from_json!(document, protocol_version: "v1.0")
 
-      assert %{"allOf" => [_, _]} = catalog.schema["components"]["Odd"]
+      assert %{"allOf" => [%{"if" => _, "then" => _}], "properties" => properties} =
+               catalog.schema["components"]["Odd"]
+
+      assert %{"id" => _, "component" => %{"const" => "Odd"}} = properties
     end
 
-    test "flatten bails out on unknown references" do
+    test "a reference that resolves nowhere is kept" do
       unknown = %{
         "type" => "object",
         "allOf" => [%{"$ref" => "#/$defs/Missing"}],
@@ -410,7 +420,7 @@ defmodule A2UICore.CatalogTest do
       }
 
       document = %{"catalogId" => "x", "components" => %{"Lost" => unknown}}
-      catalog = Catalog.from_json!(document, protocol_version: "v1.0", flatten: true)
+      catalog = Catalog.from_json!(document, protocol_version: "v1.0")
 
       assert %{"allOf" => [%{"$ref" => "#/$defs/Missing"}]} = catalog.schema["components"]["Lost"]
     end
@@ -430,7 +440,8 @@ defmodule A2UICore.CatalogTest do
       assert Map.keys(catalog.components) == ["Text"]
       assert catalog.instructions == "hello"
       assert catalog.schema["catalogId"] == "urn:parts"
-      assert catalog.schema["$defs"]["theme"] == %{"type" => "object"}
+      assert catalog.schema["$defs"]["theme"]["type"] == "object"
+      assert Catalog.to_json(catalog)["components"]["Text"] == text.schema
     end
 
     test "rejects unsupported versions and invalid names" do
@@ -528,6 +539,163 @@ defmodule A2UICore.CatalogTest do
     end
   end
 
+  describe "peer catalogs" do
+    setup do
+      peer =
+        Catalog.from_json!(
+          %{
+            "$id" => "https://acme.test/catalogs/widgets.json",
+            "catalogId" => "acme/widgets",
+            "components" => %{
+              "Badge" => %{
+                "type" => "object",
+                "properties" => %{
+                  "component" => %{"const" => "Badge"},
+                  "label" => %{"$ref" => "#/$defs/Label"}
+                },
+                "required" => ["component", "label"]
+              }
+            },
+            "$defs" => %{"Label" => %{"type" => "string", "maxLength" => 20}}
+          },
+          protocol_version: "v1.0"
+        )
+
+      user =
+        Catalog.from_json!(
+          %{
+            "catalogId" => "acme/app",
+            "components" => %{"Tag" => %{"$ref" => "widgets.json#/components/Badge"}}
+          },
+          protocol_version: "v1.0"
+        )
+
+      {:ok, peer: peer, user: user}
+    end
+
+    @badge %{
+      "type" => "object",
+      "properties" => %{"label" => %{"type" => "string", "maxLength" => 20}},
+      "required" => ["label"]
+    }
+
+    test "a reference into a peer resolves once the catalogs are linked", %{
+      peer: peer,
+      user: user
+    } do
+      assert Catalog.cross_document?(user)
+      refute Catalog.cross_document?(peer)
+
+      assert Catalog.resolved_component_schema(user, "Tag") ==
+               %{"$ref" => "widgets.json#/components/Badge"}
+
+      linked = Catalog.with_peer_catalogs(user, [peer])
+
+      assert [%Catalog{catalog_id: "acme/widgets", peers: []}] = linked.peers
+      assert Catalog.resolved_component_schema(linked, "Tag") == @badge
+      assert Catalog.to_json(linked) == Catalog.to_json(user)
+
+      label = %{"$ref" => "acme/widgets#/components/Badge/properties/label"}
+
+      assert Catalog.inline_refs(linked, label, Catalog.to_json(linked)) ==
+               %{"type" => "string", "maxLength" => 20}
+    end
+
+    test "linking adds each peer once and never the catalog itself", %{peer: peer, user: user} do
+      linked = Catalog.with_peer_catalogs(user, [peer])
+
+      assert Catalog.with_peer_catalogs(linked, [peer]) == linked
+      assert Catalog.with_peer_catalogs(user, [user, :not_a_catalog]) == user
+    end
+
+    test "a pruned peer brings the catalog it was pruned from", %{peer: peer, user: user} do
+      pruned = Catalog.copy_with(peer, components: [])
+      linked = Catalog.with_peer_catalogs(user, [pruned])
+
+      assert Enum.map(linked.peers, & &1.component_order) == [["Badge"], []]
+      assert Catalog.resolved_component_schema(linked, "Tag") == @badge
+    end
+
+    test "link_catalogs/2 links the catalogs that reference others", %{peer: peer, user: user} do
+      assert [linked, ^peer] = Catalog.link_catalogs([user, peer])
+      assert Catalog.resolved_component_schema(linked, "Tag") == @badge
+
+      assert Catalog.link_catalogs([user]) == [user]
+      assert [extra_linked] = Catalog.link_catalogs([user], [peer])
+      assert Catalog.resolved_component_schema(extra_linked, "Tag") == @badge
+    end
+  end
+
+  describe "copy_with/2" do
+    test "an authored union that no longer lists the entries is derived again" do
+      document =
+        v1_document(%{
+          "components" => %{"Card" => @card, "Other" => @card},
+          "$defs" => %{
+            "CatalogComponentCommon" => %{"type" => "object"},
+            "anyComponent" => %{
+              "description" => "authored",
+              "oneOf" => [%{"$ref" => "#/components/Card"}, %{"$ref" => "#/components/Other"}]
+            }
+          }
+        })
+
+      catalog = Catalog.from_json!(document, protocol_version: "v1.0")
+      assert Catalog.to_json(catalog)["$defs"]["anyComponent"]["description"] == "authored"
+
+      copy = Catalog.copy_with(catalog, components: [catalog.components["Card"]])
+
+      assert Catalog.to_json(copy)["$defs"]["anyComponent"] == %{
+               "oneOf" => [%{"$ref" => "#/components/Card"}],
+               "discriminator" => %{"propertyName" => "component"}
+             }
+    end
+
+    test "a catalog defined in code is copied with its derived unions" do
+      text = Component.from_schema("Text", %{"type" => "object"})
+      catalog = Catalog.new!("x", "v1.0", components: [text], defs: %{"Unused" => %{}})
+      copy = Catalog.copy_with(catalog, components: [])
+
+      assert copy.components == %{}
+      assert Catalog.to_json(copy)["$defs"]["anyComponent"] == %{"not" => %{}}
+      assert Map.has_key?(copy.defs, "Unused")
+    end
+  end
+
+  describe "to_json/2" do
+    test "ordered: true writes the document in the order it was read" do
+      text =
+        ~s({"catalogId": "x", "protocolVersion": "1.0", "title": "T", "components": ) <>
+          ~s({"Z": {"type": "object", "properties": {"component": {"const": "Z"}}}, ) <>
+          ~s("A": {"properties": {"component": {"const": "A"}}, "type": "object"}}})
+
+      catalog = text |> Jason.decode!(objects: :ordered_objects) |> Catalog.from_json!()
+
+      assert catalog |> Catalog.to_json(ordered: true) |> Jason.encode!() ==
+               ~s({"protocolVersion":"1.0","title":"T","catalogId":"x","components":) <>
+                 ~s({"Z":{"type":"object","properties":{"component":{"const":"Z"}}},) <>
+                 ~s("A":{"properties":{"component":{"const":"A"}},"type":"object"}}})
+
+      pruned = Catalog.copy_with(catalog, components: [catalog.components["A"]])
+
+      assert pruned |> Catalog.to_json(ordered: true) |> Jason.encode!() ==
+               ~s({"protocolVersion":"1.0","title":"T","catalogId":"x","components":) <>
+                 ~s({"A":{"properties":{"component":{"const":"A"}},"type":"object"}}})
+
+      code = Catalog.new!("y", "v1.0", components: [catalog.components["Z"]])
+
+      assert code |> Catalog.to_json(ordered: true) |> Jason.encode!() ==
+               ~s({"$schema":"https://json-schema.org/draft/2020-12/schema",) <>
+                 ~s("protocolVersion":"1.0","catalogId":"y","components":) <>
+                 ~s({"Z":{"properties":{"component":{"const":"Z"}},"type":"object"}},) <>
+                 ~s("$defs":{"anyComponent":{"oneOf":[{"$ref":"#/components/Z"}],) <>
+                 ~s("discriminator":{"propertyName":"component"}},"anyFunction":{"not":{}}}})
+
+      assert Catalog.to_json(catalog) ==
+               catalog |> Catalog.to_json(ordered: true) |> A2UICore.KeyOrder.to_plain()
+    end
+  end
+
   describe "localize/1" do
     test "rewrites only references into common_types.json and catalog.json" do
       node = %{
@@ -551,4 +719,9 @@ defmodule A2UICore.CatalogTest do
              }
     end
   end
+
+  defp refs(%{"$ref" => ref} = node), do: [ref | node |> Map.delete("$ref") |> refs()]
+  defp refs(%{} = node), do: Enum.flat_map(node, fn {_key, value} -> refs(value) end)
+  defp refs(list) when is_list(list), do: Enum.flat_map(list, &refs/1)
+  defp refs(_other), do: []
 end

@@ -18,14 +18,14 @@ divergences from the reference implementations.
 
 ## Conformance
 
-Of the 1053 upstream cases at the pinned commit (`SPEC_PIN`), 690 run and all
+Of the 1115 upstream cases at the pinned commit (`SPEC_PIN`), 741 run and all
 of them pass. The others are skipped, each for a stated reason:
 
 | Suite family | Cases | Run | Skipped |
 |---|---:|---:|---|
-| `core` | 524 | 487 | 37 for protocol v0.8 |
-| `agent` (shared suites) | 94 | 67 | 27 written in the Express format |
-| `agent/direct_json` | 162 | 123 | 39 for v0.8 catalogs |
+| `core` | 572 | 533 | 39 for protocol v0.8 |
+| `agent` (shared suites) | 107 | 71 | 36 written in the Express format |
+| `agent/direct_json` | 163 | 124 | 39 for v0.8 catalogs |
 | `agent/express` | 115 | 0 | the optional Express format |
 | `agent/legacy` | 133 | 0 | the optional legacy SDK (39 of them v0.8) |
 | `extensions/a2a` | 14 | 13 | 1 v0.8 payload |

@@ -13,57 +13,21 @@ defmodule A2UIAgent.CatalogTransformer.Pruning do
   @impl true
   @spec transform(Catalog.t(), {:components | :functions, [String.t()]}) :: Catalog.t()
   def transform(%Catalog{} = catalog, {:components, names}),
-    do: prune(catalog, Map.take(catalog.components, names), catalog.functions)
+    do:
+      Catalog.copy_with(catalog,
+        components: kept(catalog.components, catalog.component_order, names)
+      )
 
   def transform(%Catalog{} = catalog, {:functions, names}),
-    do: prune(catalog, catalog.components, Map.take(catalog.functions, names))
+    do:
+      Catalog.copy_with(catalog,
+        functions: kept(catalog.functions, catalog.function_order, names)
+      )
 
-  defp prune(catalog, components, functions) do
-    roots =
-      Enum.map(components, fn {_name, component} -> component.schema end) ++
-        Enum.map(functions, fn {_name, function} -> function.schema end) ++ [catalog.theme]
-
-    defs =
-      catalog.defs
-      |> Map.drop(["anyComponent", "anyFunction"])
-      |> reachable(roots)
-
-    Catalog.new!(catalog.catalog_id, catalog.protocol_version,
-      components: Map.values(components),
-      functions: Map.values(functions),
-      theme: catalog.theme,
-      instructions: catalog.instructions,
-      defs: defs
-    )
+  # The named entries, in the catalog's order. `Catalog.copy_with/2` lists
+  # the unions from them and drops the `$defs` only dropped entries used.
+  defp kept(entries, order, names) do
+    allowed = MapSet.new(names)
+    for name <- order, MapSet.member?(allowed, name), do: Map.fetch!(entries, name)
   end
-
-  # The entries of `defs` that `roots` reach through `#/$defs/…`
-  # references, directly or through other entries.
-  defp reachable(defs, roots) do
-    roots
-    |> Enum.flat_map(&refs/1)
-    |> walk(defs, %{})
-    |> then(&Map.take(defs, Map.keys(&1)))
-  end
-
-  defp walk([], _defs, seen), do: seen
-
-  defp walk([name | rest], defs, seen) do
-    if Map.has_key?(defs, name) and not Map.has_key?(seen, name),
-      do: walk(refs(defs[name]) ++ rest, defs, Map.put(seen, name, true)),
-      else: walk(rest, defs, seen)
-  end
-
-  defp refs(%{} = node) do
-    own =
-      case node do
-        %{"$ref" => "#/$defs/" <> target} -> [target |> String.split("/") |> hd()]
-        _other -> []
-      end
-
-    own ++ Enum.flat_map(node, fn {_key, value} -> refs(value) end)
-  end
-
-  defp refs(list) when is_list(list), do: Enum.flat_map(list, &refs/1)
-  defp refs(_other), do: []
 end

@@ -41,7 +41,7 @@ defmodule A2UICore.Catalog.Basic do
       :missing ->
         catalog =
           version
-          |> Source.catalog(:basic)
+          |> Source.ordered_catalog(:basic)
           |> Catalog.from_json!(protocol_version: version)
 
         :persistent_term.put(key, catalog)
@@ -64,8 +64,6 @@ defmodule A2UICore.Catalog.Basic do
     catalog =
       Catalog.put_implementations(catalog, Functions.Basic.implementations(version, options))
 
-    system = Map.new(Functions.System.functions(version), &{&1.name, &1})
-
-    %{catalog | functions: Map.merge(catalog.functions, system)}
+    Catalog.put_system_functions(catalog, Functions.System.functions(version))
   end
 end

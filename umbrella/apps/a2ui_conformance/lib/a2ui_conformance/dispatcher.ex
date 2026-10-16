@@ -24,7 +24,9 @@ defmodule A2UIConformance.Dispatcher do
     "data_model" => "data model",
     "resolve_path" => "data model",
     "from_json" => "catalogs",
-    "catalog_schema" => "catalogs",
+    "to_json" => "catalogs",
+    "round_trip" => "catalogs",
+    "validation_schema" => "catalogs",
     "evaluate_function" => "functions",
     "parse_expression_template" => "expressions",
     "validate" => "message processing",
@@ -89,7 +91,9 @@ defmodule A2UIConformance.Dispatcher do
     {"core", "resolve_path"} => A2UIConformance.Handlers.ResolvePath,
     # catalogs, functions, expressions
     {"core", "from_json"} => A2UIConformance.Handlers.FromJson,
-    {"core", "catalog_schema"} => A2UIConformance.Handlers.CatalogSchema,
+    {"core", "to_json"} => A2UIConformance.Handlers.CatalogDocument,
+    {"core", "round_trip"} => A2UIConformance.Handlers.CatalogDocument,
+    {"core", "validation_schema"} => A2UIConformance.Handlers.CatalogDocument,
     {"core", "evaluate_function"} => A2UIConformance.Handlers.EvaluateFunction,
     {"core", "parse_expression_template"} => A2UIConformance.Handlers.ParseExpressionTemplate,
     # message processing, capabilities, selection, actions

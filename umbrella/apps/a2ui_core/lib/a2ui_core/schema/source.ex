@@ -64,6 +64,19 @@ defmodule A2UICore.Schema.Source do
   end
 
   @doc """
+  Like `document/2`, decoded with its key order (`Jason.OrderedObject`s),
+  for writing the document out in the order it is published in.
+  """
+  @spec ordered_document(Version.protocol_version() | String.t(), atom() | String.t()) ::
+          Jason.OrderedObject.t() | nil
+  def ordered_document(version, name) do
+    case resolve_file(version, name) do
+      {:ok, file} -> load_cached("schemas/#{schema_dir(version)}/#{file}", :ordered)
+      :error -> nil
+    end
+  end
+
+  @doc """
   Loads a shipped catalog by protocol version.
 
       :basic      the basic catalog for the given protocol line
@@ -71,15 +84,31 @@ defmodule A2UICore.Schema.Source do
   """
   @spec catalog(Version.protocol_version() | String.t(), :basic | :testing) ::
           document() | nil
-  def catalog("v0.9", :basic), do: load_cached("catalogs/basic_v0_9_1.json")
-  def catalog("v0.9.1", :basic), do: load_cached("catalogs/basic_v0_9_1.json")
-  def catalog("v1.0", :basic), do: load_cached("catalogs/basic_v1_0.json")
-  def catalog("v1.0", :testing), do: load_cached("catalogs/testing_v1_0.json")
+  def catalog(version, kind), do: load_cached(catalog_file(version, kind))
 
-  def catalog(_version, :testing),
+  @doc """
+  Like `catalog/2`, decoded with its key order (`Jason.OrderedObject`s),
+  which orders the components and functions of a catalog built from it
+  (`A2UICore.Catalog.from_json/2`). Not cached.
+  """
+  @spec ordered_catalog(Version.protocol_version() | String.t(), :basic | :testing) ::
+          Jason.OrderedObject.t() | nil
+  def ordered_catalog(version, kind) do
+    case File.read(Path.join(priv_dir(), catalog_file(version, kind))) do
+      {:ok, contents} -> Jason.decode!(contents, objects: :ordered_objects)
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp catalog_file("v0.9", :basic), do: "catalogs/basic_v0_9_1.json"
+  defp catalog_file("v0.9.1", :basic), do: "catalogs/basic_v0_9_1.json"
+  defp catalog_file("v1.0", :basic), do: "catalogs/basic_v1_0.json"
+  defp catalog_file("v1.0", :testing), do: "catalogs/testing_v1_0.json"
+
+  defp catalog_file(_version, :testing),
     do: raise(ArgumentError, "testing catalog exists only for v1.0")
 
-  def catalog(version, _kind) do
+  defp catalog_file(version, _kind) do
     raise ArgumentError,
           "no catalog for protocol version #{inspect(version)}; supported: v0.9, v0.9.1, v1.0"
   end
@@ -129,13 +158,13 @@ defmodule A2UICore.Schema.Source do
 
   # read-through cache --------------------------------------------------------
 
-  @spec load_cached(String.t()) :: document() | nil
-  defp load_cached(rel) do
-    key = {__MODULE__, rel}
+  @spec load_cached(String.t(), :plain | :ordered) :: document() | Jason.OrderedObject.t() | nil
+  defp load_cached(rel, mode \\ :plain) do
+    key = {__MODULE__, mode, rel}
 
     case :persistent_term.get(key, :missing) do
       :missing ->
-        doc = read_document(Path.join(priv_dir(), rel))
+        doc = read_document(Path.join(priv_dir(), rel), mode)
         :persistent_term.put(key, doc)
         doc
 
@@ -144,9 +173,9 @@ defmodule A2UICore.Schema.Source do
     end
   end
 
-  @spec read_document(Path.t()) :: document() | nil
-  defp read_document(path) do
+  defp read_document(path, mode) do
     case File.read(path) do
+      {:ok, contents} when mode == :ordered -> Jason.decode!(contents, objects: :ordered_objects)
       {:ok, contents} -> Jason.decode!(contents)
       {:error, _reason} -> nil
     end

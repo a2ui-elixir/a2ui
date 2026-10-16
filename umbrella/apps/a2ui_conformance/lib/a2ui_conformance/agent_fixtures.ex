@@ -20,6 +20,9 @@ defmodule A2UIConformance.AgentFixtures do
   @spec load_json(String.t()) :: term()
   def load_json(relative), do: relative |> path() |> File.read!() |> Jason.decode!()
 
+  defp load_ordered_json(relative),
+    do: relative |> path() |> File.read!() |> Jason.decode!(objects: :ordered_objects)
+
   @doc "A transformer for a case's `{\"component_pruning\": [...]}` entry."
   @spec transformer(map()) :: CatalogTransformer.t()
   def transformer(%{"component_pruning" => names}),
@@ -221,7 +224,7 @@ defmodule A2UIConformance.AgentFixtures do
   @spec examples(map()) :: [[map()]] | nil
   def examples(args) do
     case args["examples"] do
-      files when is_list(files) and files != [] -> Enum.map(files, &load_json/1)
+      files when is_list(files) and files != [] -> Enum.map(files, &load_ordered_json/1)
       _none -> nil
     end
   end

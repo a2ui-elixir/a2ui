@@ -20,7 +20,8 @@ defmodule A2UIAgent.PayloadValidator do
       the surface with (`:surface_catalog_ids`), only that one is tried.
 
   Every message must state a `version` its catalogs accept: `v0.9` or
-  `v0.9.1` for v0.9 catalogs, `v1.0` for v1.0 catalogs.
+  `v0.9.1` for v0.9 catalogs, `v1.0` for v1.0 catalogs. Messages may be
+  maps or `Jason.OrderedObject`s.
 
   Failures are `A2UICore.Error`s: category `:validation` (or one of its
   refinements, `:integrity` and `:recursion`) for a payload a renderer
@@ -28,7 +29,7 @@ defmodule A2UIAgent.PayloadValidator do
   """
 
   alias A2UIAgent.Catalogs
-  alias A2UICore.{Catalog, Error, Processor, Version}
+  alias A2UICore.{Catalog, Error, KeyOrder, Processor, Version}
   alias A2UICore.State.{Component, Surface}
   alias A2UICore.Validation.{ComponentsUpdate, Config, Topology}
 
@@ -51,7 +52,7 @@ defmodule A2UIAgent.PayloadValidator do
 
   def validate([first | _] = catalogs, payload, options) do
     with :ok <- check_versions(catalogs),
-         {:ok, messages} <- extract(payload),
+         {:ok, messages} <- extract(KeyOrder.to_plain(payload)),
          :ok <- check_messages(messages, first) do
       {checked, updated} = split(messages)
       known = Keyword.get(options, :surface_catalog_ids) || %{}

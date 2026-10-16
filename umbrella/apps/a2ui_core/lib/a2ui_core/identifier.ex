@@ -13,8 +13,11 @@ defmodule A2UICore.Identifier do
 
   Two structural points follow the reference:
 
-  * one optional leading `@` is stripped before testing;
-  * the empty string is invalid.
+  * the empty string is invalid;
+  * a leading `@` makes a name invalid, unless `allow_leading_at: true`
+    (payload validation, where a call may name a system function such
+    as `@index`): then one leading `@` is ignored. Catalog declarations
+    never allow it.
   """
 
   alias A2UICore.Error
@@ -25,16 +28,26 @@ defmodule A2UICore.Identifier do
 
   @doc """
   Returns whether `name` is a valid UAX #31 identifier.
-  """
-  @spec valid?(term()) :: boolean()
-  def valid?(name) when not is_binary(name), do: false
-  def valid?(""), do: false
 
-  def valid?(name) do
+  Options: `allow_leading_at: true` ignores one leading `@`.
+
+      iex> A2UICore.Identifier.valid?("submit_form")
+      true
+      iex> A2UICore.Identifier.valid?("@index")
+      false
+      iex> A2UICore.Identifier.valid?("@index", allow_leading_at: true)
+      true
+  """
+  @spec valid?(term(), keyword()) :: boolean()
+  def valid?(name, options \\ [])
+  def valid?(name, _options) when not is_binary(name), do: false
+  def valid?("", _options), do: false
+
+  def valid?(name, options) do
     stripped =
-      case String.first(name) do
-        "@" -> String.slice(name, 1..-1//1)
-        _ -> name
+      case name do
+        "@" <> rest -> if Keyword.get(options, :allow_leading_at, false), do: rest, else: name
+        _other -> name
       end
 
     stripped != "" and Regex.match?(@pattern, stripped)

@@ -5,7 +5,8 @@ defmodule A2UICore.ProcessorTest do
   alias A2UICore.Catalog
   alias A2UICore.Catalog.Basic
   alias A2UICore.Error
-  alias A2UICore.Message.Operation.{CreateSurface, UpdateDataModel}
+  alias A2UICore.Error.Detail
+  alias A2UICore.Message.Operation.{CreateSurface, UpdateComponents, UpdateDataModel}
   alias A2UICore.Processor
   alias A2UICore.State.{Components, Surface}
   alias A2UICore.Validation.Config
@@ -72,14 +73,17 @@ defmodule A2UICore.ProcessorTest do
       assert Map.keys(surface.catalogs) == [v10.catalog_id]
     end
 
-    test "defaults to the first catalog when none is named", %{v09: v09, v10: v10} do
+    test "a v1.0 surface created without a catalogId has no default catalog",
+         %{v09: v09, v10: v10} do
       processor = Processor.new([v10, v09])
       operation = %CreateSurface{surface_id: "s", version: "v1.0"}
 
       assert {:ok, processor, [{:surface_created, "s"}]} =
                Processor.apply_operation(processor, operation)
 
-      assert Processor.surface(processor, "s").catalog_id == v10.catalog_id
+      surface = Processor.surface(processor, "s")
+      assert surface.catalog_id == nil
+      assert Map.keys(surface.catalogs) == [v10.catalog_id]
     end
 
     test "a root other than \"root\"", %{v10: v10} do
@@ -192,6 +196,65 @@ defmodule A2UICore.ProcessorTest do
                )
 
       assert Processor.surface(processor, "s").theme == %{"primaryColor" => "#00AAFF"}
+    end
+  end
+
+  describe "v1.0 component catalogs" do
+    defp bare_surface(v10, options \\ []) do
+      processor = Processor.new([v10], options)
+      operation = %CreateSurface{surface_id: "bare", version: "v1.0"}
+      {:ok, processor, _effects} = Processor.apply_operation(processor, operation)
+      processor
+    end
+
+    test "a component that names no catalog needs the surface's default", %{v10: v10} do
+      processor = bare_surface(v10)
+      text = %{"id" => "root", "component" => "Text", "text" => "a"}
+
+      {error, _processor} =
+        failure(Processor.process(processor, update_components("v1.0", "bare", [text])))
+
+      assert error.message ==
+               "Component root names no catalogId and surface bare has no default catalogId."
+
+      named = Map.put(text, "catalogId", v10.catalog_id)
+
+      assert {:ok, _processor, [{:components_updated, "bare", ["root"]}]} =
+               Processor.process(processor, update_components("v1.0", "bare", [named]))
+    end
+
+    test "a non-string catalogId is a validation error", %{v10: v10} do
+      text = %{"id" => "root", "component" => "Text", "text" => "a", "catalogId" => 5}
+
+      {error, _processor} =
+        failure(Processor.process(ready(v10), update_components("v1.0", "s", [text])))
+
+      assert error.message =~ "catalogId: 5 is not of type 'string'"
+
+      operation = %UpdateComponents{surface_id: "s", components: [text]}
+      {error, _processor} = failure(Processor.apply_operation(ready(v10), operation))
+
+      assert error.message == "Component root has a non-string 'catalogId'."
+      assert [%Detail{code: "type_mismatch", path: "components.root.catalogId"}] = error.details
+    end
+
+    test "an update of an existing component must still name its type", %{v10: v10} do
+      processor = ready(v10)
+      text = %{"id" => "root", "component" => "Text", "text" => "a"}
+
+      {:ok, processor, _effects} =
+        Processor.process(processor, update_components("v1.0", "s", [text]))
+
+      {error, _processor} =
+        failure(
+          Processor.process(
+            processor,
+            update_components("v1.0", "s", [%{"id" => "root", "text" => "b"}])
+          )
+        )
+
+      assert error.message == "Component root is missing the required 'component' field."
+      assert [%Detail{code: "missing_field", path: "components.root.component"}] = error.details
     end
   end
 
@@ -512,13 +575,14 @@ defmodule A2UICore.ProcessorTest do
       })
     end
 
-    defp call_message(name, catalog_id \\ nil) do
+    defp call_message(name, catalog_id \\ nil, fields \\ %{}) do
       call = %{"@call" => name, "args" => %{"mediaId" => "m1"}}
       call = if catalog_id, do: Map.put(call, "catalogId", catalog_id), else: call
 
       %{
         "version" => "v1.0",
-        "callRendererFunction" => %{"functionCallId" => "c1", "callFunction" => call}
+        "callRendererFunction" =>
+          Map.merge(%{"functionCallId" => "c1", "callFunction" => call}, fields)
       }
     end
 
@@ -575,14 +639,34 @@ defmodule A2UICore.ProcessorTest do
       assert %{"functionCallId" => "c1", "value" => nil} = response_of(effects)
     end
 
-    test "the call runs whether or not a surface is named" do
+    test "surfaceId names the surface whose data the call reads" do
       processor = ready(media_catalog())
-      message = call_message("playMedia", "media")
+      {:ok, processor, _effects} = Processor.set_data(processor, "s", "/media", "m7")
 
-      for options <- [[surface_id: "s"], [surface_id: "other"], []] do
-        assert {:ok, _processor, effects} = Processor.process(processor, message, options)
-        assert %{"value" => %{"playing" => "m1"}} = response_of(effects)
-      end
+      message =
+        "playMedia"
+        |> call_message("media", %{"surfaceId" => "s"})
+        |> put_in(["callRendererFunction", "callFunction", "args"], %{
+          "mediaId" => %{"@path" => "/media"}
+        })
+
+      assert {:ok, _processor, effects} = Processor.process(processor, message)
+      assert %{"value" => %{"playing" => "m7"}} = response_of(effects)
+
+      without_surface = update_in(message["callRendererFunction"], &Map.delete(&1, "surfaceId"))
+      assert {:ok, _processor, effects} = Processor.process(processor, without_surface)
+      assert %{"value" => %{"playing" => nil}} = response_of(effects)
+
+      elsewhere = put_in(message, ["callRendererFunction", "surfaceId"], "other")
+      assert {:ok, _processor, effects} = Processor.process(processor, elsewhere)
+
+      assert %{
+               "error" => %{
+                 "code" => "INVALID_FUNCTION_CALL",
+                 "message" => "Surface not found: other"
+               }
+             } =
+               response_of(effects)
     end
 
     test "agent calls are registered, answered and settled", %{v10: v10} do
@@ -747,7 +831,7 @@ defmodule A2UICore.ProcessorTest do
       assert %{"allOf" => [%{"$ref" => "urn:envelope"} | _]} = inline["components"]["Text"]
     end
 
-    test "inline catalogs: the catalog schema from v1.0 on", %{v10: v10} do
+    test "inline catalogs: the catalog document from v1.0 on", %{v10: v10} do
       processor = Processor.new([v10])
 
       assert {:ok, %{"v1.0" => %{"inlineCatalogs" => [inline]}}} =
@@ -756,7 +840,58 @@ defmodule A2UICore.ProcessorTest do
                  include_inline_catalogs: true
                )
 
-      assert inline == A2UICore.Catalog.to_schema(v10)
+      assert inline == A2UICore.Catalog.to_json(v10)
+      refute Map.has_key?(inline["functions"], "@index")
+    end
+
+    test "inline catalogs: legacy entries use the resolved schemas" do
+      document = %{
+        "catalogId" => "urn:legacy",
+        "components" => %{
+          "Swatch" => %{
+            "type" => "object",
+            "properties" => %{"color" => %{"$ref" => "#/$defs/Color"}},
+            "required" => ["color"]
+          }
+        },
+        "functions" => %{
+          "tint" => %{
+            "type" => "object",
+            "description" => "Tints a color.",
+            "properties" => %{
+              "call" => %{"const" => "tint"},
+              "args" => %{
+                "type" => "object",
+                "properties" => %{"c" => %{"$ref" => "#/$defs/Color"}}
+              }
+            },
+            "returnType" => "string"
+          }
+        },
+        "$defs" => %{"Color" => %{"type" => "string", "pattern" => "^#"}}
+      }
+
+      catalog = A2UICore.Catalog.from_json!(document, protocol_version: "v0.9")
+
+      assert {:ok, %{"v0.9" => %{"inlineCatalogs" => [inline]}}} =
+               Processor.renderer_capabilities(Processor.new([catalog]),
+                 versions: ["v0.9"],
+                 include_inline_catalogs: true
+               )
+
+      color = %{"type" => "string", "pattern" => "^#"}
+
+      assert %{"allOf" => [_envelope, %{"properties" => %{"color" => ^color}}]} =
+               inline["components"]["Swatch"]
+
+      assert [
+               %{
+                 "name" => "tint",
+                 "description" => "Tints a color.",
+                 "returnType" => "string",
+                 "parameters" => %{"properties" => %{"c" => ^color}}
+               }
+             ] = inline["functions"]
     end
   end
 

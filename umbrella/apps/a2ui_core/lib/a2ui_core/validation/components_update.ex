@@ -17,6 +17,11 @@ defmodule A2UICore.Validation.ComponentsUpdate do
        reachable (see `A2UICore.Validation.Topology`).
 
   Which checks apply is decided by the `A2UICore.Validation.Config`.
+
+  From v1.0 a function call that names no `catalogId` runs in the
+  surface's default catalog; a component in another catalog is validated
+  with its `catalogId`, so the validator leaves those calls to the
+  processor's nested-call pass (`A2UICore.Validation.NestedCalls`).
   """
 
   alias A2UICore.Catalog
@@ -33,13 +38,16 @@ defmodule A2UICore.Validation.ComponentsUpdate do
   @doc """
   Validates `incoming` against `existing`. Returns `:ok` or
   `{:error, %A2UICore.Error{}}`; nothing is changed either way.
+
+  Options: `:default_catalog_id` — the surface's default catalog (`nil`
+  when it has none).
   """
-  @spec validate(Components.t(), [Component.t()], catalog_for(), Config.t()) ::
+  @spec validate(Components.t(), [Component.t()], catalog_for(), Config.t(), keyword()) ::
           :ok | {:error, Error.t()}
-  def validate(%Components{} = existing, incoming, catalog_for, %Config{} = config)
+  def validate(%Components{} = existing, incoming, catalog_for, %Config{} = config, options \\ [])
       when is_list(incoming) and is_function(catalog_for, 1) do
     with :ok <- unique_ids(incoming),
-         :ok <- validate_components(incoming, catalog_for, config) do
+         :ok <- validate_components(incoming, catalog_for, config, options[:default_catalog_id]) do
       validate_graph(
         Enum.reduce(incoming, existing, &Components.put(&2, &1)),
         catalog_for,
@@ -93,19 +101,27 @@ defmodule A2UICore.Validation.ComponentsUpdate do
      )}
   end
 
-  defp validate_components(incoming, catalog_for, config) do
+  defp validate_components(incoming, catalog_for, config, default_id) do
     failures =
       for component <- incoming,
           catalog = catalog_for.(component),
           catalog != nil,
           {:error, %Error{details: details}} <-
-            [Payload.validate_component(catalog, Component.tree(component), config)],
+            [Payload.validate_component(catalog, tree(component, catalog, default_id), config)],
           do: {component, details}
 
     case failures do
       [] -> :ok
       failures -> {:error, failure(failures)}
     end
+  end
+
+  defp tree(component, catalog, default_id) do
+    tree = Component.tree(component)
+
+    if Catalog.v1?(catalog) and component.catalog_id != default_id,
+      do: Map.put(tree, "catalogId", catalog.catalog_id),
+      else: tree
   end
 
   defp failure(failures) do

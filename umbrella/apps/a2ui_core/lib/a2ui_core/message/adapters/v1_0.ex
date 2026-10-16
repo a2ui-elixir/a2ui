@@ -95,6 +95,7 @@ defmodule A2UICore.Message.Adapters.V1_0 do
         function_call_id: crf["functionCallId"],
         call: call_function["@call"],
         catalog_id: call_function["catalogId"],
+        surface_id: crf["surfaceId"],
         args: call_function["args"] || %{},
         version: version()
       }
