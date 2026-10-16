@@ -580,7 +580,7 @@ html:not(.js) .demo-replay {
 
 .sec-head h2,
 .cta h2 {
-  font-size: clamp(2rem, 4.2vw, 3rem);
+  font-size: clamp(1.75rem, 3.4vw, 2.5rem);
   font-weight: 620;
   letter-spacing: -0.045em;
   line-height: 1.05;
@@ -588,7 +588,7 @@ html:not(.js) .demo-replay {
 
 .sec-lead {
   color: var(--muted);
-  font-size: 1.04rem;
+  font-size: 1rem;
   line-height: 1.65;
   text-wrap: pretty;
 }
@@ -641,7 +641,7 @@ html:not(.js) .demo-replay {
 
 .cell-text {
   color: var(--text-2);
-  font-size: 0.94rem;
+  font-size: 0.875rem;
 }
 
 .tile-head {
@@ -652,7 +652,7 @@ html:not(.js) .demo-replay {
 }
 
 .tile-head h3 {
-  font-size: 1.02rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -660,7 +660,7 @@ html:not(.js) .demo-replay {
 .tile-title p {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
 }
 
 .tile-meta {
@@ -696,7 +696,7 @@ html:not(.js) .demo-replay {
   position: relative;
   padding-left: 20px;
   color: var(--text-2);
-  font-size: 0.92rem;
+  font-size: 0.875rem;
   line-height: 1.55;
 }
 
@@ -874,7 +874,7 @@ html:not(.js) .demo-replay {
   background: var(--panel);
   box-shadow: var(--shadow);
   color: var(--text-2);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   text-decoration: none;
   transition: border-color 0.2s;
 }
@@ -895,7 +895,7 @@ html:not(.js) .demo-replay {
 
 .hero h1 {
   margin-top: 28px;
-  font-size: clamp(2.7rem, 7.4vw, 5.4rem);
+  font-size: clamp(2.5rem, 6.4vw, 4.5rem);
   font-weight: 650;
   line-height: 1;
   letter-spacing: -0.055em;
@@ -921,7 +921,7 @@ html:not(.js) .demo-replay {
   max-width: 660px;
   margin: 26px auto 0;
   color: var(--muted);
-  font-size: clamp(1.02rem, 1.5vw, 1.15rem);
+  font-size: 1.0625rem;
   line-height: 1.65;
   text-wrap: pretty;
 }
@@ -1503,7 +1503,7 @@ html:not(.js) .demo-replay {
 }
 
 .standard-name {
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -1537,7 +1537,7 @@ html:not(.js) .demo-replay {
 
 .metric-value {
   margin-top: 8px;
-  font-size: clamp(1.45rem, 2.2vw, 1.9rem);
+  font-size: clamp(1.375rem, 2vw, 1.625rem);
   font-weight: 650;
   line-height: 1.1;
   letter-spacing: -0.045em;
@@ -1547,7 +1547,7 @@ html:not(.js) .demo-replay {
 
 .metric-label {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   line-height: 1.4;
 }
 
@@ -1786,7 +1786,7 @@ html:not(.js) .demo-replay {
 }
 
 .package h3.mono {
-  font-size: 0.98rem;
+  font-size: 0.9375rem;
   letter-spacing: -0.02em;
 }
 
@@ -1834,7 +1834,7 @@ html:not(.js) .demo-replay {
 
 .harness p {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .harness strong {
@@ -1908,14 +1908,14 @@ html:not(.js) .demo-replay {
 
 .step h3 {
   margin-top: 6px;
-  font-size: 1.02rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
 .step p {
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 
@@ -2547,14 +2547,14 @@ html:not(.js) .demo-replay {
 }
 
 .transport-name {
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 650;
   letter-spacing: -0.03em;
 }
 
 .spec-table td {
   color: var(--text-2);
-  font-size: 0.92rem;
+  font-size: 0.875rem;
 }
 
 .spec-table td code {
@@ -2737,7 +2737,7 @@ html:not(.js) .demo-replay {
 .note {
   margin-top: 10px;
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
 }
 
 .guides {
@@ -2763,7 +2763,7 @@ html:not(.js) .demo-replay {
 
 .guides span {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
 }
 
 .requirements {
@@ -2780,7 +2780,7 @@ html:not(.js) .demo-replay {
   gap: 12px;
   padding: 9px 12px;
   border-top: 1px solid var(--line);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
 }
 
 .requirements div:first-child {
@@ -2945,14 +2945,14 @@ html:not(.js) .demo-replay {
 
 .scenario h3 {
   margin-top: 4px;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: -0.015em;
 }
 
 .scenario p {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 
@@ -3044,7 +3044,7 @@ html:not(.js) .demo-replay {
 }
 
 .report-figure {
-  font-size: clamp(2.6rem, 5vw, 3.6rem);
+  font-size: clamp(2.25rem, 4vw, 2.75rem);
   font-weight: 650;
   line-height: 1;
   letter-spacing: -0.055em;
@@ -3060,7 +3060,7 @@ html:not(.js) .demo-replay {
 .report-caption {
   margin-top: 10px;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .report-caption strong {
@@ -3235,7 +3235,7 @@ html:not(.js) .demo-replay {
   max-width: 420px;
   margin-top: 14px;
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 
 .footer-col {
@@ -3255,7 +3255,7 @@ html:not(.js) .demo-replay {
   width: fit-content;
   max-width: 100%;
   color: var(--text-2);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   text-decoration: none;
 }
 
