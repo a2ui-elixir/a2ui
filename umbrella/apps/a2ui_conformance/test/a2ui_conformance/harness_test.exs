@@ -129,7 +129,7 @@ defmodule A2UIConformance.HarnessTest do
                Dispatcher.resolve(case_for("agent/resolve_catalogs.yaml", "select_catalog"))
     end
 
-    test "agent families: blueprint suites are one area, legacy is optional" do
+    test "agent families: blueprint suites are one area; legacy rules that hold run" do
       assert {:ok, A2UIConformance.Handlers.AgentCatalogs} =
                Dispatcher.resolve(case_for("agent/resolve_catalogs.yaml", "resolve_catalogs"))
 
@@ -142,8 +142,16 @@ defmodule A2UIConformance.HarnessTest do
       assert {:ok, A2UIConformance.Handlers.Skills} =
                Dispatcher.resolve(case_for("agent/skill.yaml", "skill_set"))
 
-      assert {:optional, _label} =
+      assert {:ok, A2UIConformance.Handlers.Legacy} =
                Dispatcher.resolve(case_for("agent/legacy/parser.yaml", "select_catalog"))
+
+      elemental =
+        Case.new("agent/legacy/inference_format.yaml", "n", %{
+          "action" => "parse_full",
+          "format" => "elemental"
+        })
+
+      assert {:optional, "Elemental inference format"} = Dispatcher.resolve(elemental)
     end
 
     test "a shared agent suite naming a format this library lacks is optional" do
@@ -182,9 +190,35 @@ defmodule A2UIConformance.HarnessTest do
                SkipPolicy.skip_for(case_for("agent/direct_json/x.yaml", "fix_payload"))
 
       assert {:skip, "optional family without a handler: " <> _} =
-               SkipPolicy.skip_for(case_for("agent/legacy/x.yaml", "wrap"))
+               SkipPolicy.skip_for(case_for("extensions/adk/x.yaml", "convert_event"))
+
+      assert {:skip, "superseded: replaced by agent/direct_json/response_streaming.yaml" <> _} =
+               SkipPolicy.skip_for(
+                 Case.new("agent/legacy/streaming_parser.yaml", "n", %{
+                   "action" => "process_chunk",
+                   "catalog" => %{"protocolVersion" => "v0.9"}
+                 })
+               )
+
+      assert {:skip, "superseded: replaced by agent/direct_json/prompt_generator.yaml" <> _} =
+               SkipPolicy.skip_for(
+                 case_for("agent/legacy/inference_format.yaml", "generate_prompt")
+               )
+
+      assert {:skip, "superseded: replaced by agent/catalog_resolution.yaml" <> _} =
+               SkipPolicy.skip_for(
+                 Case.new("agent/legacy/inference_format.yaml", "test_select_catalog_default", %{
+                   "action" => "select_catalog"
+                 })
+               )
 
       assert nil == SkipPolicy.skip_for(case_for("core/x.yaml", "validate"))
+    end
+
+    test "skip entries that match no case are stale" do
+      assert_raise ArgumentError, ~r/stale skip entries/, fn ->
+        SkipPolicy.validate_explicit_skips!([])
+      end
     end
 
     test "a v0.8 suite is skipped even when its case names no version" do

@@ -104,7 +104,8 @@ defmodule A2UIAgent.MixProject do
           A2UIAgent.DirectJson,
           A2UIAgent.DirectJson.Prompt,
           A2UIAgent.DirectJson.Parser,
-          A2UIAgent.DirectJson.JsonReader
+          A2UIAgent.DirectJson.JsonReader,
+          A2UIAgent.PayloadFixer
         ],
         Express: [
           A2UIAgent.Express,

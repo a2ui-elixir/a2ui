@@ -236,6 +236,30 @@ transformers and resolution, `validate_payload`, and the direct JSON format
 - **v0.8 catalogs are out of scope.** Agent cases that name a v0.8 catalog file are
   skipped (invariant 3).
 
+## Legacy agent suites
+
+`conformance/agent/legacy/` holds the suites of the earlier agent interface. The
+blueprint suites replaced some of their rules on purpose. The Python SDK no longer runs
+them; the TypeScript SDK runs `parser.yaml` and `inference_format.yaml` and skips the
+cases whose rules were replaced.
+
+- **Replaced rules are skipped, with what replaced them.** As in the TypeScript harness,
+  catalog selection follows `catalog_resolution.yaml` (every catalog in common, inline
+  catalogs alongside) and prompts follow `direct_json/prompt_generator.yaml`. This
+  library also follows `direct_json/response_parser.yaml` (a response without tags is
+  text, not an error) and Python's blueprint parser (an empty block is reported when it
+  is compiled). `streaming_parser.yaml` as a whole is skipped:
+  `direct_json/response_streaming.yaml` replaced it, and the TypeScript SDK lists the
+  rules that changed (trimmed text, emitting a message as soon as it reads, failing a
+  block when it closes). `A2UIConformance.SkipPolicy` gives each skipped case its
+  reason, and an entry that matches no case fails the suite.
+- **Legacy parsing did not validate.** `parse_full` cases split the response with the
+  direct JSON parser's `unwrap/1` and read each block with `A2UIAgent.PayloadFixer`, a
+  port of the reference's `parse_and_fix`, as the TypeScript harness does with
+  `parseAndFix`.
+- **Catalog files without a version load as v0.9,** the legacy default, as the
+  TypeScript harness loads them.
+
 ## Express
 
 The references are the Python (`python/a2ui_agent/src/a2ui/inference_formats/express`)

@@ -18,7 +18,7 @@ divergences from the reference implementations.
 
 ## Conformance
 
-Of the 1144 upstream cases at the pinned commit (`SPEC_PIN`), 921 run and all
+Of the 1144 upstream cases at the pinned commit (`SPEC_PIN`), 946 run and all
 of them pass. The others are skipped, each for a stated reason:
 
 | Suite family | Cases | Run | Skipped |
@@ -29,7 +29,7 @@ of them pass. The others are skipped, each for a stated reason:
 | `agent/express` | 115 | 115 | none |
 | `agent/builder` | 11 | 11 | none |
 | `agent/macros` | 18 | 18 | none |
-| `agent/legacy` | 133 | 0 | the optional legacy SDK (39 of them v0.8) |
+| `agent/legacy` | 133 | 25 | 67 whose rules the blueprint suites replaced, 39 for protocol v0.8, 2 in the Elemental and Atom formats |
 | `extensions/a2a` | 14 | 13 | 1 v0.8 payload |
 | `extensions/adk` | 11 | 0 | adapters for Google's Python ADK |
 

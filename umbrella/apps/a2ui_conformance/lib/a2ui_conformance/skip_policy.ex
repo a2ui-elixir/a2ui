@@ -23,12 +23,61 @@ defmodule A2UIConformance.SkipPolicy do
      "protocol v0.8 payload and catalog (beginRendering; out of scope)"}
   ]
 
+  # Legacy cases whose rules the blueprint suites replaced on purpose,
+  # keyed by suite and case name (`:all` for a whole suite, `{:action,
+  # name}` for every case of an action), with the rule that replaced
+  # them. The TypeScript SDK's harness skips the same cases. Every entry
+  # must match a case.
+  @superseded %{
+    {"agent/legacy/streaming_parser.yaml", :all} =>
+      "replaced by agent/direct_json/response_streaming.yaml, whose streaming rules " <>
+        "this library follows",
+    {"agent/legacy/inference_format.yaml", {:action, "generate_prompt"}} =>
+      "replaced by agent/direct_json/prompt_generator.yaml: the generator writes the " <>
+        "A2UI part of the prompt and leaves the rest to the agent",
+    {"agent/legacy/inference_format.yaml", "test_agent_v1_0_direct_json_envelope_parsing"} =>
+      "replaced by agent/direct_json/response_streaming.yaml: text outside a block is " <>
+        "emitted without its trailing whitespace",
+    {"agent/legacy/parser.yaml", "test_parse_empty_response"} =>
+      "replaced by agent/direct_json/response_parser.yaml: an empty response has no parts",
+    {"agent/legacy/parser.yaml", "test_parse_response_only_text_no_tags"} =>
+      "replaced by agent/direct_json/response_parser.yaml: a response without tags is " <>
+        "one text part",
+    {"agent/legacy/parser.yaml", "test_parse_response_empty_tags"} =>
+      "replaced by the blueprint parser, which reports an empty block when it compiles " <>
+        "it ('The direct JSON block is empty.'), not when it splits the response"
+  }
+
+  @superseded_resolution "replaced by agent/catalog_resolution.yaml, which activates " <>
+                           "every catalog in common and adds inline catalogs alongside them"
+
+  @superseded_resolution_cases ~w(
+    test_select_catalog_default test_select_catalog_no_match test_select_catalog_inline
+    test_select_catalog_multiple_inline test_select_catalog_no_match_with_inline
+    test_select_catalog_inline_not_accepted
+  )
+
+  defp superseded do
+    for name <- @superseded_resolution_cases,
+        into: @superseded,
+        do: {{"agent/legacy/inference_format.yaml", name}, @superseded_resolution}
+  end
+
   @doc """
   Returns `nil` (run the case) or `{:skip, reason}`.
   """
   @spec skip_for(Case.t()) :: {:skip, String.t()} | nil
   def skip_for(%Case{} = case) do
-    version_skip(case) || dispatcher_skip(case) || explicit_skip(case)
+    version_skip(case) || superseded_skip(case) || dispatcher_skip(case) || explicit_skip(case)
+  end
+
+  defp superseded_skip(%Case{suite: suite, name: name, action: action}) do
+    entries = superseded()
+
+    case entries[{suite, name}] || entries[{suite, {:action, action}}] || entries[{suite, :all}] do
+      nil -> nil
+      reason -> {:skip, "superseded: " <> reason}
+    end
   end
 
   defp version_skip(%Case{protocol_version: version, suite: suite} = case) do
@@ -88,10 +137,16 @@ defmodule A2UIConformance.SkipPolicy do
   def validate_explicit_skips!(cases) do
     existing = MapSet.new(cases, &{&1.suite, &1.name})
 
+    covered =
+      MapSet.union(
+        existing,
+        MapSet.new(cases, &{&1.suite, :all})
+        |> MapSet.union(MapSet.new(cases, &{&1.suite, {:action, &1.action}}))
+      )
+
     stale =
-      @explicit_case_skips
-      |> Enum.map(&elem(&1, 0))
-      |> Enum.reject(&MapSet.member?(existing, &1))
+      (Enum.map(@explicit_case_skips, &elem(&1, 0)) ++ Map.keys(superseded()))
+      |> Enum.reject(&MapSet.member?(covered, &1))
 
     if stale != [] do
       raise ArgumentError,

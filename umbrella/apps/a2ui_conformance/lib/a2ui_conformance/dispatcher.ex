@@ -58,11 +58,6 @@ defmodule A2UIConformance.Dispatcher do
 
   @agent_area "agent SDK"
 
-  # Agent suite families this library does not implement.
-  @optional_agent_scopes %{
-    "agent/legacy" => "legacy agent SDK"
-  }
-
   # -- extensions/: transports and framework integrations ---------------------------
   @extension_areas %{
     "extensions/a2a" => "A2A transport"
@@ -138,6 +133,12 @@ defmodule A2UIConformance.Dispatcher do
     {"agent", "core_syntax"} => A2UIConformance.Handlers.Skills,
     {"agent", "from_catalog"} => A2UIConformance.Handlers.Skills,
     {"agent", "skill_set"} => A2UIConformance.Handlers.Skills,
+    # agent SDK: the legacy suites' rules that still hold
+    {"agent/legacy", "parse_full"} => A2UIConformance.Handlers.Legacy,
+    {"agent/legacy", "fix_payload"} => A2UIConformance.Handlers.Legacy,
+    {"agent/legacy", "has_parts"} => A2UIConformance.Handlers.Legacy,
+    {"agent/legacy", "select_catalog"} => A2UIConformance.Handlers.Legacy,
+    {"agent/legacy", "load_catalog"} => A2UIConformance.Handlers.Legacy,
     # agent SDK: builder and macros
     {"agent/builder", "build"} => A2UIConformance.Handlers.Builder,
     {"agent/macros", "expand"} => A2UIConformance.Handlers.Macros,
@@ -190,9 +191,13 @@ defmodule A2UIConformance.Dispatcher do
 
   def resolve(%Case{}), do: :unknown
 
-  defp optional_format(%Case{scope: "agent" <> _, action: action, raw: %{"args" => %{} = args}}) do
+  # Shared suites name a format in `args`; the legacy suites at the
+  # case's top level.
+  defp optional_format(%Case{scope: "agent" <> _, action: action, raw: raw}) do
+    args = if is_map(raw["args"]), do: raw["args"], else: %{}
+
     if action in @agent_actions do
-      [args["format"], args["format_override"]]
+      [args["format"], args["format_override"], raw["format"]]
       |> Enum.find_value(&Map.get(@optional_formats, &1))
       |> case do
         nil -> nil
@@ -210,17 +215,8 @@ defmodule A2UIConformance.Dispatcher do
     end
   end
 
-  defp without_handler(%Case{scope: "agent" <> _ = scope, action: action}) do
-    cond do
-      action not in @agent_actions ->
-        :unknown
-
-      Map.has_key?(@optional_agent_scopes, scope) ->
-        {:optional, @optional_agent_scopes[scope]}
-
-      true ->
-        {:unimplemented, @agent_area}
-    end
+  defp without_handler(%Case{scope: "agent" <> _, action: action}) do
+    if action in @agent_actions, do: {:unimplemented, @agent_area}, else: :unknown
   end
 
   defp without_handler(%Case{scope: "extensions/" <> _ = scope, action: action}) do

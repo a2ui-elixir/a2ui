@@ -337,9 +337,20 @@ golden output and golden validity both.
 - [x] M14.5 Core: `KeyOrder.put/3` and `delete/2` also take maps.
 - [x] M14.6 Guide section, module groups, divergences.
 
-Next, in order: the legacy agent SDK (94), the AG-UI, MCP and WebSocket
-transports, SSE resumption, and the partial items (retry loop, locale formatting,
-`$dynamicRef`, `unevaluatedItems`).
+### M15 — legacy agent suites (2026-10-16; conformance: 995 passed, 198 skipped; 946 of 1144 upstream cases run)
+
+- [x] M15.1 The legacy cases whose rules hold run against the blueprint
+      interface (25): `parse_full` (unwrap and `PayloadFixer`, or the Express
+      parser), `fix_payload`, `has_parts`, `select_catalog`, `load_catalog`.
+- [x] M15.2 `A2UIAgent.PayloadFixer`: the reference's `parse_and_fix` (curly
+      quotes, control characters in strings, trailing commas, wrapping, the
+      unescaped-backslash hint with Python's line, column and offset).
+- [x] M15.3 Superseded cases (67) skipped with the suite or rule that replaced
+      them, validated against the corpus; legacy cases in the Elemental and Atom
+      formats are optional like the shared ones.
+
+Next, in order: the AG-UI, MCP and WebSocket transports, SSE resumption, and the
+partial items (retry loop, locale formatting, `$dynamicRef`, `unevaluatedItems`).
 
 ### Decisions
 

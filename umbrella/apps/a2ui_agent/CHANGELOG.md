@@ -23,7 +23,8 @@ First release.
 - Macros (`A2UIAgent.Macro`, `A2UIAgent.MacroExpander`): components the
   model writes that expand into catalog components, an inference catalog
   that adds them to the base catalog, and their catalog schemas.
-- `A2UIAgent.PayloadValidator` and `A2UIAgent.BlockLexer`.
+- `A2UIAgent.PayloadValidator`, `A2UIAgent.BlockLexer` and
+  `A2UIAgent.PayloadFixer` (the reference's `parse_and_fix`).
 - A2A: A2UI parts, extension negotiation, the `message/send` and
   `message/stream` methods (`A2UIAgent.A2A.Server`), and a plug that serves
   them over HTTP (`A2UIAgent.A2A.Plug`). A format that is not read chunk by
