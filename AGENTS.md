@@ -33,6 +33,7 @@ mix test                                   # all apps
 MIX_ENV=test mix coveralls --umbrella      # tests + coverage gate (95% minimum)
 mix credo --strict
 mix dialyzer                               # first run builds the PLT (slow)
+(cd apps/a2ui_phoenix && node --test test/js/*.test.mjs)   # browser script, sandbox page
 ```
 
 The fidelity and conformance suites need the pinned upstream checkout at

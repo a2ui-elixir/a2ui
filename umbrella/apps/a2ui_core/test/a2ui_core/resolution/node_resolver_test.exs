@@ -464,6 +464,37 @@ defmodule A2UICore.Resolution.NodeResolverTest do
       assert_received {:called, %{"url" => "https://example.test"}}
     end
 
+    test "what a function asks for comes back for the renderer to apply" do
+      write = {:write, %{path: "/clicked", value: true}}
+
+      catalog =
+        Catalog.put_implementations(Basic.catalog("v0.9.1"), %{
+          "openUrl" => fn _args, _context -> {:ok, nil, [write]} end
+        })
+
+      action = %{"functionCall" => %{"call" => "openUrl", "args" => %{"url" => "https://x.test"}}}
+      surface = surface(button_wire(action), %{}, catalog)
+      {resolver, _notifications} = NodeResolver.new(surface)
+
+      assert {:ok, [^write]} =
+               NodeResolver.invoke(resolver, surface, ref_at(resolver, "root"), "action")
+    end
+
+    test "rendering ignores what a function asks for" do
+      catalog =
+        Catalog.put_implementations(Basic.catalog("v0.9.1"), %{
+          "formatString" => fn _args, _context ->
+            {:ok, "shown", [{:write, %{path: "/x", value: 1}}, {:messages, %{messages: []}}]}
+          end
+        })
+
+      label = %{"call" => "formatString", "args" => %{"value" => "x"}, "returnType" => "string"}
+      surface = surface([text("root", label)], %{}, catalog)
+
+      assert {resolver, [node_created: 1]} = NodeResolver.new(surface)
+      assert %Binding{value: "shown"} = NodeResolver.root(resolver).props["text"]
+    end
+
     test "only actions can be invoked" do
       {resolver, _notifications} = NodeResolver.new(tree())
 

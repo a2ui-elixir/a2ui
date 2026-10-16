@@ -12,6 +12,10 @@ First release.
   components with ARIA attributes, and a stylesheet that uses the reference
   web renderer's custom properties.
 - Components of other catalogs, passed to a surface by type.
+- The MCP catalog: actions that call MCP tools apply what the tools return,
+  and `McpApp` embeds MCP Apps in a double-iframe sandbox
+  (`A2UIPhoenix.Components.MCP`, the `A2UIMcpApp` hook,
+  `priv/static/a2ui_mcp_sandbox.html`, `A2UIPhoenix.Session.mcp_app_request/5`).
 - `A2UIPhoenix.Plug.SSE`: A2UI messages streamed as server-sent events,
   with event ids, a reconnection delay and the client's `Last-Event-ID` for
   resuming a stream.

@@ -11,8 +11,9 @@ defmodule A2UIPhoenix.Surface do
 
   Assigns: `:id`, `:session` and `:surface_id` (required); `:components`
   — component functions by type, merged over
-  `A2UIPhoenix.Components.Basic.components/0`; `:markdown` — see
-  `A2UIPhoenix.Context`.
+  `A2UIPhoenix.Components.Basic.components/0` and
+  `A2UIPhoenix.Components.MCP.components/0`; `:markdown` and
+  `:mcp_sandbox` — see `A2UIPhoenix.Context`.
 
   The component owns the surface's local UI state: the open tab, whether a
   modal is open, a choice filter. Input that concerns the agent is sent to
@@ -21,7 +22,10 @@ defmodule A2UIPhoenix.Surface do
     * `{A2UIPhoenix.Surface, surface_id, {:write, ref, property, value}}` —
       user input reached a two-way binding;
     * `{A2UIPhoenix.Surface, surface_id, {:invoke, ref, property}}` — the
-      user triggered an action.
+      user triggered an action;
+    * `{A2UIPhoenix.Surface, surface_id, {:mcp_app, ref, method, params, id}}`
+      — an embedded MCP App sent a request (`id` is `nil` for a
+      notification).
 
   `A2UIPhoenix.Live` handles both.
   """
@@ -30,7 +34,7 @@ defmodule A2UIPhoenix.Surface do
 
   alias A2UICore.Resolution.{Node, NodeResolver}
   alias A2UIPhoenix.{Components, Context, Inputs, Session}
-  alias A2UIPhoenix.Components.Basic
+  alias A2UIPhoenix.Components.{Basic, MCP}
 
   @moduledoc since: "0.1.0"
 
@@ -49,8 +53,12 @@ defmodule A2UIPhoenix.Surface do
         surface_id: assigns.surface_id,
         surface: Session.surface(session, assigns.surface_id),
         resolver: resolver,
-        components: Map.merge(Basic.components(), assigns[:components] || %{}),
+        components:
+          Basic.components()
+          |> Map.merge(MCP.components())
+          |> Map.merge(assigns[:components] || %{}),
         markdown: assigns[:markdown],
+        mcp_sandbox: assigns[:mcp_sandbox],
         clock: session.clock
       )
       |> update(:ui, &prune(&1, resolver))
@@ -75,7 +83,8 @@ defmodule A2UIPhoenix.Surface do
       target: assigns.myself,
       components: assigns.components,
       ui: assigns.ui,
-      markdown: assigns.markdown
+      markdown: assigns.markdown,
+      mcp_sandbox: assigns.mcp_sandbox
     })
   end
 
@@ -138,6 +147,17 @@ defmodule A2UIPhoenix.Surface do
     case node(socket, ref) do
       %Node{} = node -> {:noreply, put_ui(socket, node.ref, :open, open == "true")}
       nil -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("a2ui:mcp_app", %{"ref" => ref, "method" => method} = params, socket)
+      when is_binary(method) do
+    case node(socket, to_string(ref)) do
+      %Node{type: "McpApp"} = node ->
+        notify(socket, {:mcp_app, node.ref, method, params["params"], params["id"]})
+
+      _other ->
+        {:noreply, socket}
     end
   end
 

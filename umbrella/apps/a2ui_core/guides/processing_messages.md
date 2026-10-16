@@ -282,6 +282,91 @@ A2UICore.Message.RendererToAgent.action(event)
 An action that calls a catalog function instead (`openUrl`, for example) runs
 the function and produces no event.
 
+## MCP tools
+
+The A2UI MCP catalog lets a surface call
+[Model Context Protocol](https://modelcontextprotocol.io) tools.
+`a2ui_core` makes no connections of its own: the host wraps its MCP client
+in a module implementing `A2UICore.MCP.Client` and passes it to the
+catalog:
+
+```elixir
+defmodule Weather do
+  @behaviour A2UICore.MCP.Client
+
+  @impl true
+  def call_tool(_state, "get_weather", %{"city" => city}) do
+    {:ok,
+     %{
+       "content" => [%{"type" => "text", "text" => "Sunny in #{city}"}],
+       "structuredContent" => %{"city" => city, "sky" => "sunny"}
+     }}
+  end
+end
+
+mcp = A2UICore.Catalog.MCP.catalog("v1.0", client: {Weather, nil})
+mcp.catalog_id
+#=> "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"
+```
+
+`callMcpTool` returns the tool's result. The A2UI messages a result
+carries come back as effects for the renderer to apply, and so do the
+data model writes of `updateDataModel` and of `targetDataPath`:
+
+```elixir
+context =
+  DataContext.new("/",
+    catalog: mcp,
+    protocol_version: "v1.0",
+    data_model: A2UICore.State.DataModel.new(%{})
+  )
+
+call = %{
+  "@call" => "callMcpTool",
+  "args" => %{"name" => "get_weather", "arguments" => %{"city" => "Oslo"}}
+}
+
+{result, _effects} = DataContext.resolve_dynamic_value(context, call)
+result["structuredContent"]
+#=> %{"city" => "Oslo", "sky" => "sunny"}
+```
+
+The v0.9 catalog adds functions that shape a tool's output: `jmespath`,
+`split`, `regexCapture`, `regexReplace` and `updateDataModel`. A typical
+call reads a tool result with JMESPath and writes it to the data model:
+
+```elixir
+mcp09 = A2UICore.Catalog.MCP.catalog("v0.9", client: {Weather, nil})
+context = DataContext.new("/", catalog: mcp09, protocol_version: "v0.9")
+
+weather = %{
+  "call" => "callMcpTool",
+  "args" => %{"name" => "get_weather", "arguments" => %{"city" => "Oslo"}}
+}
+
+shape = %{
+  "call" => "jmespath",
+  "args" => %{"expression" => ~S|{"/sky": structuredContent.sky}|, "data" => weather}
+}
+
+{nil, effects} =
+  DataContext.resolve_dynamic_value(context, %{
+    "call" => "updateDataModel",
+    "args" => %{"updates" => shape}
+  })
+
+effects
+#=> [write: %{path: "/sky", value: "sunny"}]
+```
+
+`A2UICore.JMESPath` is the evaluator behind `jmespath`, usable on its own:
+
+```elixir
+forecast = %{"days" => [%{"name" => "Mon", "temp" => 18}, %{"name" => "Tue", "temp" => 23}]}
+A2UICore.JMESPath.search("days[?temp > `20`].name", forecast)
+#=> {:ok, ["Tue"]}
+```
+
 ## Function calls
 
 Protocol v1.0 lets the agent call functions in the renderer, and the
@@ -406,5 +491,6 @@ The processor is built from modules that can also be used on their own:
 - `A2UICore.Expression` parses `${...}` templates, and
   `A2UICore.Resolution.DataContext` evaluates bindings and function calls.
 - `A2UICore.Schema` is the JSON Schema validator the message and catalog
-  checks use.
+  checks use; `A2UICore.Schema.ECMA262` runs its regular expressions.
+- `A2UICore.MCP` reads A2UI out of MCP tool results and resources.
 - `A2UICore.RPC` is the function-call state machine behind the processor.

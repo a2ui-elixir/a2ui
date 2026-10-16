@@ -35,6 +35,10 @@ defmodule A2UIPhoenix.Live do
     * `{:open_url, url}` is pushed to the browser as the `"a2ui:open_url"`
       event (`priv/static/a2ui_phoenix.js` opens it in a new tab);
     * every other effect goes to the `:on_effect` callback.
+
+  The reply to an embedded MCP App's request is pushed as the
+  `"a2ui:mcp_app:reply"` event, which the `A2UIMcpApp` hook relays to the
+  app.
   """
 
   import Phoenix.Component, only: [assign: 3]
@@ -102,6 +106,29 @@ defmodule A2UIPhoenix.Live do
 
   defp apply_request(socket, surface_id, {:invoke, ref, property}),
     do: apply_result(socket, Session.invoke(session(socket), surface_id, ref, property))
+
+  defp apply_request(socket, surface_id, {:mcp_app, ref, method, params, id}) do
+    case Session.mcp_app_request(session(socket), surface_id, ref, method, params) do
+      {:ok, session, effects, reply} ->
+        socket |> commit(session, effects) |> reply(surface_id, ref, id, reply)
+
+      {:error, %Error{}} ->
+        socket
+    end
+  end
+
+  defp reply(socket, _surface_id, _ref, nil, _reply), do: socket
+  defp reply(socket, _surface_id, _ref, _id, :none), do: socket
+
+  defp reply(socket, surface_id, ref, id, {:result, result}),
+    do: push_reply(socket, %{surface_id: surface_id, ref: ref, id: id, result: result})
+
+  defp reply(socket, surface_id, ref, id, {:error, code, message}) do
+    error = %{code: code, message: message}
+    push_reply(socket, %{surface_id: surface_id, ref: ref, id: id, error: error})
+  end
+
+  defp push_reply(socket, payload), do: push_event(socket, "a2ui:mcp_app:reply", payload)
 
   # A request about a node that went away in the meantime is dropped.
   defp apply_result(socket, {:ok, session, effects}), do: commit(socket, session, effects)

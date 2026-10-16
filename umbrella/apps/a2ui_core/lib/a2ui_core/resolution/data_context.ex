@@ -39,6 +39,17 @@ defmodule A2UICore.Resolution.DataContext do
     * `{:error, %{code: "EXPRESSION_ERROR", message: …, expression: …}}`
       when a function call fails; the call's value is then `nil`.
 
+  A function can ask for more through its effects — the MCP catalog's
+  functions do (`A2UICore.Functions.MCP`):
+
+    * `{:write, %{path: path, value: value}}` — write the data model;
+    * `{:messages, %{messages: messages, source: :resource | :inline}}` —
+      apply A2UI messages.
+
+  They come back in evaluation order. A renderer applies them when they
+  come from an action (`A2UICore.Resolution.NodeResolver.invoke/5`);
+  rendering ignores them.
+
   v1.0 objects follow the reserved-key rule
   (`A2UICore.Validation.ReservedKeys`): `@@x` is the literal key `@x`,
   any other single-`@` key is an `INVALID_RESERVED_KEY` error.
@@ -73,8 +84,8 @@ defmodule A2UICore.Resolution.DataContext do
           locale: String.t() | nil
         }
 
-  @typedoc "A warning or error produced while resolving."
-  @type effect :: {:warning, map()} | {:error, map()}
+  @typedoc "A warning or error produced while resolving, or what a function asks for."
+  @type effect :: {:warning, map()} | {:error, map()} | {:write, map()} | {:messages, map()}
 
   @max_function_args Payload.max_function_call_args()
 

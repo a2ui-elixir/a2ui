@@ -30,7 +30,15 @@ config.transformed.components |> Map.keys() |> Enum.sort()
 ```
 
 `A2UIAgent.CatalogConfig.from_path/2` loads a catalog from a JSON file
-instead.
+instead. The MCP catalog registers like any other, for surfaces that call MCP
+tools or embed MCP Apps:
+
+```elixir
+mcp = CatalogConfig.new(A2UICore.Catalog.MCP.declared("v1.0"))
+
+Map.keys(mcp.transformed.components)
+#=> ["McpApp"]
+```
 
 A `A2UIAgent.Generator` holds the registered catalogs and the few-shot
 examples for the prompt. An example is a list of messages, and it must be

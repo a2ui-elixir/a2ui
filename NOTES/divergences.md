@@ -407,11 +407,40 @@ and the sample web clients.
 - **No WebSocket binding.** A2UI names WebSockets as a possible transport but defines no
   framing or metadata for one. Inside Phoenix, LiveView (`A2UIPhoenix.Live`) already
   carries the renderer's two-way traffic over its socket.
-- **The MCP catalog is not implemented.** `catalogs/mcp` (`callMcpTool`, the `McpApp`
-  component and, for v0.9, data functions such as `jmespath`) is an optional catalog
-  that only the TypeScript SDK implements; it needs an MCP client in the renderer, a
-  JMESPath evaluator and the MCP Apps iframe bridge.
 - **ADK integration is out of scope.** The `extensions/adk` cases (`convert_event`,
   `execute_tool`, ADK's `data_model` and `resolve_path`) test adapters to Google's Python
   Agent Development Kit, which has no Elixir runtime; they are skipped as an optional
   family.
+
+## MCP catalog
+
+The reference implements only `callMcpTool` (TypeScript package `@a2ui/catalog-mcp`,
+v0.9); the v0.9 data functions and `McpApp` exist upstream only as community samples,
+and `targetDataPath` only as its catalog declaration. The port implements the whole
+catalog from its documents (`catalogs/mcp/README.md`, `mcp_app_specification.md`):
+
+- **The host owns the MCP connection.** `callMcpTool` calls an `A2UICore.MCP.Client`
+  the host provides (`{module, state}`, or a function of the tool name, like the
+  TypeScript `getMcpClientForTool`). Results and resource reads are not cached;
+  `tools/list` runs on each call that needs a declared resource.
+- **Messages are effects.** Where the TypeScript implementation hands the messages a
+  tool returns to its `MessageProcessor`, the function returns them as effects, and
+  `A2UIPhoenix.Session` applies them when the call came from an action; rendering
+  ignores them. Messages without a `version` get the catalog's (`v0.9` as in
+  TypeScript, `v1.0` for the v1 catalog). A UI resource that would recreate a surface
+  that exists is skipped, as in TypeScript.
+- **`targetDataPath`** writes `{uri, htmlContent, csp, permissions, toolInput,
+  toolResult}` for the first MCP App (`text/html;profile=mcp-app`) among the tool's UI
+  resources, as the catalog describes it.
+- **Arguments follow the catalog's schemas.** The core validates function arguments
+  against the catalog before running them, where the community samples accept any
+  value; the v0.9 `DynamicValue` admits no object literal, so `updateDataModel` and
+  `jmespath` take objects from a binding or a call.
+- **RE2 patterns run on PCRE** with RE2's `$` (end of text) and ASCII classes; PCRE
+  also accepts what RE2 rejects (backreferences, lookaround).
+- **The McpApp bridge is hand-written** rather than the `@modelcontextprotocol/ext-apps`
+  SDK the specification recommends: `priv/static/a2ui_phoenix.js` answers the
+  handshake (protocol `2026-01-26`), display mode, links, sizing and logging; the
+  sandbox page injects the policy and a click guard before the app's markup and strips
+  `allow-same-origin` and top navigation from the inner frame's sandbox flags.
+

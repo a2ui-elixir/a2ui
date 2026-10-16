@@ -31,3 +31,7 @@ First release.
   required test of the official JSON Schema Test Suite, with ECMA-262 regular
   expressions (`A2UICore.Schema.ECMA262`). Catalog names are UAX #31
   identifiers, checked with PCRE2's XID properties.
+- The MCP catalog (`A2UICore.Catalog.MCP`, v0.9 and v1.0): `callMcpTool` through
+  a host-provided `A2UICore.MCP.Client`, and the v0.9 data functions, with
+  `A2UICore.JMESPath` behind `jmespath`. Functions can return data model writes
+  and A2UI messages as effects, which reach the renderer from actions.

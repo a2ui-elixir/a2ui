@@ -77,6 +77,7 @@ defmodule A2UICore.Resolution.NodeResolver do
   @type interaction ::
           {:action_event, map()}
           | {:error | :warning, map()}
+          | {:write | :messages, map()}
 
   @id_escapes %{"~" => "~0", "#" => "~1", "[" => "~2", "]" => "~3", ">" => "~4", "@" => "~5"}
 
@@ -225,7 +226,10 @@ defmodule A2UICore.Resolution.NodeResolver do
   An event action yields `{:action_event, event}` (see
   `A2UICore.State.Surface.dispatch_action/4`); a function-call action
   runs the catalog function and yields no event. Resolution problems
-  come back as `{:error, payload}` / `{:warning, payload}` entries.
+  come back as `{:error, payload}` / `{:warning, payload}` entries, and
+  what the functions ask for as `{:write, ...}` / `{:messages, ...}`
+  entries for the renderer to apply (see
+  `A2UICore.Resolution.DataContext`).
   """
   @spec invoke(t(), Surface.t(), pos_integer(), String.t(), DateTime.t()) ::
           {:ok, [interaction()]} | {:error, Error.t()}
@@ -421,6 +425,11 @@ defmodule A2UICore.Resolution.NodeResolver do
       do: build,
       else: %{build | notes: [{level, payload} | build.notes]}
   end
+
+  # What a function asks for (a write, messages) applies only when an
+  # action runs.
+  defp report_effect(build, _node, {kind, _payload}) when kind not in [:warning, :error],
+    do: build
 
   defp report_effect(build, node, {level, payload}) do
     key = {payload[:code], node.component_id, node.data_path, payload[:path] || payload[:message]}

@@ -192,3 +192,24 @@ input.invalid {
 .a2ui-placeholder.a2ui-pending {
   min-height: 1rem;
 }
+
+/* McpApp: the frame of an embedded MCP App; the app may resize it. */
+.a2ui-mcp-app {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: 500px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+}
+
+.a2ui-mcp-app-frame,
+.a2ui-mcp-app iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}

@@ -10,7 +10,9 @@ defmodule A2UIPhoenix.Context do
     * `:ui` — the surface's local UI state by node `ref` (the open tab, an
       open modal, a choice filter); never sent to the agent;
     * `:markdown` — an optional `(String.t() -> Phoenix.HTML.safe())`
-      used for body text (`nil` renders text as is).
+      used for body text (`nil` renders text as is);
+    * `:mcp_sandbox` — the URL of the MCP App sandbox proxy page (`nil`
+      uses `A2UIPhoenix.Components.MCP.default_sandbox/0`).
 
   Custom components receive it as `@ctx` and use the helpers below to
   name their inputs and DOM ids the way the surface expects.
@@ -26,7 +28,8 @@ defmodule A2UIPhoenix.Context do
             target: nil,
             components: %{},
             ui: %{},
-            markdown: nil
+            markdown: nil,
+            mcp_sandbox: nil
 
   @type t :: %__MODULE__{
           surface_id: String.t() | nil,
@@ -35,7 +38,8 @@ defmodule A2UIPhoenix.Context do
           target: term(),
           components: %{optional(String.t()) => (map() -> Phoenix.LiveView.Rendered.t())},
           ui: %{optional(pos_integer()) => map()},
-          markdown: (String.t() -> Phoenix.HTML.safe()) | nil
+          markdown: (String.t() -> Phoenix.HTML.safe()) | nil,
+          mcp_sandbox: String.t() | nil
         }
 
   @doc "The mounted node with `ref`, or `nil`."

@@ -20,7 +20,9 @@ defmodule A2UICore.VendoredDriftTest do
   @catalogs %{
     "basic_v0_9_1.json" => "specification/v0_9_1/catalogs/basic/catalog.json",
     "basic_v1_0.json" => "catalogs/basic/v1/catalog.json",
-    "testing_v1_0.json" => "specification/v1_0/test/testing_catalog.json"
+    "testing_v1_0.json" => "specification/v1_0/test/testing_catalog.json",
+    "mcp_v0_9.json" => "catalogs/mcp/catalog.json",
+    "mcp_v1_0.json" => "catalogs/mcp/v1/catalog.json"
   }
 
   @priv Source.priv_dir()

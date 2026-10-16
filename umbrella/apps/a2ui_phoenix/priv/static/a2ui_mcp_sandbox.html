@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MCP App sandbox</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  iframe { display: block; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<script>
+// The sandbox proxy of A2UIPhoenix's McpApp component: the middle frame of
+// the double-iframe sandbox the A2UI MCP App component specification
+// describes. It runs the app in an inner iframe sandboxed without
+// allow-same-origin, under a Content Security Policy that blocks network
+// connections, form submissions and frames beyond the domains the app's
+// resource declares, and relays the bridge's JSON-RPC messages between the
+// app and the page that embeds this one (the origin of its referrer).
+(function () {
+  "use strict";
+
+  var DEFAULT_SANDBOX = "allow-scripts allow-forms allow-modals";
+  var FEATURES = [
+    ["camera", "camera"],
+    ["microphone", "microphone"],
+    ["geolocation", "geolocation"],
+    ["clipboardRead", "clipboard-read"],
+    ["clipboardWrite", "clipboard-write"]
+  ];
+  var SOURCE = /^[A-Za-z0-9.:*\/_-]+$/;
+
+  // The inner frame's `allow` attribute: the features the app's resource
+  // asks for, every other sensitive feature denied.
+  function allowAttribute(permissions) {
+    var granted = permissions && typeof permissions === "object" ? permissions : {};
+    return FEATURES.map(function (feature) {
+      return granted[feature[0]] ? feature[1] : feature[1] + " 'none'";
+    }).join("; ") + ";";
+  }
+
+  function sources(list) {
+    return Array.isArray(list)
+      ? list.filter(function (source) { return typeof source === "string" && SOURCE.test(source); })
+      : [];
+  }
+
+  function directive(name, list) {
+    return name + " " + (list.length ? list.join(" ") : "'none'");
+  }
+
+  function contentSecurityPolicy(csp) {
+    var declared = csp && typeof csp === "object" ? csp : {};
+    var resources = sources(declared.resourceDomains);
+
+    return [
+      "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:" +
+        (resources.length ? " " + resources.join(" ") : ""),
+      directive("connect-src", sources(declared.connectDomains)),
+      directive("frame-src", sources(declared.frameDomains)),
+      directive("base-uri", sources(declared.baseUriDomains)),
+      "form-action 'none'"
+    ].join("; ") + ";";
+  }
+
+  function escapeAttribute(text) {
+    return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
+  // Links do not navigate: the app opens them through ui/open-link.
+  var CLICK_GUARD =
+    "<script>document.addEventListener('click',function(e){var t=e.target;" +
+    "var a=t&&t.closest?t.closest('a[href]'):null;if(a){e.preventDefault();}},true);<\/script>";
+
+  // The app's HTML with the policy and the click guard first, so that
+  // nothing in the app runs before them.
+  function prepare(html, csp) {
+    var head =
+      '<meta http-equiv="Content-Security-Policy" content="' +
+      escapeAttribute(contentSecurityPolicy(csp)) + '">' + CLICK_GUARD;
+    var doctype = /^\s*<!doctype[^>]*>/i.exec(html);
+    var at = doctype ? doctype[0].length : 0;
+    return html.slice(0, at) + head + html.slice(at);
+  }
+
+  // The inner frame never shares this origin and never navigates the top.
+  function sandboxFlags(flags) {
+    if (typeof flags !== "string") return DEFAULT_SANDBOX;
+    return flags.split(/\s+/).filter(function (flag) {
+      return flag !== "" && flag !== "allow-same-origin" && flag.indexOf("allow-top-navigation") !== 0;
+    }).join(" ");
+  }
+
+  window.A2UIMcpSandbox = {
+    allowAttribute: allowAttribute,
+    contentSecurityPolicy: contentSecurityPolicy,
+    prepare: prepare,
+    sandboxFlags: sandboxFlags
+  };
+
+  if (window.self === window.top || !document.referrer) return;
+
+  var parentOrigin;
+  try {
+    parentOrigin = new URL(document.referrer).origin;
+  } catch (error) {
+    return;
+  }
+
+  var inner = document.createElement("iframe");
+  inner.setAttribute("sandbox", DEFAULT_SANDBOX);
+  inner.setAttribute("allow", allowAttribute({}));
+  inner.setAttribute("title", "MCP App");
+  document.body.appendChild(inner);
+
+  function load(params) {
+    inner.setAttribute("sandbox", sandboxFlags(params.sandbox));
+    inner.setAttribute("allow", allowAttribute(params.permissions));
+    inner.onload = function () {
+      // A sandboxed frame without allow-same-origin has the origin "null":
+      // only "*" reaches it.
+      if (inner.contentWindow) inner.contentWindow.postMessage({type: "sandbox-init"}, "*");
+    };
+    inner.srcdoc = prepare(typeof params.html === "string" ? params.html : "", params.csp);
+  }
+
+  window.addEventListener("message", function (event) {
+    if (event.source === window.parent) {
+      if (event.origin !== parentOrigin) return;
+      var data = event.data;
+
+      if (data && data.method === "ui/notifications/sandbox-resource-ready") {
+        load(data.params && typeof data.params === "object" ? data.params : {});
+      } else if (inner.contentWindow) {
+        inner.contentWindow.postMessage(data, "*");
+      }
+    } else if (event.source === inner.contentWindow) {
+      window.parent.postMessage(event.data, parentOrigin);
+    }
+  });
+
+  window.parent.postMessage(
+    {jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {}},
+    parentOrigin
+  );
+})();
+</script>
+</body>
+</html>

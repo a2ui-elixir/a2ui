@@ -22,7 +22,9 @@ The package ships two assets in `priv/static`:
 - `a2ui_phoenix.css` lays out the basic components. It uses the
   `--a2ui-*` custom properties of the reference web renderer for colors and
   spacing, so you can theme it by setting those properties.
-- `a2ui_phoenix.js` opens the URLs that `openUrl` actions ask for.
+- `a2ui_phoenix.js` opens the URLs that `openUrl` actions ask for, and holds
+  the hook of the MCP catalog's `McpApp` component (see
+  [MCP tools and apps](#mcp-tools-and-apps)).
 
 In a project created with `mix phx.new`, import them from your assets:
 
@@ -241,6 +243,85 @@ session = A2UIPhoenix.Live.session(socket)
 Over A2A these travel in the message metadata, as `a2uiRendererCapabilities`
 and `a2uiRendererDataModel` (`a2uiClientCapabilities` and
 `a2uiClientDataModel` in protocol v0.9).
+
+## MCP tools and apps
+
+The A2UI MCP catalog lets a surface call
+[Model Context Protocol](https://modelcontextprotocol.io) tools and embed
+[MCP Apps](https://github.com/modelcontextprotocol/ext-apps). Add it next to
+the basic catalog. `a2ui_core` makes no MCP connections itself: wrap your MCP
+client in a module implementing `A2UICore.MCP.Client`, and give it to the
+catalog (for `callMcpTool`) and to the session (for the tools an embedded app
+calls):
+
+```elixir
+defmodule MyApp.Weather do
+  @behaviour A2UICore.MCP.Client
+
+  @impl true
+  def call_tool(_state, "get_weather", %{"city" => city}) do
+    {:ok, %{"content" => [%{"type" => "text", "text" => "Sunny in #{city}"}]}}
+  end
+end
+
+client = {MyApp.Weather, nil}
+
+session =
+  A2UIPhoenix.Session.new(
+    [A2UICore.Catalog.Basic.catalog("v1.0"), A2UICore.Catalog.MCP.catalog("v1.0", client: client)],
+    mcp_client: client
+  )
+```
+
+A component or a function call names the MCP catalog by `catalogId`. When an
+action calls `callMcpTool`, `A2UIPhoenix.Session.invoke/4` applies what the
+tool returns: the A2UI messages embedded in its result or held by the UI
+resource it names (`_meta.ui.resourceUri`), and, with `targetDataPath`, the
+MCP App that resource holds, written there for an `McpApp` to bind.
+
+### Embedding MCP Apps
+
+`McpApp` runs an app in a double-iframe sandbox: an outer frame loads the
+sandbox proxy page, which runs the app in an inner frame without
+`allow-same-origin`, under a Content Security Policy that blocks network
+connections beyond the domains the app declares, with sensitive browser
+features denied unless the component delegates them. Register the hook with
+your LiveSocket:
+
+```javascript
+// assets/js/app.js
+import "a2ui_phoenix/priv/static/a2ui_phoenix.js"
+
+let liveSocket = new LiveSocket("/live", Socket, {
+  hooks: {...window.A2UIPhoenix.hooks},
+  params: {_csrf_token: csrfToken}
+})
+```
+
+and serve the proxy page from the package's `priv/static`:
+
+```elixir
+# lib/my_app_web/endpoint.ex
+plug Plug.Static,
+  at: "/a2ui_phoenix",
+  from: {:a2ui_phoenix, "priv/static"},
+  only: ["a2ui_mcp_sandbox.html"]
+```
+
+For stronger isolation, serve the page from an origin of its own and pass its
+URL as the `mcp_sandbox` assign of `A2UIPhoenix.Surface`.
+
+The hook answers the app's handshake, display mode and link requests
+(`http` and `https` only) in the browser, resizes the frame (within 200-3000
+by 100-2000 pixels), and keeps the values the component binds in
+`data.paths` in step with the data model. What concerns the surface goes to
+`A2UIPhoenix.Session.mcp_app_request/5`: a tool call the component allows in
+`allowedTools` reaches the agent as an action named after the tool (and runs
+through the session's `:mcp_client`, whose result the app gets); a function
+the component lists in `allowedFunctions` runs once its arguments pass the
+schema given there; the app's data changes are written to the bound paths.
+Payloads with prototype keys, deeper than 10 levels or larger than 64 KiB are
+refused.
 
 ## Components of your own
 

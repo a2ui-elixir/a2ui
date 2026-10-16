@@ -16,6 +16,8 @@ defmodule A2UICore.Schema.Source do
       priv/catalogs/basic_v0_9_1.json    basic catalog, protocol version 0.9
       priv/catalogs/basic_v1_0.json      basic catalog, protocol version 1.0
       priv/catalogs/testing_v1_0.json    upstream `testing_catalog.json`
+      priv/catalogs/mcp_v0_9.json        MCP catalog, protocol version 0.9
+      priv/catalogs/mcp_v1_0.json        MCP catalog, protocol version 1.0
   """
 
   alias A2UICore.Version
@@ -81,8 +83,9 @@ defmodule A2UICore.Schema.Source do
 
       :basic      the basic catalog for the given protocol line
       :testing    the upstream spec-test catalog (v1.0 only)
+      :mcp        the MCP catalog for the given protocol line
   """
-  @spec catalog(Version.protocol_version() | String.t(), :basic | :testing) ::
+  @spec catalog(Version.protocol_version() | String.t(), :basic | :testing | :mcp) ::
           document() | nil
   def catalog(version, kind), do: load_cached(catalog_file(version, kind))
 
@@ -91,7 +94,7 @@ defmodule A2UICore.Schema.Source do
   which orders the components and functions of a catalog built from it
   (`A2UICore.Catalog.from_json/2`). Not cached.
   """
-  @spec ordered_catalog(Version.protocol_version() | String.t(), :basic | :testing) ::
+  @spec ordered_catalog(Version.protocol_version() | String.t(), :basic | :testing | :mcp) ::
           Jason.OrderedObject.t() | nil
   def ordered_catalog(version, kind) do
     case File.read(Path.join(priv_dir(), catalog_file(version, kind))) do
@@ -104,6 +107,9 @@ defmodule A2UICore.Schema.Source do
   defp catalog_file("v0.9.1", :basic), do: "catalogs/basic_v0_9_1.json"
   defp catalog_file("v1.0", :basic), do: "catalogs/basic_v1_0.json"
   defp catalog_file("v1.0", :testing), do: "catalogs/testing_v1_0.json"
+  defp catalog_file("v0.9", :mcp), do: "catalogs/mcp_v0_9.json"
+  defp catalog_file("v0.9.1", :mcp), do: "catalogs/mcp_v0_9.json"
+  defp catalog_file("v1.0", :mcp), do: "catalogs/mcp_v1_0.json"
 
   defp catalog_file(_version, :testing),
     do: raise(ArgumentError, "testing catalog exists only for v1.0")

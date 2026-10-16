@@ -47,7 +47,10 @@ end
 
 Add `priv/static/a2ui_phoenix.js` to the page's scripts so `openUrl` actions
 open their URL, and `priv/static/a2ui_phoenix.css` (or your own styles for the
-`a2ui-*` classes) for layout.
+`a2ui-*` classes) for layout. The script also holds the hook of the MCP
+catalog's `McpApp` component (`hooks: {...window.A2UIPhoenix.hooks}`), whose
+sandbox proxy page, `priv/static/a2ui_mcp_sandbox.html`, the endpoint serves;
+see the guide.
 
 A catalog of your own brings its components as a map:
 

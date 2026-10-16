@@ -9,13 +9,15 @@ defmodule A2UIPhoenix.Test.HostLive do
   # payloads applied in mount), "components" (extra component map, by
   # name of a function in A2UIPhoenix.Test.CustomComponents), "markdown"
   # (render body text through A2UIPhoenix.Test.CustomComponents.markdown/1),
-  # "silent" (no callbacks).
+  # "silent" (no callbacks), "mcp" (tool results by name: adds the v1.0 MCP
+  # catalog and an A2UIPhoenix.Test.FakeMCP client), "mcp_sandbox" (the
+  # sandbox proxy URL).
 
   use Phoenix.LiveView
 
-  alias A2UICore.Catalog.Basic
+  alias A2UICore.Catalog.{Basic, MCP}
   alias A2UIPhoenix.{Live, Session}
-  alias A2UIPhoenix.Test.CustomComponents
+  alias A2UIPhoenix.Test.{CustomComponents, FakeMCP}
 
   @now ~U[2026-10-14 09:30:00Z]
 
@@ -25,7 +27,7 @@ defmodule A2UIPhoenix.Test.HostLive do
   @impl true
   def mount(_params, params, socket) do
     test = params["test"]
-    session = Session.new([Basic.catalog("v1.0"), Basic.catalog("v0.9.1")], clock: &now/0)
+    session = new_session(test, params["mcp"])
 
     socket =
       socket
@@ -33,7 +35,8 @@ defmodule A2UIPhoenix.Test.HostLive do
       |> assign(
         test: test,
         components: CustomComponents.map(params["components"] || []),
-        markdown: if(params["markdown"], do: &CustomComponents.markdown/1)
+        markdown: if(params["markdown"], do: &CustomComponents.markdown/1),
+        mcp_sandbox: params["mcp_sandbox"]
       )
 
     socket =
@@ -43,6 +46,15 @@ defmodule A2UIPhoenix.Test.HostLive do
       end)
 
     {:ok, socket}
+  end
+
+  defp new_session(_test, nil),
+    do: Session.new([Basic.catalog("v1.0"), Basic.catalog("v0.9.1")], clock: &now/0)
+
+  defp new_session(test, results) do
+    client = {FakeMCP, %{test: test, results: results}}
+    catalogs = [Basic.catalog("v1.0"), MCP.catalog("v1.0", client: client)]
+    Session.new(catalogs, clock: &now/0, mcp_client: client)
   end
 
   defp callbacks(_test, true), do: []
@@ -76,6 +88,7 @@ defmodule A2UIPhoenix.Test.HostLive do
         surface_id={surface.id}
         components={@components}
         markdown={@markdown}
+        mcp_sandbox={@mcp_sandbox}
       />
     </main>
     """

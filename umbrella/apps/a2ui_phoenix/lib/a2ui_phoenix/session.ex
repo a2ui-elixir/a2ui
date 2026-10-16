@@ -21,7 +21,9 @@ defmodule A2UIPhoenix.Session do
       type, a cyclic reference, a binding that does not resolve).
 
   Agent messages go through `handle_message/3`; user input goes through
-  `write/5` (a two-way binding) and `invoke/4` (an action).
+  `write/5` (a two-way binding) and `invoke/4` (an action); the requests
+  of an embedded MCP App (the MCP catalog's `McpApp`) go through
+  `mcp_app_request/5`.
 
       session = A2UIPhoenix.Session.new([A2UICore.Catalog.Basic.catalog("v1.0")])
       {:ok, session, _effects} = A2UIPhoenix.Session.handle_message(session, message)
@@ -30,19 +32,29 @@ defmodule A2UIPhoenix.Session do
   alias A2UICore.{Catalog, Error, Processor}
   alias A2UICore.Message.RendererToAgent
   alias A2UICore.Resolution.{Action, DataContext, Node, NodeResolver}
+  alias A2UICore.Schema
   alias A2UICore.State.Surface
+  alias A2UICore.Validation.Payload
+  alias A2UIPhoenix.{Components, MCPApp}
 
   @moduledoc since: "0.1.0"
 
   @enforce_keys [:processor]
-  defstruct processor: nil, resolvers: %{}, version: "v1.0", clock: nil
+  defstruct processor: nil, resolvers: %{}, version: "v1.0", clock: nil, mcp_client: nil
 
   @type t :: %__MODULE__{
           processor: Processor.t(),
           resolvers: %{optional(String.t()) => NodeResolver.t()},
           version: String.t(),
-          clock: (-> DateTime.t()) | nil
+          clock: (-> DateTime.t()) | nil,
+          mcp_client: A2UICore.MCP.Client.t() | nil
         }
+
+  @typedoc """
+  The reply to an MCP App's request: a JSON-RPC result, a JSON-RPC error
+  (code and message), or none for a notification.
+  """
+  @type mcp_reply :: {:result, term()} | {:error, integer(), String.t()} | :none
 
   @type effect ::
           {:send, map()}
@@ -63,7 +75,11 @@ defmodule A2UIPhoenix.Session do
     * `:version` — the protocol version of outbound messages when the
       surface does not decide it (`"v1.0"`);
     * `:clock` — a zero-arity function returning the current
-      `DateTime`, used for action timestamps (`DateTime.utc_now/0`).
+      `DateTime`, used for action timestamps (`DateTime.utc_now/0`);
+    * `:mcp_client` — an `A2UICore.MCP.Client` (`{module, state}`) that
+      runs the tools an embedded MCP App calls, so that the app gets the
+      tool's result; without one the app gets an empty result (the call
+      still reaches the agent as an action).
   """
   @spec new([Catalog.t()], keyword()) :: t()
   def new(catalogs, options \\ []) do
@@ -71,7 +87,8 @@ defmodule A2UIPhoenix.Session do
       processor:
         Processor.new(catalogs, Keyword.take(options, [:validation, :default_timeout_ms])),
       version: Keyword.get(options, :version, "v1.0"),
-      clock: options[:clock]
+      clock: options[:clock],
+      mcp_client: options[:mcp_client]
     }
   end
 
@@ -211,8 +228,11 @@ defmodule A2UIPhoenix.Session do
 
   An event action produces `{:send, action_message}`; an `openUrl`
   function call produces `{:open_url, url}`; any other function call runs
-  in the renderer. A component whose checks fail (`isValid` is `false`)
-  does not act.
+  in the renderer, and what it asks for is applied in order: data model
+  writes, and A2UI messages (as `handle_message/3` would, except that
+  messages read from a tool's UI resource do not recreate a surface that
+  exists). A component whose checks fail (`isValid` is `false`) does not
+  act.
   """
   @spec invoke(t(), String.t(), pos_integer(), String.t()) ::
           {:ok, t(), [effect()]} | {:error, Error.t()}
@@ -222,16 +242,54 @@ defmodule A2UIPhoenix.Session do
          surface = surface(session, surface_id),
          {:ok, interactions} <-
            NodeResolver.invoke(resolver, surface, ref, property, now(session)) do
-      version = surface.version || session.version
-
-      effects =
-        Enum.map(interactions, fn
-          {:action_event, event} -> {:send, RendererToAgent.action(event, version: version)}
-          {level, payload} -> {:diagnostic, surface_id, level, payload}
-        end)
-
+      {session, effects} = apply_interactions(session, surface_id, interactions)
       {:ok, session, effects ++ open_url(surface, node, property, interactions)}
     end
+  end
+
+  defp apply_interactions(session, surface_id, interactions) do
+    Enum.reduce(interactions, {session, []}, fn interaction, {session, effects} ->
+      {session, more} = apply_interaction(session, surface_id, interaction)
+      {session, effects ++ more}
+    end)
+  end
+
+  defp apply_interaction(session, surface_id, {:action_event, event}) do
+    version = surface_version(session, surface_id)
+    {session, [{:send, RendererToAgent.action(event, version: version)}]}
+  end
+
+  defp apply_interaction(session, surface_id, {:write, %{path: path, value: value}}) do
+    case Processor.set_data(session.processor, surface_id, path, value) do
+      {:ok, processor, effects} ->
+        {session, notes} = sync(%{session | processor: processor}, effects)
+        {session, effects ++ notes}
+
+      {:error, %Error{} = error} ->
+        payload = %{code: error.code, message: error.message, path: path}
+        {session, [{:diagnostic, surface_id, :error, payload}]}
+    end
+  end
+
+  defp apply_interaction(session, _surface_id, {:messages, %{messages: messages} = request}) do
+    if request[:source] == :resource and recreates_surface?(session, messages) do
+      {session, []}
+    else
+      case handle_message(session, messages) do
+        {:ok, session, effects} -> {session, effects}
+        {:error, _error, session, effects} -> {session, effects}
+      end
+    end
+  end
+
+  defp apply_interaction(session, surface_id, {level, payload}),
+    do: {session, [{:diagnostic, surface_id, level, payload}]}
+
+  defp recreates_surface?(session, messages) do
+    Enum.any?(messages, fn
+      %{"createSurface" => %{"surfaceId" => id}} when is_binary(id) -> surface(session, id) != nil
+      _other -> false
+    end)
   end
 
   defp fetch_enabled_node(resolver, ref) do
@@ -265,6 +323,239 @@ defmodule A2UIPhoenix.Session do
       _not_an_open -> []
     end
   end
+
+  # -- MCP Apps -----------------------------------------------------------------
+
+  @doc """
+  Acts on a request or notification an embedded MCP App sent from the
+  `McpApp` node `ref` on surface `surface_id`, and returns the reply for
+  the app with the effects.
+
+    * `tools/call` — a tool the component's `allowedTools` lists is
+      dispatched to the agent as an action named after it, with its
+      arguments as context; the reply is the tool's result when the
+      session has an `:mcp_client`, else an empty result.
+    * `ui/requests/function-call` — a function the component's
+      `allowedFunctions` lists, whose arguments pass the schema given
+      there, runs in the surface's catalogs; the reply is
+      `%{"status" => "success", "result" => value}`.
+    * `ui/notifications/data-model-change` — the value is written to the
+      path the component binds to the key (`data.paths`), extended by
+      `subpath`, unless it is already there.
+    * `ui/update-model-context` — `structuredContent` (else `content`) is
+      written to the path bound to `modelContext`.
+    * `ui/message` — dispatched as an action named `ui/message` with
+      `role` and `content`.
+
+  A payload that fails `A2UIPhoenix.MCPApp.check_payload/1`, a tool or
+  function that is not allowed, and an unknown method get a JSON-RPC
+  error. Returns `{:error, error}` when the node is gone or is not an
+  `McpApp`.
+  """
+  @spec mcp_app_request(t(), String.t(), pos_integer(), String.t(), term()) ::
+          {:ok, t(), [effect()], mcp_reply()} | {:error, Error.t()}
+  def mcp_app_request(%__MODULE__{} = session, surface_id, ref, method, params) do
+    with {:ok, resolver} <- fetch_resolver(session, surface_id),
+         {:ok, node} <- fetch_mcp_app(resolver, ref) do
+      surface = surface(session, surface_id)
+
+      app = %{
+        surface_id: surface_id,
+        surface: surface,
+        node: node,
+        props: Components.props(node),
+        context: DataContext.for_surface(surface, path: node.data_path)
+      }
+
+      mcp(session, app, method, if(is_map(params), do: params, else: %{}))
+    end
+  end
+
+  defp fetch_mcp_app(resolver, ref) do
+    case NodeResolver.node(resolver, ref) do
+      %Node{state: :resolved, type: "McpApp"} = node ->
+        {:ok, node}
+
+      %Node{} = node ->
+        {:error,
+         Error.new(:state, "NOT_AN_MCP_APP", "Component '#{node.component_id}' is not an McpApp.")}
+
+      nil ->
+        {:error, Error.new(:state, "NODE_NOT_FOUND", "No mounted node with reference #{ref}.")}
+    end
+  end
+
+  @invalid_params -32_602
+  @internal_error -32_603
+
+  defp mcp(session, app, "tools/call", params) do
+    name = params["name"]
+    arguments = params["arguments"] || %{}
+
+    with {:ok, _} <- require_params(is_binary(name) and is_map(arguments), "a tool name"),
+         :ok <- safe(arguments),
+         :ok <- allowed(name in List.wrap(app.props["allowedTools"]), "Tool '#{name}'") do
+      effects = dispatch(session, app, name, arguments)
+      {:ok, session, effects, call_tool(session.mcp_client, name, arguments)}
+    else
+      {:reply, reply} -> {:ok, session, [], reply}
+    end
+  end
+
+  defp mcp(session, app, "ui/requests/function-call", params) do
+    name = params["call"]
+    args = params["args"] || %{}
+
+    with {:ok, _} <- require_params(is_binary(name) and is_map(args), "a function name"),
+         :ok <- safe(args),
+         {:ok, schema} <- allowed_function(app.props, name),
+         :ok <- validate_args(args, schema),
+         {:ok, value, interactions} <- run_function(app, name, args) do
+      {session, effects} = apply_interactions(session, app.surface_id, interactions)
+      {:ok, session, effects, {:result, %{"status" => "success", "result" => value}}}
+    else
+      {:reply, reply} -> {:ok, session, [], reply}
+    end
+  end
+
+  defp mcp(session, app, "ui/notifications/data-model-change", params) do
+    paths = MCPApp.paths(app.props, app.context)
+
+    with key when is_binary(key) <- params["key"],
+         :ok <- MCPApp.check_payload(params["value"]),
+         path when is_binary(path) <- MCPApp.change_path(paths, key, params["subpath"]),
+         false <- MCPApp.read(app.surface, path) == params["value"] do
+      {session, effects} = write_data(session, app.surface_id, path, params["value"])
+      {:ok, session, effects, :none}
+    else
+      _ignored -> {:ok, session, [], :none}
+    end
+  end
+
+  defp mcp(session, app, "ui/update-model-context", params) do
+    value = params["structuredContent"] || params["content"]
+
+    with :ok <- safe(value),
+         {:ok, path} <- Map.fetch(MCPApp.paths(app.props, app.context), "modelContext") do
+      {session, effects} = write_data(session, app.surface_id, path, value)
+      {:ok, session, effects, {:result, %{}}}
+    else
+      {:reply, reply} -> {:ok, session, [], reply}
+      :error -> {:ok, session, [], {:result, %{}}}
+    end
+  end
+
+  defp mcp(session, app, "ui/message", params) do
+    context = %{"role" => params["role"], "content" => params["content"]}
+
+    case safe(context) do
+      :ok -> {:ok, session, dispatch(session, app, "ui/message", context), {:result, %{}}}
+      {:reply, reply} -> {:ok, session, [], reply}
+    end
+  end
+
+  defp mcp(session, _app, method, _params),
+    do: {:ok, session, [], {:error, -32_601, "Method not found: #{method}"}}
+
+  defp require_params(true, _what), do: {:ok, true}
+
+  defp require_params(false, what),
+    do:
+      {:reply, {:error, @invalid_params, "The request needs #{what} and an object of arguments."}}
+
+  defp safe(payload) do
+    case MCPApp.check_payload(payload) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        {:reply, {:error, @invalid_params, "Security validation error: #{reason}"}}
+    end
+  end
+
+  defp allowed(true, _what), do: :ok
+  defp allowed(false, what), do: {:reply, {:error, @invalid_params, "#{what} is not allowed."}}
+
+  defp allowed_function(props, name) do
+    case props["allowedFunctions"] do
+      %{^name => schema} when is_map(schema) or is_boolean(schema) -> {:ok, schema}
+      _other -> allowed(false, "Local function '#{name}'")
+    end
+  end
+
+  defp validate_args(args, schema) do
+    case Schema.validate(args, schema) do
+      :ok ->
+        :ok
+
+      {:error, details} ->
+        message = Enum.map_join(details, "; ", & &1.message)
+        {:reply, {:error, @invalid_params, "Invalid arguments: #{message}"}}
+    end
+  end
+
+  # The function runs in the surface's default catalog, else in the first
+  # other catalog of the surface that has it; its arguments are the app's
+  # values as they are (no bindings).
+  defp run_function(app, name, args) do
+    catalogs = [Surface.default_catalog(app.surface) | Map.values(app.surface.catalogs)]
+
+    with %Catalog{} = catalog <-
+           Enum.find(catalogs, &(&1 && Catalog.get_function(&1, name))) ||
+             {:reply, {:error, @invalid_params, "Function '#{name}' not found."}},
+         {:ok, arguments} <- validate_function(catalog, name, args) do
+      execute(Catalog.get_function(catalog, name), arguments, app.context)
+    end
+  end
+
+  defp validate_function(catalog, name, args) do
+    case Payload.validate_function(catalog, name, args) do
+      {:ok, arguments} -> {:ok, arguments}
+      {:error, error} -> {:reply, {:error, @invalid_params, Exception.message(error)}}
+    end
+  end
+
+  defp execute(%{execute: nil, name: name}, _arguments, _context),
+    do: {:reply, {:error, @internal_error, "Function '#{name}' has no implementation."}}
+
+  defp execute(%{execute: run}, arguments, context) do
+    case run.(arguments, context) do
+      {:ok, value} -> {:ok, value, []}
+      {:ok, value, interactions} -> {:ok, value, interactions}
+      {:error, error} -> {:reply, {:error, @internal_error, Exception.message(error)}}
+    end
+  rescue
+    exception -> {:reply, {:error, @internal_error, Exception.message(exception)}}
+  end
+
+  defp dispatch(session, app, name, context) do
+    action = %{"event" => %{"name" => name, "context" => context}}
+
+    case Surface.dispatch_action(app.surface, action, app.node.component_id, now(session)) do
+      nil -> []
+      event -> elem(apply_interaction(session, app.surface_id, {:action_event, event}), 1)
+    end
+  end
+
+  defp write_data(session, surface_id, path, value),
+    do: apply_interaction(session, surface_id, {:write, %{path: path, value: value}})
+
+  defp call_tool(nil, _name, _arguments), do: {:result, %{"content" => []}}
+
+  defp call_tool({module, state}, name, arguments) do
+    case module.call_tool(state, name, arguments) do
+      {:ok, %{} = result} -> {:result, result}
+      {:ok, nil} -> {:result, %{"content" => []}}
+      {:error, reason} -> {:error, @internal_error, "Tool '#{name}' failed: #{describe(reason)}"}
+    end
+  rescue
+    exception ->
+      {:error, @internal_error, "Tool '#{name}' failed: #{Exception.message(exception)}"}
+  end
+
+  defp describe(reason) when is_binary(reason), do: reason
+  defp describe(%{__exception__: true} = exception), do: Exception.message(exception)
+  defp describe(reason), do: inspect(reason)
 
   # -- lifecycle ----------------------------------------------------------------
 

@@ -387,6 +387,22 @@ Not taken: the retry loop (no blueprint, suite or spec defines one; the guide
 says to feed errors back to the model) and a CLDR-backed formatter (a
 dependency decision; `A2UICore.Formatter` is pluggable).
 
+### M18 — MCP catalog (2026-10-16; conformance unchanged: no suite covers it; JMESPath compliance suite: 892 of 892)
+
+- [x] M18.1 `A2UICore.JMESPath`: lexer, Pratt parser, interpreter and every
+      built-in function of the specification.
+- [x] M18.2 The vendored MCP catalogs (v0.9, v1.0; drift-tested),
+      `A2UICore.Catalog.MCP`, `A2UICore.Functions.MCP` (`callMcpTool` over the
+      host's `A2UICore.MCP.Client`, `jmespath`, `split`, `regexCapture`,
+      `regexReplace`, `updateDataModel`), `A2UICore.MCP` (A2UI in tool results
+      and resources, MCP Apps); function effects `{:write, …}` and
+      `{:messages, …}` reach the renderer from actions.
+- [x] M18.3 `A2UIPhoenix`: the session applies those effects; `McpApp`
+      (`A2UIPhoenix.Components.MCP`), the `A2UIMcpApp` hook and the sandbox
+      proxy page; `A2UIPhoenix.Session.mcp_app_request/5` (tools, functions,
+      data changes, model context, messages) with payload checks; Node tests
+      for the browser code (CI runs them).
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.
