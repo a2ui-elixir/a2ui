@@ -365,8 +365,27 @@ golden output and golden validity both.
 - [x] M16.4 Guides (agent: MCP and AG-UI; Phoenix: resuming a stream),
       divergences (no WebSocket binding, MCP catalog not implemented).
 
-Next: the partial items (retry loop, locale formatting, `$dynamicRef`,
-`unevaluatedItems`).
+### M17 — schema engine completion (2026-10-16; conformance unchanged; JSON Schema Test Suite draft 2020-12: 1302 of 1302 required tests)
+
+- [x] M17.1 References: base URIs from `$id`, embedded resources, `$anchor`
+      and `$dynamicAnchor` names, percent-encoded pointers, `$dynamicRef`
+      over the dynamic scope; `$ref` is an applicator whose annotations
+      reach `unevaluated*`.
+- [x] M17.2 Keywords: `unevaluatedItems`, `dependentRequired`,
+      `dependentSchemas`, `minContains`/`maxContains`, decimal limits,
+      `multipleOf` without float overflow, `$vocabulary` of custom
+      meta-schemas.
+- [x] M17.3 ECMA-262 regular expressions: Unicode property names,
+      ASCII `\d`/`\w`/`\b`, ECMA `\s` and `.`, `\u` escapes; XID
+      properties exact on PCRE2 (Erlang/OTP 28+), which also makes
+      `A2UICore.Identifier` agree with Python's `isidentifier()`.
+- [x] M17.4 The spec-case replay validates catalogs against the real 2020-12
+      meta-schemas (vendored as test fixtures with their BSD-3-Clause
+      license) instead of `true`.
+
+Not taken: the retry loop (no blueprint, suite or spec defines one; the guide
+says to feed errors back to the model) and a CLDR-backed formatter (a
+dependency decision; `A2UICore.Formatter` is pluggable).
 
 ### Decisions
 

@@ -1,15 +1,9 @@
 defmodule A2UICore.Identifier do
   @moduledoc """
-  UAX #31 identifier validation for catalog entity names.
-
-  Exact upstream regex: `^[\\p{XID_Start}_][\\p{XID_Continue}]*$`.
-
-  PCRE2 (Erlang/OTP 29) has no `\\p{XID_Start}`/`\\p{XID_Continue}`
-  support, so this module uses the Unicode-derived approximation
-  `^[\\p{L}\\p{Nl}_][\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*$`. This
-  matches every conformance-relevant case from the reference suite:
-  `Text`, `submit_form`, `_internal`, `Component_ℓ` pass;
-  `1stItem`, `submit-form`, `user#name` fail.
+  UAX #31 identifier validation for catalog entity names, with the
+  upstream pattern `^[\\p{XID_Start}_][\\p{XID_Continue}]*$`, compiled
+  like a schema pattern by `A2UICore.Schema.ECMA262`: exact on
+  Erlang/OTP 28 and later, an approximation on older PCRE.
 
   Two structural points follow the reference:
 
@@ -21,10 +15,11 @@ defmodule A2UICore.Identifier do
   """
 
   alias A2UICore.Error
+  alias A2UICore.Schema.ECMA262
 
   @moduledoc since: "0.1.0"
 
-  @pattern ~r/^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Mn}\p{Mc}\p{Nd}\p{Pc}]*$/u
+  @pattern ECMA262.compile!("^[\\p{XID_Start}_][\\p{XID_Continue}]*$")
 
   @doc """
   Returns whether `name` is a valid UAX #31 identifier.
@@ -53,12 +48,12 @@ defmodule A2UICore.Identifier do
     stripped != "" and Regex.match?(@pattern, stripped)
   end
 
-  @continue_pattern ~r/\A[\p{L}\p{Nl}\p{Mn}\p{Mc}\p{Nd}\p{Pc}]\z/u
+  @continue_pattern ECMA262.compile!("^\\p{XID_Continue}$")
 
   @doc """
   Returns whether `codepoint` (a one-character string) continues an
-  identifier — the `XID_Continue` approximation used by `valid?/1`.
-  Expression and path scanning use it to find token boundaries.
+  identifier (`XID_Continue`, as in `valid?/1`). Expression and path
+  scanning use it to find token boundaries.
 
       iex> A2UICore.Identifier.continue?("a")
       true

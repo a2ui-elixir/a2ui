@@ -27,3 +27,7 @@ First release.
 - Function calls between renderer and agent in protocol v1.0, as a state
   machine without processes (`A2UICore.RPC`).
 - Renderer capabilities, renderer data models and renderer-to-agent messages.
+- `A2UICore.Schema`, a JSON Schema draft 2020-12 validator that passes every
+  required test of the official JSON Schema Test Suite, with ECMA-262 regular
+  expressions (`A2UICore.Schema.ECMA262`). Catalog names are UAX #31
+  identifiers, checked with PCRE2's XID properties.

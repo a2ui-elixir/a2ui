@@ -13,10 +13,13 @@ defmodule A2UICore.Schema.Engine do
   #
   #   * `properties`/`patternProperties`/`additionalProperties` annotate
   #     the keys they matched/validated against THIS instance.
-  #   * `$ref`/`allOf`/`anyOf`/`oneOf`/`if`→`then`/`else` evaluate
-  #     subschemas against THIS instance, so their annotations merge in —
-  #     but only from branches that validated without errors (per 2020-12,
-  #     annotations of failed branches are dropped).
+  #   * `prefixItems`/`items`/`contains` annotate the indices they
+  #     evaluated, for `unevaluatedItems`.
+  #   * `$ref`/`$dynamicRef`/`allOf`/`anyOf`/`oneOf`/`dependentSchemas`/
+  #     `if`→`then`/`else` evaluate subschemas against THIS instance, so
+  #     their annotations merge in — but only from branches that validated
+  #     without errors (per 2020-12, annotations of failed branches are
+  #     dropped).
   #   * `not` never contributes annotations.
   #   * Descending into a property VALUE or array ELEMENT evaluates a
   #     DIFFERENT instance; the child's annotations are discarded at this
@@ -30,6 +33,14 @@ defmodule A2UICore.Schema.Engine do
   #   type, pattern, enum, format        -> "type_mismatch"
   #   everything else                    -> "invalid_value"
   #   unresolvable $ref                  -> "invalid_reference"
+  #
+  # A subschema with `$id` starts a schema resource: references inside it
+  # resolve against its base URI, and it joins the dynamic scope that
+  # `$dynamicRef` searches (see A2UICore.Schema.Ref).
+  #
+  # A `$schema` naming a meta-schema in the registry that declares its
+  # vocabularies (`$vocabulary`) switches off the keywords of the standard
+  # vocabularies it leaves out, from there down.
 
   alias A2UICore.Error.Detail
   alias A2UICore.Schema.{ECMA262, Format, Ref}
@@ -41,8 +52,12 @@ defmodule A2UICore.Schema.Engine do
   @type ctx :: %{
           required(:registry) => Ref.registry(),
           required(:root) => A2UICore.Schema.schema(),
+          required(:base) => String.t() | nil,
+          required(:doc) => A2UICore.Schema.schema(),
+          required(:scope) => [map()],
           required(:path) => [String.t() | non_neg_integer()],
           required(:ref_depth) => non_neg_integer(),
+          required(:ignored) => [String.t()],
           optional(:formats) => :annotate | :assert
         }
 
@@ -54,19 +69,50 @@ defmodule A2UICore.Schema.Engine do
   @asserted_keywords ~w(
     type const enum minLength maxLength pattern format
     minimum maximum exclusiveMinimum exclusiveMaximum multipleOf
-    minItems maxItems uniqueItems contains prefixItems items
-    minProperties maxProperties required properties patternProperties
-    propertyNames additionalProperties unevaluatedProperties
-    allOf anyOf oneOf not if then else $ref
+    minItems maxItems uniqueItems contains minContains maxContains
+    prefixItems items unevaluatedItems
+    minProperties maxProperties required dependentRequired properties
+    patternProperties propertyNames additionalProperties
+    unevaluatedProperties dependentSchemas
+    allOf anyOf oneOf not if then else $ref $dynamicRef
   )
 
   @annotation_keywords ~w(
     title description default deprecated x-deprecated-reason examples
-    readOnly writeOnly discriminator $schema $id $comment $defs
-    catalogId instructions protocolVersion returnType allowedCallers
-    requiresUserActivation allowedParents allowedChildren metadata
-    components functions
+    readOnly writeOnly discriminator $schema $id $anchor $dynamicAnchor
+    $vocabulary $comment $defs contentEncoding contentMediaType
+    contentSchema catalogId instructions protocolVersion returnType
+    allowedCallers requiresUserActivation allowedParents allowedChildren
+    metadata components functions
   )
+
+  @vocab "https://json-schema.org/draft/2020-12/vocab/"
+
+  # The 2020-12 vocabularies whose keywords a meta-schema can leave out.
+  @vocabularies %{
+    (@vocab <> "applicator") => ~w(
+      prefixItems items contains additionalProperties properties
+      patternProperties dependentSchemas propertyNames if then else
+      allOf anyOf oneOf not
+    ),
+    (@vocab <> "unevaluated") => ~w(unevaluatedItems unevaluatedProperties),
+    (@vocab <> "validation") => ~w(
+      type const enum multipleOf maximum exclusiveMaximum minimum
+      exclusiveMinimum maxLength minLength pattern maxItems minItems
+      uniqueItems maxContains minContains maxProperties minProperties
+      required dependentRequired
+    ),
+    (@vocab <> "format-annotation") => ~w(format),
+    (@vocab <> "format-assertion") => ~w(format)
+  }
+
+  @vocabulary_keywords @vocabularies |> Map.values() |> List.flatten() |> Enum.uniq()
+  @known_vocabularies Map.keys(@vocabularies) ++
+                        Enum.map(~w(core meta-data content), &(@vocab <> &1))
+  @standard_meta_schemas [
+    "https://json-schema.org/draft/2020-12/schema",
+    "https://json-schema.org/draft/2020-12/schema#"
+  ]
 
   @doc false
   @spec keywords() :: %{asserted: [String.t()], annotations: [String.t()]}
@@ -88,38 +134,108 @@ defmodule A2UICore.Schema.Engine do
   def eval(_data, schema, _ctx) when not is_map(schema),
     do: raise(ArgumentError, "Invalid schema: #{inspect(schema)}")
 
-  def eval(data, %{"$ref" => ref} = schema, ctx) when is_binary(ref) do
-    case Ref.resolve(ref, ctx.root, ctx.registry, ctx.ref_depth) do
-      {:ok, resolved_root, subschema} ->
-        ref_ctx = %{ctx | root: resolved_root, ref_depth: ctx.ref_depth + 1}
-        target = eval(data, subschema, ref_ctx)
-        siblings = Map.delete(schema, "$ref")
-
-        if map_size(siblings) == 0 do
-          target
-        else
-          # 2020-12: `$ref` no longer short-circuits; siblings apply too,
-          # against the ORIGINAL context (only the ref target switches root).
-          combine(target, eval(data, siblings, ctx))
-        end
-
-      {:error, err} ->
-        {@empty_ann, [Detail.new("invalid_reference", err.message, path_str(ctx))]}
-    end
-  end
-
   def eval(data, schema, ctx) when is_map(schema) do
+    ctx = schema |> enter(ctx) |> dialect(schema)
+    schema = if ctx.ignored == [], do: schema, else: Map.drop(schema, ctx.ignored)
+
     {ann_a, errs_a} = eval_assertions(data, schema, ctx)
     {ann_b, errs_b} = eval_applicators(data, schema, ctx)
     {ann_c, errs_c} = eval_if_then_else(data, schema, ctx)
 
     ann = merge_annots(merge_annots(ann_a, ann_b), ann_c)
 
-    # `unevaluatedProperties` must see everything the other keywords and
-    # applicators consumed, so it runs last with the merged annotations.
+    # `unevaluatedProperties`/`unevaluatedItems` must see everything the
+    # other keywords and applicators consumed, so they run last with the
+    # merged annotations.
     {ann_d, errs_d} = eval_unevaluated(data, schema, ctx, ann)
 
     {merge_annots(ann, ann_d), errs_a ++ errs_b ++ errs_c ++ errs_d}
+  end
+
+  # A subschema with `$id` (other than the resource being evaluated, which
+  # a reference has already entered) starts a resource.
+  @spec enter(map(), ctx()) :: ctx()
+  defp enter(%{"$id" => id} = schema, ctx) when is_binary(id) do
+    if schema === ctx.root do
+      ctx
+    else
+      base = Ref.rebase(ctx.base, id)
+
+      %{
+        ctx
+        | root: schema,
+          base: base,
+          scope: ctx.scope ++ [%{root: schema, base: base, doc: ctx.doc}]
+      }
+    end
+  end
+
+  defp enter(_schema, ctx), do: ctx
+
+  # Evaluation continues in the resource a reference resolved to, in the
+  # dialect that resource declares.
+  @spec jump(ctx(), Ref.location()) :: ctx()
+  defp jump(ctx, location) do
+    scope =
+      if location.root === ctx.root,
+        do: ctx.scope,
+        else: ctx.scope ++ [Map.delete(location, :schema)]
+
+    dialect(
+      %{
+        ctx
+        | root: location.root,
+          base: location.base,
+          doc: location.doc,
+          scope: scope,
+          ref_depth: ctx.ref_depth + 1
+      },
+      location.root
+    )
+  end
+
+  # The keywords a custom meta-schema leaves out through `$vocabulary`. A
+  # vocabulary it requires that this evaluator does not know makes the
+  # schema unprocessable (2020-12 core, section 8.1.2).
+  @spec dialect(ctx(), A2UICore.Schema.schema()) :: ctx()
+  defp dialect(ctx, %{"$schema" => uri})
+       when is_binary(uri) and uri not in @standard_meta_schemas do
+    case Ref.resolve(uri, ctx) do
+      {:ok, %{schema: %{"$vocabulary" => vocabularies}}} when is_map(vocabularies) ->
+        use_vocabularies(ctx, uri, vocabularies)
+
+      _no_vocabularies ->
+        ctx
+    end
+  end
+
+  defp dialect(ctx, _schema), do: ctx
+
+  @spec use_vocabularies(ctx(), String.t(), map()) :: ctx()
+  defp use_vocabularies(ctx, uri, vocabularies) do
+    case for(
+           {vocabulary, true} <- vocabularies,
+           vocabulary not in @known_vocabularies,
+           do: vocabulary
+         ) do
+      [] ->
+        enabled =
+          Enum.flat_map(vocabularies, fn {vocabulary, _required} ->
+            Map.get(@vocabularies, vocabulary, [])
+          end)
+
+        formats =
+          if Map.has_key?(vocabularies, @vocab <> "format-assertion"),
+            do: :assert,
+            else: Map.get(ctx, :formats, :annotate)
+
+        Map.merge(ctx, %{ignored: @vocabulary_keywords -- enabled, formats: formats})
+
+      unknown ->
+        raise ArgumentError,
+              "the meta-schema #{uri} requires vocabularies A2UICore.Schema does not " <>
+                "know: #{Enum.join(unknown, ", ")}"
+    end
   end
 
   # -------------------------------------------------------------- plumbing --
@@ -264,12 +380,12 @@ defmodule A2UICore.Schema.Engine do
       :error ->
         {@empty_ann, []}
 
-      {:ok, bound} when is_integer(bound) ->
+      {:ok, bound} when is_number(bound) ->
         string_length_result(data, ctx, key, bound)
     end
   end
 
-  @spec string_length_result(String.t(), ctx(), String.t(), integer()) ::
+  @spec string_length_result(String.t(), ctx(), String.t(), number()) ::
           {annotations(), [Detail.t()]}
   defp string_length_result(data, ctx, key, bound) do
     # JSON Schema counts Unicode codepoints (like Python's len()).
@@ -339,9 +455,16 @@ defmodule A2UICore.Schema.Engine do
   defp numeric_ok?(data, "exclusiveMinimum", bound), do: data > bound
   defp numeric_ok?(data, "exclusiveMaximum", bound), do: data < bound
 
+  defp numeric_ok?(data, "multipleOf", bound)
+       when is_integer(data) and is_integer(bound) and bound != 0,
+       do: rem(data, bound) == 0
+
   defp numeric_ok?(data, "multipleOf", bound) when bound != 0 do
     quotient = data / bound
     abs(quotient - round(quotient)) < 1.0e-9
+  rescue
+    # The quotient is too large for a float; the remainder is exact.
+    ArithmeticError -> :math.fmod(data, bound) == 0
   end
 
   defp numeric_ok?(_data, _key, _bound), do: false
@@ -379,14 +502,14 @@ defmodule A2UICore.Schema.Engine do
   defp eval_array_size(data, schema, ctx) do
     errs =
       case Map.fetch(schema, "minItems") do
-        {:ok, bound} when is_integer(bound) and length(data) < bound ->
+        {:ok, bound} when is_number(bound) and length(data) < bound ->
           [detail(ctx, "invalid_value", "#{repr(data)} is too short (minimum #{bound})")]
 
         _ ->
           []
       end ++
         case Map.fetch(schema, "maxItems") do
-          {:ok, bound} when is_integer(bound) and length(data) > bound ->
+          {:ok, bound} when is_number(bound) and length(data) > bound ->
             [detail(ctx, "invalid_value", "#{repr(data)} is too long (maximum #{bound})")]
 
           _ ->
@@ -419,23 +542,40 @@ defmodule A2UICore.Schema.Engine do
     :dup -> false
   end
 
+  # `contains` annotates the indices it matched; `minContains` (default 1)
+  # and `maxContains` bound how many match.
   @spec eval_contains([term()], map(), ctx()) :: {annotations(), [Detail.t()]}
-  defp eval_contains(data, %{"contains" => subschema}, ctx) do
-    if Enum.any?(data, &matches_subschema(&1, subschema, ctx)) do
-      {@empty_ann, []}
-    else
-      {@empty_ann,
-       [
-         detail(
-           ctx,
-           "invalid_value",
-           "#{repr(data)} does not contain any element matching the given schema"
-         )
-       ]}
-    end
+  defp eval_contains(data, %{"contains" => subschema} = schema, ctx) do
+    matched =
+      for {item, index} <- Enum.with_index(data),
+          matches_subschema(item, subschema, sub_ctx(ctx, index)),
+          do: index
+
+    count = length(matched)
+    minimum = Map.get(schema, "minContains", 1)
+    maximum = Map.get(schema, "maxContains")
+
+    errs =
+      cond do
+        count == 0 and minimum > 0 ->
+          [contains_error(ctx, data, "does not contain any element matching the given schema")]
+
+        count < minimum ->
+          [contains_error(ctx, data, "contains too few matching elements (minimum #{minimum})")]
+
+        is_number(maximum) and count > maximum ->
+          [contains_error(ctx, data, "contains too many matching elements (maximum #{maximum})")]
+
+        true ->
+          []
+      end
+
+    {%{@empty_ann | items: MapSet.new(matched)}, errs}
   end
 
   defp eval_contains(_data, _schema, _ctx), do: {@empty_ann, []}
+
+  defp contains_error(ctx, data, text), do: detail(ctx, "invalid_value", "#{repr(data)} #{text}")
 
   @spec matches_subschema(term(), term(), ctx()) :: boolean()
   defp matches_subschema(item, subschema, ctx) do
@@ -514,6 +654,7 @@ defmodule A2UICore.Schema.Engine do
   defp eval_object(data, schema, ctx) when is_map(data) do
     eval_object_size(data, schema, ctx)
     |> combine(eval_required(data, schema, ctx))
+    |> combine(eval_dependent_required(data, schema, ctx))
     |> combine(eval_properties(data, schema, ctx))
     |> combine(eval_pattern_properties(data, schema, ctx))
     |> combine(eval_property_names(data, schema, ctx))
@@ -554,6 +695,22 @@ defmodule A2UICore.Schema.Engine do
   end
 
   defp eval_required(_data, _schema, _ctx), do: {@empty_ann, []}
+
+  @spec eval_dependent_required(map(), map(), ctx()) :: {annotations(), [Detail.t()]}
+  defp eval_dependent_required(data, %{"dependentRequired" => dependencies}, ctx)
+       when is_map(dependencies) do
+    errs =
+      for {key, names} <- dependencies,
+          Map.has_key?(data, key),
+          name <- List.wrap(names),
+          not Map.has_key?(data, name) do
+        detail(ctx, "missing_field", "'#{name}' is a dependency of '#{key}'", name)
+      end
+
+    {@empty_ann, errs}
+  end
+
+  defp eval_dependent_required(_data, _schema, _ctx), do: {@empty_ann, []}
 
   @spec eval_properties(map(), map(), ctx()) :: {annotations(), [Detail.t()]}
   defp eval_properties(data, %{"properties" => declared}, ctx) when is_map(declared) do
@@ -685,11 +842,47 @@ defmodule A2UICore.Schema.Engine do
 
   @spec eval_applicators(term(), map(), ctx()) :: {annotations(), [Detail.t()]}
   defp eval_applicators(data, schema, ctx) do
-    eval_all_of(data, schema, ctx)
+    eval_ref(data, schema, ctx)
+    |> combine(eval_dynamic_ref(data, schema, ctx))
+    |> combine(eval_all_of(data, schema, ctx))
     |> combine(eval_any_of(data, schema, ctx))
     |> combine(eval_one_of(data, schema, ctx))
     |> combine(eval_not(data, schema, ctx))
+    |> combine(eval_dependent_schemas(data, schema, ctx))
   end
+
+  # 2020-12: `$ref` is an applicator like any other; its siblings apply
+  # too, and its annotations count for `unevaluated*`.
+  @spec eval_ref(term(), map(), ctx()) :: {annotations(), [Detail.t()]}
+  defp eval_ref(data, %{"$ref" => ref}, ctx) when is_binary(ref),
+    do: eval_reference(data, Ref.resolve(ref, ctx), ctx)
+
+  defp eval_ref(_data, _schema, _ctx), do: {@empty_ann, []}
+
+  @spec eval_dynamic_ref(term(), map(), ctx()) :: {annotations(), [Detail.t()]}
+  defp eval_dynamic_ref(data, %{"$dynamicRef" => ref}, ctx) when is_binary(ref),
+    do: eval_reference(data, Ref.resolve_dynamic(ref, ctx, ctx.scope), ctx)
+
+  defp eval_dynamic_ref(_data, _schema, _ctx), do: {@empty_ann, []}
+
+  defp eval_reference(data, {:ok, location}, ctx),
+    do: eval(data, location.schema, jump(ctx, location))
+
+  defp eval_reference(_data, {:error, err}, ctx),
+    do: {@empty_ann, [Detail.new("invalid_reference", err.message, path_str(ctx))]}
+
+  @spec eval_dependent_schemas(term(), map(), ctx()) :: {annotations(), [Detail.t()]}
+  defp eval_dependent_schemas(data, %{"dependentSchemas" => dependencies}, ctx)
+       when is_map(dependencies) and plain_map?(data) do
+    dependencies
+    |> Enum.filter(fn {key, _subschema} -> Map.has_key?(data, key) end)
+    |> Enum.reduce({@empty_ann, []}, fn {_key, subschema}, {ann, errs} ->
+      {sub_ann, sub_errs} = eval(data, subschema, ctx)
+      {merge_or_drop(ann, sub_ann, sub_errs), errs ++ sub_errs}
+    end)
+  end
+
+  defp eval_dependent_schemas(_data, _schema, _ctx), do: {@empty_ann, []}
 
   @spec eval_all_of(term(), map(), ctx()) :: {annotations(), [Detail.t()]}
   defp eval_all_of(data, %{"allOf" => subschemas}, ctx) when is_list(subschemas) do
@@ -853,18 +1046,51 @@ defmodule A2UICore.Schema.Engine do
   @spec eval_unevaluated(term(), map(), ctx(), annotations()) ::
           {annotations(), [Detail.t()]}
   defp eval_unevaluated(data, schema, ctx, ann) do
-    case Map.fetch(schema, "unevaluatedProperties") do
-      {:ok, directive} when plain_map?(data) ->
+    case {Map.fetch(schema, "unevaluatedProperties"), Map.fetch(schema, "unevaluatedItems")} do
+      {{:ok, directive}, _items} when plain_map?(data) ->
         extras = MapSet.difference(MapSet.new(Map.keys(data)), ann.props)
         apply_unevaluated(data, directive, extras, ctx)
 
-      :error ->
-        reject_unsupported_unevaluated_items(schema)
+      {_props, {:ok, directive}} when is_list(data) ->
+        apply_unevaluated_items(data, directive, ann, ctx)
+
+      _not_applicable ->
+        {@empty_ann, []}
+    end
+  end
+
+  # The items no `prefixItems`, `items`, `contains` or in-place applicator
+  # evaluated.
+  @spec apply_unevaluated_items([term()], term(), annotations(), ctx()) ::
+          {annotations(), [Detail.t()]}
+  defp apply_unevaluated_items(data, directive, ann, ctx) do
+    indices =
+      for index <- 0..(length(data) - 1)//1, not MapSet.member?(ann.items, index), do: index
+
+    all = %{@empty_ann | items: MapSet.new(indices)}
+
+    case directive do
+      _any when indices == [] ->
         {@empty_ann, []}
 
-      {:ok, _directive} ->
-        # unevaluatedProperties against a non-object instance: no-op.
-        {@empty_ann, []}
+      false ->
+        {@empty_ann,
+         [
+           detail(
+             ctx,
+             "invalid_value",
+             "Unevaluated items are not allowed (#{Enum.join(indices, ", ")} unexpected)"
+           )
+         ]}
+
+      true ->
+        {all, []}
+
+      subschema ->
+        errs =
+          Enum.flat_map(indices, &elem(eval(Enum.at(data, &1), subschema, sub_ctx(ctx, &1)), 1))
+
+        {all, errs}
     end
   end
 
@@ -903,17 +1129,5 @@ defmodule A2UICore.Schema.Engine do
       {_, child_errs} = eval(Map.get(data, key), directive, sub_ctx(ctx, key))
       {a, errs ++ child_errs}
     end)
-  end
-
-  @spec reject_unsupported_unevaluated_items(map()) :: :ok
-  defp reject_unsupported_unevaluated_items(schema) do
-    case Map.fetch(schema, "unevaluatedItems") do
-      {:ok, _} ->
-        raise ArgumentError,
-              "unevaluatedItems is not supported by A2UICore.Schema (no A2UI schema uses it)"
-
-      :error ->
-        :ok
-    end
   end
 end

@@ -5,7 +5,7 @@ defmodule A2UICore.IdentifierTest do
   alias A2UICore.Identifier
 
   describe "valid?/1 — accepted" do
-    for good <- ~w|Text submit_form _internal UserProfileCard item_id_1 ßeta Component_ℓ| do
+    for good <- ~w|Text submit_form _internal UserProfileCard item_id_1 ßeta Component_ℓ ℘map a·b| do
       test "accepts #{inspect(good)}" do
         assert Identifier.valid?(unquote(good))
       end
@@ -13,7 +13,17 @@ defmodule A2UICore.IdentifierTest do
   end
 
   describe "valid?/1 — rejected" do
-    for bad <- ["1stItem", "submit-form", "user#name", "calc$val", "User Card", "Cordüroy™"] do
+    for bad <- [
+          "1stItem",
+          "submit-form",
+          "user#name",
+          "calc$val",
+          "User Card",
+          "Cordüroy™",
+          "·a",
+          "゛a",
+          "Text\n"
+        ] do
       test "rejects #{inspect(bad)}" do
         refute Identifier.valid?(unquote(bad))
       end
@@ -23,6 +33,11 @@ defmodule A2UICore.IdentifierTest do
       refute Identifier.valid?("")
       refute Identifier.valid?(nil)
       refute Identifier.valid?(42)
+    end
+
+    test "continue?/1 takes one character" do
+      assert Identifier.continue?("·")
+      refute Identifier.continue?(nil)
     end
 
     test "a leading @ is ignored only when allowed, and a digit may not follow it" do

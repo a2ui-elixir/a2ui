@@ -385,10 +385,10 @@ defmodule A2UICore.EdgeCasesTest do
       message
     end
 
-    test "unresolvable pointer, document and non-root pointer" do
+    test "unresolvable pointer, document and anchor" do
       assert ref_error(%{"$ref" => "#/$defs/nope"}) =~ "not found"
       assert ref_error(%{"$ref" => "missing.json"}) =~ "no such document"
-      assert ref_error(%{"$ref" => "#anchor"}) =~ "only root-relative"
+      assert ref_error(%{"$ref" => "#anchor"}) =~ "no anchor 'anchor'"
     end
 
     test "a self-referential $ref hits the recursion limit" do
@@ -419,6 +419,11 @@ defmodule A2UICore.EdgeCasesTest do
       refute ECMA262.match?("[", "x")
       assert ECMA262.match?("^a$", "a")
     end
+
+    test "compile!/1 raises on an invalid pattern" do
+      assert %Regex{} = ECMA262.compile!("^a$")
+      assert_raise Error, ~r/Cannot compile/, fn -> ECMA262.compile!("[") end
+    end
   end
 
   describe "Schema engine edge cases" do
@@ -438,7 +443,7 @@ defmodule A2UICore.EdgeCasesTest do
                Schema.validate(%{"a" => 1}, %{"patternProperties" => %{"[" => %{}}})
     end
 
-    test "unevaluatedProperties accepts true, a schema, and rejects unevaluatedItems" do
+    test "unevaluatedProperties accepts true and a schema" do
       assert :ok = Schema.validate(%{"a" => 1}, %{"unevaluatedProperties" => true})
 
       schema = %{
@@ -449,10 +454,6 @@ defmodule A2UICore.EdgeCasesTest do
       assert :ok = Schema.validate(%{"a" => 1, "b" => 2}, schema)
       assert {:error, [_ | _]} = Schema.validate(%{"a" => 1, "b" => "x"}, schema)
       assert :ok = Schema.validate("not an object", %{"unevaluatedProperties" => false})
-
-      assert_raise ArgumentError, ~r/unevaluatedItems/, fn ->
-        Schema.validate([1], %{"unevaluatedItems" => false})
-      end
     end
 
     test "`if` without then/else passes and a failing `if` without else passes" do

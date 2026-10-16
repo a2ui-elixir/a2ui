@@ -114,6 +114,58 @@ defmodule A2UICore.SchemaTest do
       assert_error("submit-form", %{"pattern" => pattern})
     end
 
+    test "pattern XID properties are exact (UAX #31, as Python's isidentifier)" do
+      pattern = "^[\\p{XID_Start}_][\\p{XID_Continue}]*$"
+      assert_ok("℘map", %{"pattern" => pattern})
+      assert_ok("a·b", %{"pattern" => pattern})
+      assert_error("·a", %{"pattern" => pattern})
+      assert_error("゛a", %{"pattern" => pattern})
+    end
+
+    test "pattern Unicode property escapes take ECMA-262 names" do
+      assert_ok("Hello", %{"pattern" => "^\\p{Letter}+$"})
+      assert_ok("Привет", %{"pattern" => "^\\p{Letter}+$"})
+      assert_error("x1", %{"pattern" => "^\\p{Letter}+$"})
+      assert_ok("1-2", %{"pattern" => "^\\P{Letter}+$"})
+      assert_ok("Ab", %{"pattern" => "^\\p{General_Category=Uppercase_Letter}\\p{gc=Ll}$"})
+      assert_error("ab", %{"pattern" => "^\\p{Lu}"})
+      assert_ok("Ab", %{"pattern" => "^[\\p{Cased_Letter}\\d]+$"})
+      assert_ok("x", %{"pattern" => "^\\p{Assigned}$"})
+      assert_error("x", %{"pattern" => "^\\P{Assigned}$"})
+      assert_ok("αβ", %{"pattern" => "^\\p{Script=Greek}+$"})
+      assert_error("ab", %{"pattern" => "^\\p{sc=Grek}+$"})
+      assert [%{code: "invalid_value"}] = assert_error("x", %{"pattern" => "\\p{Letter"})
+    end
+
+    test "pattern character classes and escapes are ECMA-262's" do
+      assert_error("߀", %{"pattern" => "^\\d$"})
+      assert_ok("߀", %{"pattern" => "^\\D$"})
+      assert_error("é", %{"pattern" => "^\\w$"})
+      assert_ok("é", %{"pattern" => "^\\W$"})
+      assert_ok(<<0xFEFF::utf8>>, %{"pattern" => "^\\s$"})
+      assert_ok(<<0xFEFF::utf8>>, %{"pattern" => "^[\\s]$"})
+      assert_error(<<0xFEFF::utf8>>, %{"pattern" => "^\\S$"})
+      assert_ok("a", %{"pattern" => "^[\\S]$"})
+      assert_ok(<<0x0B>>, %{"pattern" => "^\\v$"})
+      assert_error("\n", %{"pattern" => "^\\v$"})
+      assert_ok("a", %{"pattern" => "^.$"})
+      assert_error("\r", %{"pattern" => "^.$"})
+      assert_ok(".", %{"pattern" => "^[.]$"})
+    end
+
+    test "pattern unicode escapes become code points" do
+      bs = <<92>>
+      assert_ok("A", %{"pattern" => "^" <> bs <> "u0041$"})
+      assert_ok("😀", %{"pattern" => "^" <> bs <> "u{1F600}$"})
+      assert_ok("😀", %{"pattern" => "^" <> bs <> "uD83D" <> bs <> "uDE00$"})
+      assert [%{code: "invalid_value"}] = assert_error("x", %{"pattern" => bs <> "u{zz}"})
+      assert [%{code: "invalid_value"}] = assert_error("x", %{"pattern" => bs <> "uzzzz"})
+      assert [%{code: "invalid_value"}] = assert_error("x", %{"pattern" => bs <> "uD83Dx"})
+
+      assert [%{code: "invalid_value"}] =
+               assert_error("x", %{"pattern" => bs <> "uD83D" <> bs <> "u0041"})
+    end
+
     test "invalid pattern is an invalid_value error, not a silent pass" do
       assert [%{code: "invalid_value"}] = assert_error("x", %{"pattern" => "([unclosed"})
     end
@@ -133,6 +185,20 @@ defmodule A2UICore.SchemaTest do
     test "multipleOf" do
       assert_ok(9, %{"multipleOf" => 3})
       assert_error(10, %{"multipleOf" => 3})
+      assert_ok(12_345_678_901_234_567_890, %{"multipleOf" => 10})
+      assert_ok(0.3, %{"multipleOf" => 0.1})
+    end
+
+    test "multipleOf with a quotient too large for a float uses the remainder" do
+      assert_ok(1.0e308, %{"multipleOf" => 0.5})
+      assert_error(1.0e308, %{"multipleOf" => 0.123456789})
+    end
+
+    test "decimal limits count like integers" do
+      assert_ok("ab", %{"maxLength" => 2.0})
+      assert_error("abc", %{"maxLength" => 2.0})
+      assert_error([1], %{"minItems" => 2.0})
+      assert_error([1, 2, 3], %{"maxItems" => 2.0})
     end
   end
 
@@ -198,6 +264,35 @@ defmodule A2UICore.SchemaTest do
                assert_error(%{"Surface" => %{}}, schema)
     end
 
+    test "dependentRequired" do
+      schema = %{"dependentRequired" => %{"card" => ["billing"]}}
+      assert_ok(%{"name" => "x"}, schema)
+      assert_ok(%{"card" => 1, "billing" => 2}, schema)
+
+      assert [%{code: "missing_field", path: "billing", message: message}] =
+               assert_error(%{"card" => 1}, schema)
+
+      assert message == "'billing' is a dependency of 'card'"
+    end
+
+    test "dependentSchemas apply when the property is present, and annotate" do
+      schema = %{
+        "properties" => %{"card" => true},
+        "dependentSchemas" => %{
+          "card" => %{"properties" => %{"billing" => %{"type" => "string"}}}
+        },
+        "unevaluatedProperties" => false
+      }
+
+      assert_ok(%{"card" => 1, "billing" => "x"}, schema)
+      # A failing dependent schema contributes no annotations either.
+      assert [%{code: "type_mismatch", path: "billing"}, %{code: "extra_field"}] =
+               assert_error(%{"card" => 1, "billing" => 2}, schema)
+
+      assert [%{code: "extra_field"}] = assert_error(%{"billing" => "x"}, schema)
+      assert_ok("not an object", schema)
+    end
+
     test "minProperties / maxProperties" do
       assert_error(%{"a" => 1}, %{"minProperties" => 2})
       assert_ok(%{"a" => 1, "b" => 2}, %{"minProperties" => 2})
@@ -236,6 +331,36 @@ defmodule A2UICore.SchemaTest do
       assert_ok([1, 2], %{"uniqueItems" => true})
       assert_ok(["@call"], %{"contains" => %{"const" => "@call"}})
       assert_error(["x"], %{"contains" => %{"const" => "@call"}})
+    end
+
+    test "minContains / maxContains bound the matches" do
+      schema = %{"contains" => %{"const" => 1}, "minContains" => 2, "maxContains" => 3}
+      assert_ok([1, 1, 2], schema)
+      assert [%{message: message}] = assert_error([1, 2], schema)
+      assert message =~ "too few matching elements (minimum 2)"
+      assert [%{message: message}] = assert_error([1, 1, 1, 1], schema)
+      assert message =~ "too many matching elements (maximum 3)"
+      assert_ok([], %{"contains" => %{"const" => 1}, "minContains" => 0})
+    end
+
+    test "unevaluatedItems sees prefixItems, items, contains and applicators" do
+      assert [%{message: message}] = assert_error([1, 2], %{"unevaluatedItems" => false})
+      assert message == "Unevaluated items are not allowed (0, 1 unexpected)"
+      assert_ok([], %{"unevaluatedItems" => false})
+      assert_ok([1], %{"unevaluatedItems" => true})
+
+      prefixed = %{"prefixItems" => [true], "unevaluatedItems" => %{"type" => "string"}}
+      assert_ok([1, "a"], prefixed)
+      assert [%{path: "1"}] = assert_error([1, 2], prefixed)
+
+      contains = %{"contains" => %{"type" => "string"}, "unevaluatedItems" => false}
+      assert_ok(["a", "b"], contains)
+      assert_error(["a", 1], contains)
+
+      nested = %{"allOf" => [%{"prefixItems" => [true]}], "unevaluatedItems" => false}
+      assert_ok([1], nested)
+      assert_error([1, 2], nested)
+      assert_ok(%{}, nested)
     end
   end
 
@@ -378,6 +503,141 @@ defmodule A2UICore.SchemaTest do
     test "unresolvable ref yields invalid_reference" do
       assert [%{code: "invalid_reference"}] =
                assert_error(1, %{"$ref" => "missing.json#/$defs/X"})
+    end
+
+    test "$ref annotations count for unevaluatedProperties" do
+      root = %{
+        "$defs" => %{"base" => %{"properties" => %{"a" => true}}},
+        "$ref" => "#/$defs/base",
+        "unevaluatedProperties" => false
+      }
+
+      assert_ok(%{"a" => 1}, root)
+      assert [%{code: "extra_field"}] = assert_error(%{"a" => 1, "b" => 2}, root)
+    end
+
+    test "$id sets the base URI, and embedded resources resolve by it" do
+      schema = %{
+        "$id" => "https://example.com/root.json",
+        "$defs" => %{
+          "item" => %{
+            "$id" => "item.json",
+            "$defs" => %{"name" => %{"type" => "string"}},
+            "$ref" => "#/$defs/name"
+          }
+        },
+        "properties" => %{
+          "a" => %{"$ref" => "item.json"},
+          "b" => %{"$ref" => "https://example.com/item.json#/$defs/name"}
+        }
+      }
+
+      assert_ok(%{"a" => "x", "b" => "y"}, schema, root: schema)
+      assert [%{path: "a"}] = assert_error(%{"a" => 1}, schema, root: schema)
+      assert [%{path: "b"}] = assert_error(%{"b" => 1}, schema, root: schema)
+    end
+
+    test "plain-name anchors and percent-encoded pointers" do
+      schema = %{
+        "$defs" => %{
+          "n" => %{"$anchor" => "number", "type" => "number"},
+          "a%b" => %{"type" => "string"}
+        },
+        "properties" => %{
+          "n" => %{"$ref" => "#number"},
+          "s" => %{"$ref" => "#/$defs/a%25b"}
+        }
+      }
+
+      assert_ok(%{"n" => 1, "s" => "x"}, schema, root: schema)
+      assert_error(%{"n" => "x"}, schema, root: schema)
+      assert_error(%{"s" => 1}, schema, root: schema)
+    end
+
+    test "resources are found inside arrays, and never inside data keywords" do
+      schema = %{
+        "$id" => "https://example.com/root.json",
+        "$defs" => %{
+          "list" => %{"anyOf" => [%{"$id" => "list.json", "type" => "array"}]},
+          "data" => %{"const" => %{"$id" => "data.json", "type" => "string"}}
+        },
+        "properties" => %{"a" => %{"$ref" => "list.json"}, "b" => %{"$ref" => "data.json"}}
+      }
+
+      assert_ok(%{"a" => []}, schema, root: schema)
+      assert [%{code: "invalid_reference"}] = assert_error(%{"b" => "x"}, schema, root: schema)
+    end
+
+    test "a pointer into an embedded resource resolves later refs against its base" do
+      schema = %{
+        "$id" => "https://example.com/root.json",
+        "$defs" => %{
+          "inner" => %{
+            "$id" => "nested/inner.json",
+            "$defs" => %{"x" => %{"$ref" => "leaf.json"}}
+          },
+          "leaf" => %{"$id" => "nested/leaf.json", "type" => "integer"}
+        },
+        "$ref" => "#/$defs/inner/$defs/x"
+      }
+
+      assert_ok(1, schema, root: schema)
+      assert_error("x", schema, root: schema)
+    end
+
+    test "a relative base URI joins nothing: references keep their own spelling" do
+      schema = %{
+        "$defs" => %{"item" => %{"$id" => "item.json", "$ref" => "other.json"}},
+        "$ref" => "item.json"
+      }
+
+      registry = %{"other.json" => %{"type" => "string"}}
+      assert_ok("x", schema, root: schema, registry: registry)
+      assert_error(1, schema, root: schema, registry: registry)
+    end
+
+    test "$dynamicRef to a target without a dynamic anchor acts like $ref" do
+      schema = %{
+        "$defs" => %{"s" => %{"type" => "string"}},
+        "$dynamicRef" => "#/$defs/s"
+      }
+
+      assert_ok("x", schema, root: schema)
+      assert_error(1, schema, root: schema)
+
+      anchored = %{
+        "$defs" => %{"s" => %{"$anchor" => "s", "type" => "string"}},
+        "$dynamicRef" => "#s"
+      }
+
+      assert_ok("x", anchored, root: anchored)
+      assert_error(1, anchored, root: anchored)
+    end
+
+    test "$dynamicRef resolves to the outermost dynamic anchor in scope" do
+      tree = %{
+        "$id" => "https://example.com/tree",
+        "$dynamicAnchor" => "node",
+        "type" => "object",
+        "properties" => %{
+          "data" => true,
+          "children" => %{"type" => "array", "items" => %{"$dynamicRef" => "#node"}}
+        }
+      }
+
+      strict = %{
+        "$id" => "https://example.com/strict-tree",
+        "$dynamicAnchor" => "node",
+        "$ref" => "tree",
+        "unevaluatedProperties" => false
+      }
+
+      registry = %{"https://example.com/tree" => tree}
+      misspelt = %{"children" => [%{"daat" => 1}]}
+
+      assert_ok(%{"children" => [%{"data" => 1}]}, strict, registry: registry, root: strict)
+      assert_error(misspelt, strict, registry: registry, root: strict)
+      assert_ok(misspelt, tree, registry: registry, root: tree)
     end
 
     test "$ref with siblings (2020-12: siblings still apply)" do
@@ -542,6 +802,79 @@ defmodule A2UICore.SchemaTest do
         Schema.validate(%{"x" => 1}, %{"additionalProperties" => false})
 
       assert m =~ "Additional properties are not allowed"
+    end
+  end
+
+  describe "vocabularies of a custom meta-schema" do
+    @vocab "https://json-schema.org/draft/2020-12/vocab/"
+
+    defp meta(id, vocabularies),
+      do: %{"$id" => id, "$vocabulary" => Map.new(vocabularies, &{@vocab <> &1, true})}
+
+    test "keywords of vocabularies the meta-schema leaves out are ignored" do
+      registry = %{
+        "https://example.com/meta" => meta("https://example.com/meta", ~w(core applicator))
+      }
+
+      schema = %{
+        "$schema" => "https://example.com/meta",
+        "properties" => %{"bad" => false, "n" => %{"minimum" => 10}}
+      }
+
+      assert_ok(%{"n" => 1}, schema, registry: registry)
+      assert_error(%{"bad" => 1}, schema, registry: registry)
+    end
+
+    test "a referenced resource is evaluated in its own dialect" do
+      registry = %{
+        "https://example.com/meta" => meta("https://example.com/meta", ~w(core)),
+        "https://example.com/loose" => %{
+          "$schema" => "https://example.com/meta",
+          "type" => "string"
+        }
+      }
+
+      assert_ok(1, %{"$ref" => "https://example.com/loose"}, registry: registry)
+    end
+
+    test "format-assertion makes format assert" do
+      registry = %{
+        "https://example.com/meta" => meta("https://example.com/meta", ~w(core format-assertion))
+      }
+
+      schema = %{"$schema" => "https://example.com/meta", "format" => "date"}
+      assert_ok("2026-10-16", schema, registry: registry)
+      assert_error("2026-13-01", schema, registry: registry)
+    end
+
+    test "an unknown required vocabulary makes the schema unprocessable" do
+      registry = %{
+        "https://example.com/meta" => %{
+          "$vocabulary" => %{"https://example.com/vocab/custom" => true}
+        },
+        "https://example.com/optional" => %{
+          "$vocabulary" => %{
+            "https://example.com/vocab/custom" => false,
+            (@vocab <> "validation") => true
+          }
+        }
+      }
+
+      assert_raise ArgumentError, ~r/requires vocabularies/, fn ->
+        Schema.validate(1, %{"$schema" => "https://example.com/meta"}, registry: registry)
+      end
+
+      schema = %{"$schema" => "https://example.com/optional", "type" => "string"}
+      assert_error(1, schema, registry: registry)
+    end
+
+    test "standard and unresolvable meta-schemas keep every keyword" do
+      assert_error(1, %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "type" => "string"
+      })
+
+      assert_error(1, %{"$schema" => "https://example.com/unknown", "type" => "string"})
     end
   end
 

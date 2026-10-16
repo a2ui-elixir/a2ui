@@ -156,9 +156,9 @@ alias A2UICore.{Catalog, Processor, Surface}
 ```
 A2UICore
 ├── Version            # semver, protocol versions, catalog compatibility
-├── Identifier         # UAX #31 (PCRE approximation, documented)
+├── Identifier         # UAX #31 (PCRE2 XID properties)
 ├── Pointer            # RFC 6901: parse/build/resolve/unescape; forbidden keys
-├── Schema             # Draft 2020-12 subset validator (see §7)
+├── Schema             # Draft 2020-12 validator (see §7)
 ├── Error              # struct: category, code, message, path, details
 │
 ├── Message
@@ -175,7 +175,7 @@ A2UICore
 │
 ├── Catalog
 │   ├── loader           # JSON-Schema map → Catalog struct, UAX/license checks
-│   ├── schema           # Draft 2020-12 subset validator (incl. `unevaluatedProperties`)
+│   ├── schema           # Draft 2020-12 validator (incl. `unevaluatedProperties`)
 │   ├── functions        # behaviour for function implementation
 │   ├── basic            # the shipped basic catalog (18 components, 14 functions)
 │   └── expression       # `${...}` template parser (formatString)
@@ -293,6 +293,11 @@ Supported keywords:
 
 One subtlety: `catalog.json` is a placeholder $ref target in the spec; our validator
 resolves it to the surface's active catalog at load time.
+
+As built, `A2UICore.Schema` grew past this subset into the whole of draft 2020-12
+(`$dynamicRef`, `$id` resources, anchors, `unevaluatedItems`, `dependent*`,
+`min`/`maxContains`, `$vocabulary`) and passes every required test of the official
+JSON Schema Test Suite for draft 2020-12.
 
 Estimated effort ~800 LOC, covered by spec's own `json/` tests + upstream
 `common_types.yaml`, `validator_*.yaml` conformance cases.

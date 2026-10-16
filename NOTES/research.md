@@ -130,8 +130,8 @@ Harnesses must declare `SUPPORTED_PROTOCOL_VERSIONS` and `SKIP_TEST_NAMES`.
 
 | Need | Finding |
 |---|---|
-| UAX #31 | PCRE2 in Elixir **has no** `\p{XID_Start}`/`\p{XID_Continue}`. Approximation `^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Mn}\p{Mc}\p{Nd}\p{Pc}]*$` verified against all conformance-relevant cases. |
-| JSON Schema | No Draft 2020-12 library. `ex_json_schema` is 0.11.5 (draft-07 era, no `unevaluatedProperties`/`prefixItems`). `spark` is a DSL, not a validator. -> implement a focused subset validator. |
+| UAX #31 | Corrected later: PCRE2 10.4x (Erlang/OTP 28 and later) **has** `\p{XID_Start}`/`\p{XID_Continue}`, and they agree with Python's `str.isidentifier()` where the approximation `^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Mn}\p{Mc}\p{Nd}\p{Pc}]*$` does not (U+2118, U+00B7, U+0E33, U+037A, U+1885). The approximation remains only for older PCRE. |
+| JSON Schema | No Draft 2020-12 library. `ex_json_schema` is 0.11.5 (draft-07 era, no `unevaluatedProperties`/`prefixItems`). `spark` is a DSL, not a validator. -> implement our own validator (it now passes the official draft 2020-12 test suite). |
 | `$` in `pattern` | JSON Schema `pattern` is ECMA-262; translate `$` -> `\z` outside character classes (same trick web_core uses). |
 | YAML | `yamerl ~> 0.10` (pure Erlang) for the conformance harness. |
 | Intl formatting | `intl ~> 1.0` available for `formatNumber`/`formatCurrency`/`formatDate`/`pluralize`. |

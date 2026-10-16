@@ -16,11 +16,18 @@ defmodule A2UICore.SpecCasesTest do
   alias A2UICore.Schema.Source
   alias A2UICore.Test.Reference
 
-  # ajv ships the 2020-12 meta-schema; catalog_definition.json references
-  # it for the JSON-Schema-valued fields of a catalog. Binding it to `true`
-  # accepts any schema there, which is the verdict ajv reaches for every
-  # A2UI case (none of them carries a malformed embedded schema).
-  @meta_schema_url "https://json-schema.org/draft/2020-12/schema"
+  # ajv ships the 2020-12 meta-schemas; catalog_definition.json references
+  # them for the JSON-Schema-valued fields of a catalog. These are the
+  # json-schema.org copies (test/fixtures/json_schema, with their license),
+  # by `$id`.
+  @meta_schemas "../fixtures/json_schema/**/*.json"
+                |> Path.expand(__DIR__)
+                |> Path.wildcard()
+                |> Map.new(fn file ->
+                  @external_resource file
+                  schema = file |> File.read!() |> Jason.decode!()
+                  {schema["$id"], schema}
+                end)
 
   @schema_names %{
     "agent_to_renderer.json" => :agent_to_renderer,
@@ -72,9 +79,10 @@ defmodule A2UICore.SpecCasesTest do
 
         registry = %{
           "catalog_definition.json" => Source.document("v1.0", :catalog_definition),
-          "common_types.json" => Source.document("v1.0", :common_types),
-          @meta_schema_url => true
+          "common_types.json" => Source.document("v1.0", :common_types)
         }
+
+        registry = Map.merge(registry, @meta_schemas)
 
         catalog = Source.catalog("v1.0", unquote(kind))
 
@@ -86,6 +94,27 @@ defmodule A2UICore.SpecCasesTest do
                  )
       end
     end
+  end
+
+  # The meta-schemas are live: a component whose schema is not a JSON
+  # Schema fails the catalog structure check.
+  @tag :spec_case
+  test "catalog structure rejects a component schema that is not a JSON Schema" do
+    validator = %{"$ref" => "https://a2ui.org/specification/v1_0/catalog_definition.json"}
+
+    registry =
+      Map.merge(
+        %{
+          "catalog_definition.json" => Source.document("v1.0", :catalog_definition),
+          "common_types.json" => Source.document("v1.0", :common_types)
+        },
+        @meta_schemas
+      )
+
+    catalog = put_in(Source.catalog("v1.0", :basic), ["components", "Text", "type"], 5)
+
+    assert {:error, [_ | _]} =
+             Schema.validate(catalog, validator, registry: registry, root: validator)
   end
 
   # run_tests.py steps 6-7: the bundle and A2A schemas resolve all their
@@ -158,7 +187,8 @@ defmodule A2UICore.SpecCasesTest do
     dir
     |> File.ls!()
     |> Map.new(fn file -> {file, Source.document("v1.0", file)} end)
-    |> Map.merge(%{"catalog.json" => Source.catalog("v1.0", :basic), @meta_schema_url => true})
+    |> Map.merge(%{"catalog.json" => Source.catalog("v1.0", :basic)})
+    |> Map.merge(@meta_schemas)
   end
 
   defp assert_verdict(:valid, result), do: assert(:ok = result)
@@ -171,14 +201,14 @@ defmodule A2UICore.SpecCasesTest do
       "common_types.json" => Source.document(version, :common_types),
       "catalog.json" => catalog_for(version, catalog_name),
       "agent_to_renderer.json" => Source.document(version, :agent_to_renderer),
-      "renderer_to_agent.json" => Source.document(version, :renderer_to_agent),
-      @meta_schema_url => true
+      "renderer_to_agent.json" => Source.document(version, :renderer_to_agent)
     }
 
     case Source.document(version, :catalog_definition) do
       nil -> base
       definition -> Map.put(base, "catalog_definition.json", definition)
     end
+    |> Map.merge(@meta_schemas)
   end
 
   defp catalog_for("v1.0", "testing_catalog.json"), do: Source.catalog("v1.0", :testing)

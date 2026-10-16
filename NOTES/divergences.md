@@ -11,12 +11,12 @@ them or documented as a skip with a reason.
   uses ajv with ajv-formats, which does assert it. `A2UICore.Schema.validate/3` takes
   `formats: :assert` for the latter; the spec-case replay uses it (one case,
   `openUrl: Invalid URL format (not a URI)`, depends on it).
-- **`unevaluatedItems` raises.** No A2UI schema uses it; supporting it would need
-  array-item annotation tracking that nothing exercises.
-- **2020-12 meta-schema is bound to `true`** when validating v1.0 catalog documents
-  (`catalog_definition.json` embeds schemas by `$ref` to it). Supporting the real
-  meta-schema needs `$dynamicRef`, which the engine does not implement. Verdicts match
-  ajv on all upstream cases because none of them carries a malformed embedded schema.
+- **Regular expressions are ECMA-262's.** Schema patterns and the basic catalog's
+  `regex` function read `\d`, `\w` and `\b` as ASCII, `\s` as ECMA-262's white space,
+  `.` as anything but a line terminator, and accept `\u` escapes and ECMA-262's
+  Unicode property names, as ajv (the spec test runner) and the TypeScript SDK do.
+  Python's `regex` module matches `\d` and `\w` against Unicode instead, so `^\d+$`
+  accepts an NKo digit there and rejects it here. No upstream case depends on it.
 - **Leading `]` in a character class is a literal** (`[]a]`, `[^]a]`), as in the
   reference's PCRE-style `regex` module, not an empty / any-character class as in
   ECMA-262. No A2UI schema or catalog uses either form.
