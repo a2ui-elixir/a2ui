@@ -524,7 +524,7 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       changelog sections are dated; the landing page's footer links the
       repository and each package's docs; the film's end card shows the
       repository.
-- [ ] M25.3 Publish 0.1.0 to Hex: `a2ui_core`, then `a2ui_phoenix` and
+- [x] M25.3 0.1.0 published to Hex: `a2ui_core`, then `a2ui_phoenix` and
       `a2ui_agent` (`A2UI_HEX_BUILD=1`); tag `v0.1.0`.
 
 ### Decisions
