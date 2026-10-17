@@ -520,11 +520,10 @@ dependency decision; `A2UICore.Formatter` is pluggable).
 - [x] M25.1 Apache-2.0, the specification's license, in every commit
       (history rewritten): LICENSE files with the full text and
       "Copyright 2026 Reza Ebrahimi", `licenses: ["Apache-2.0"]`, the READMEs,
-      the landing page, the film's narration and end card.
+      the landing page.
 - [x] M25.2 `@source_url` is `github.com/a2ui-elixir/a2ui`; the 0.1.0
       changelog sections are dated; the landing page's footer links the
-      repository and each package's docs; the film's end card shows the
-      repository.
+      repository and each package's docs.
 - [x] M25.3 0.1.0 published to Hex: `a2ui_core`, then `a2ui_phoenix` and
       `a2ui_agent` (`A2UI_HEX_BUILD=1`); tag `v0.1.0`.
 
@@ -558,7 +557,7 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       yet" note; assets imported as the guide says; validation in the
       LiveView sample; a clone-and-run terminal; the coverage figure.
 - [x] M27.3 Canonical URL, Open Graph and Twitter card metadata, and a
-      1200×630 preview image cut from the film's end card.
+      1200×630 preview image.
 
 ### M28 — 0.1.1: Elixir 1.17 and OTP 27 (2026-10-17)
 
