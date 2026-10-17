@@ -1,6 +1,7 @@
 # TODO — Elixir A2UI port
 
-Working task list, ticked as work lands; one local commit per milestone.
+The log of the work that built the packages: the task list, ticked as work
+landed, one commit per milestone.
 Phases follow PLAN.md §11. Case counts exclude v0.8. Upstream reference
 harness: `reference/a2ui/python/a2ui_core/tests/test_conformance.py`
 (line numbers below refer to it).
@@ -526,6 +527,24 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       repository.
 - [x] M25.3 0.1.0 published to Hex: `a2ui_core`, then `a2ui_phoenix` and
       `a2ui_agent` (`A2UI_HEX_BUILD=1`); tag `v0.1.0`.
+
+### M26 — audit after the first release (2026-10-17)
+
+- [x] M26.1 History and tree checked for secrets, keys, local paths and
+      session logs (none); `bandit` 1.12.5, a test dependency with two
+      advisories, updated to 1.13.1; CI's token limited to reading.
+- [x] M26.2 A regular-expression search stops after a million backtracking
+      steps (`REGEX_LIMIT`) instead of PCRE's ten million.
+- [x] M26.3 The README is the project's front page (packages, installation,
+      quick start, examples, conformance); development, releasing and the
+      spec bump moved to `CONTRIBUTING.md`; `SECURITY.md` added.
+- [x] M26.4 Guides and package READMEs checked against the code, every
+      example run: a catalog for components of your own (a child property
+      must be a `ComponentId`), v0.9.1 named with v0.9, `callAgentFunction`
+      among the messages for the agent, the MCP client's optional callbacks,
+      validation in the LiveView examples, installation sections.
+- [ ] M26.5 CI job on Elixir 1.17 / OTP 27, the oldest the packages accept:
+      confirm it passes, or raise the requirement in the next release.
 
 ### Decisions
 

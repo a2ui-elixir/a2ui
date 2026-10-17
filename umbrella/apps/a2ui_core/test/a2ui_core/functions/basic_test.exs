@@ -101,6 +101,11 @@ defmodule A2UICore.Functions.BasicTest do
       assert error!("v0.9", "regex", %{"value" => "x", "pattern" => "("}) ==
                "Invalid regex pattern '('"
     end
+
+    test "a pattern that backtracks without end is an error" do
+      args = %{"value" => String.duplicate("a", 30) <> "!", "pattern" => "^(a+)+$"}
+      assert error!("v1.0", "regex", args) =~ "took too many steps"
+    end
   end
 
   describe "length" do

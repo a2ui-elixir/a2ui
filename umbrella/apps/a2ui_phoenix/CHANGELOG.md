@@ -8,7 +8,7 @@ First release.
   data.
 - `A2UIPhoenix.Live` and `A2UIPhoenix.Surface`: surfaces in a LiveView, with
   two-way bindings, actions and local UI state.
-- The basic catalog's components (protocol v0.9.1 and v1.0) as function
+- The basic catalog's components (protocols v0.9, v0.9.1 and v1.0) as function
   components with ARIA attributes.
 - A design system for them (`priv/static/a2ui_phoenix.css`): tokens named as
   in the reference web renderers (`--a2ui-color-primary`, type scale, space,

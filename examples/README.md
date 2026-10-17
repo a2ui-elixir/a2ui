@@ -36,7 +36,7 @@ mix chat --stream "Find Italian restaurants" "click:Book a table" \
 ```
 
 The gallery's reference-examples page reads the upstream checkout described in
-the repository's README (`reference/a2ui`, or `A2UI_REFERENCE_ROOT`).
+the repository's `CONTRIBUTING.md` (`reference/a2ui`, or `A2UI_REFERENCE_ROOT`).
 
 ## Tests
 

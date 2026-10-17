@@ -420,6 +420,17 @@ defmodule A2UICore.EdgeCasesTest do
       assert ECMA262.match?("^a$", "a")
     end
 
+    test "a search stops after a million backtracking steps" do
+      value = String.duplicate("a", 30) <> "!"
+
+      assert {:error, %Error{code: "REGEX_LIMIT", message: message}} =
+               ECMA262.search("^(a+)+$", value)
+
+      assert message =~ "took too many steps"
+      assert ECMA262.search("^a+$", value) == {:ok, false}
+      assert ECMA262.search("^(a+)+!$", value) == {:ok, true}
+    end
+
     test "compile!/1 raises on an invalid pattern" do
       assert %Regex{} = ECMA262.compile!("^a$")
       assert_raise Error, ~r/Cannot compile/, fn -> ECMA262.compile!("[") end

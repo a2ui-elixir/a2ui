@@ -1,10 +1,11 @@
-# AGENTS.md — lab-elixir-a2ui
+# AGENTS.md — A2UI for Elixir
 
 ## What this repo is
 
-Elixir/Phoenix implementation of the [A2UI protocol](https://a2ui.org) — build plan in
-`PLAN.md`, distilled research in `NOTES/research.md`, upstream reference clones in
-`reference/` (gitignored; how to re-clone is in the README).
+Elixir/Phoenix implementation of the [A2UI protocol](https://a2ui.org), published to Hex
+as `a2ui_core`, `a2ui_phoenix` and `a2ui_agent` (github.com/a2ui-elixir/a2ui). The
+original build plan is in `PLAN.md`, distilled research in `NOTES/research.md`, upstream
+reference clones in `reference/` (gitignored; how to re-clone is in `CONTRIBUTING.md`).
 
 ## Invariants (do not break these)
 
@@ -37,7 +38,7 @@ mix dialyzer                               # first run builds the PLT (slow)
 ```
 
 The fidelity and conformance suites need the pinned upstream checkout at
-`reference/a2ui` (see `README.md`). Set `A2UI_REFERENCE_ROOT` to point elsewhere and
+`reference/a2ui` (see `CONTRIBUTING.md`). Set `A2UI_REFERENCE_ROOT` to point elsewhere and
 `A2UI_REQUIRE_REFERENCE=1` to make a missing checkout a failure instead of a silent
 zero-test run (CI does).
 
@@ -48,7 +49,7 @@ Each publishable app builds its own docs (`mix docs --warnings-as-errors` in
 `apps/a2ui_core`, `apps/a2ui_phoenix` and `apps/a2ui_agent`; CI checks this). Its
 guide lives in `guides/`, and every code example in a guide must run as written. A
 package build of `a2ui_phoenix` or `a2ui_agent` needs `A2UI_HEX_BUILD=1`, so that
-`a2ui_core` becomes a Hex requirement instead of the sibling app (`README.md`,
+`a2ui_core` becomes a Hex requirement instead of the sibling app (`CONTRIBUTING.md`,
 Releasing).
 
 Progress and the working task list live in `TODO.md`; deliberate deviations from the

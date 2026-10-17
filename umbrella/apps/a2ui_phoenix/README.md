@@ -1,9 +1,19 @@
 # A2UIPhoenix
 
 A Phoenix LiveView renderer for [A2UI](https://a2ui.org) surfaces, built on
-`a2ui_core`. It renders the basic catalog (protocol v0.9.1 and v1.0) as
-function components, keeps two-way bindings in the surface's data model, and
-turns user actions into renderer→agent messages.
+`a2ui_core`. It renders the basic catalog (protocols v0.9, v0.9.1 and v1.0)
+as function components, keeps two-way bindings in the surface's data model,
+and turns user actions into renderer→agent messages.
+
+## Installation
+
+```elixir
+def deps do
+  [
+    {:a2ui_phoenix, "~> 0.1.0"}
+  ]
+end
+```
 
 ## Usage
 
@@ -14,7 +24,10 @@ defmodule MyAppWeb.AgentLive do
   alias A2UIPhoenix.{Live, Session}
 
   def mount(_params, _session, socket) do
-    session = Session.new([A2UICore.Catalog.Basic.catalog("v1.0")])
+    # Check every component against its catalog; relaxed validation still
+    # accepts a surface whose components arrive over several messages.
+    validation = A2UICore.Validation.Config.relaxed()
+    session = Session.new([A2UICore.Catalog.Basic.catalog("v1.0")], validation: validation)
     {:ok, Live.init(socket, session, on_send: &send_to_agent/2)}
   end
 
@@ -36,8 +49,8 @@ defmodule MyAppWeb.AgentLive do
     """
   end
 
-  # Messages for the agent (`action`, `error`, `rendererFunctionResponse`),
-  # here broadcast to the process that talks to it.
+  # Messages for the agent (`action`, `error`, `callAgentFunction`,
+  # `rendererFunctionResponse`), here broadcast to the process that talks to it.
   defp send_to_agent(message, socket) do
     Phoenix.PubSub.broadcast(MyApp.PubSub, "a2ui:renderer", {:renderer, self(), message})
     socket
@@ -45,13 +58,14 @@ defmodule MyAppWeb.AgentLive do
 end
 ```
 
-Add `priv/static/a2ui_phoenix.js` to the page's scripts so `openUrl` actions
+Add `priv/static/a2ui_phoenix.js` to the page's scripts, so that `openUrl` actions
 open their URL, and `priv/static/a2ui_phoenix.css`, the components' design
 system: light and dark, themed by `--a2ui-*` custom properties (or replaced
 by your own styles for the `a2ui-*` classes). The script also holds the hook of the MCP
 catalog's `McpApp` component (`hooks: {...window.A2UIPhoenix.hooks}`), whose
-sandbox proxy page, `priv/static/a2ui_mcp_sandbox.html`, the endpoint serves;
-see the guide.
+sandbox proxy page, `priv/static/a2ui_mcp_sandbox.html`, the endpoint serves.
+[Rendering surfaces](guides/rendering_surfaces.md) shows how to load them,
+and covers theming, agent functions and the MCP catalog.
 
 A catalog of your own brings its components as a map:
 
@@ -72,7 +86,7 @@ event:
 # In a controller:
 def events(conn, params), do: A2UIPhoenix.Plug.SSE.stream(conn, MyAgent.messages(params))
 
-# Or mounted in a router, with the source called for each request:
+# Or mounted in a router; for each request the plug calls MyAgent.messages(conn):
 forward "/a2ui/events", A2UIPhoenix.Plug.SSE, source: {MyAgent, :messages, []}
 ```
 

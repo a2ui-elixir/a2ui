@@ -13,7 +13,22 @@ writes a compact notation between `<a2ui>` and `</a2ui>` tags, which the agent
 compiles into messages. An Express prompt can also be packaged as skills
 (`A2UIAgent.SkillGenerator`).
 
+## Installation
+
+```elixir
+def deps do
+  [
+    {:a2ui_agent, "~> 0.1.0"}
+  ]
+end
+```
+
 ## Usage
+
+An outline of the flow; [Serving an agent](guides/serving_an_agent.md) walks
+through it with examples that run. Here `example_turn` is an example
+conversation turn for the prompt, `capabilities` the capabilities the
+renderer sent, and `model_output` and `chunk` what the model wrote.
 
 ```elixir
 alias A2UIAgent.{CatalogConfig, CatalogTransformer, Generator, RequestProcessor}

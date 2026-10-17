@@ -15,7 +15,7 @@ defmodule A2UIPhoenix.Surface do
   `A2UIPhoenix.Components.MCP.components/0`; `:markdown` and
   `:mcp_sandbox` — see `A2UIPhoenix.Context`.
 
-  A surface created with a theme (protocol v0.9) shows it: `primaryColor`
+  A surface created with a theme (protocols v0.9 and v0.9.1) shows it: `primaryColor`
   becomes the `--a2ui-color-primary` custom property of the surface, and
   `iconUrl` and `agentDisplayName` are shown above it, to say which agent
   made it.

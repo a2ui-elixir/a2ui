@@ -31,12 +31,17 @@ defmodule A2UICore.Schema.ECMA262 do
     approximation: `XID_Start` ≈ `\\p{L}\\p{Nl}`, `XID_Continue` ≈
     `\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}`.
 
-  Matching is *search* (unanchored), per JSON Schema.
+  Matching is *search* (unanchored), per JSON Schema. A search stops
+  after a million backtracking steps: patterns come from agents and
+  catalogs, and one such as `^(a+)+$` would otherwise run until PCRE's
+  own limit, ten times that, and then report no match.
   """
 
   alias A2UICore.Error
 
   @moduledoc since: "0.1.0"
+
+  @match_limit 1_000_000
 
   @native_xid match?({:ok, _regex}, Regex.compile("\\p{XID_Start}", "u"))
 
@@ -135,14 +140,31 @@ defmodule A2UICore.Schema.ECMA262 do
   Searches `value` for the ECMA-262 `pattern` (unanchored, per JSON
   Schema).
 
-  Returns `{:ok, boolean}` or `{:error, error}` when the pattern itself
-  cannot compile (the caller decides how to surface that).
+  Returns `{:ok, boolean}`, or `{:error, error}` when the pattern itself
+  cannot compile (`INVALID_REGEX`) or the search takes more than a million
+  backtracking steps (`REGEX_LIMIT`); the caller decides how to surface
+  that.
   """
   @spec search(String.t(), String.t()) :: {:ok, boolean()} | {:error, Error.t()}
   def search(pattern, value) when is_binary(pattern) and is_binary(value) do
-    case compile(pattern) do
-      {:ok, regex} -> {:ok, Regex.match?(regex, value)}
-      {:error, _} = error -> error
+    with {:ok, regex} <- compile(pattern) do
+      options = [:report_errors, capture: :none, match_limit: @match_limit]
+
+      case :re.run(value, regex.re_pattern, options) do
+        :match ->
+          {:ok, true}
+
+        :nomatch ->
+          {:ok, false}
+
+        {:error, reason} ->
+          {:error,
+           Error.new(
+             :expression,
+             "REGEX_LIMIT",
+             "Searching with pattern #{inspect(pattern)} took too many steps: #{inspect(reason)}"
+           )}
+      end
     end
   end
 

@@ -1,5 +1,10 @@
 # Elixir/Phoenix A2UI — Implementation Plan
 
+> **Status:** the plan the packages were built from, kept as a record. The
+> code, the package guides on HexDocs and `NOTES/divergences.md` describe
+> what was built; where a sketch here differs from them, they are right.
+> `TODO.md` is the log of the work.
+
 A plan for a spec-faithful, multi-version, Loupe-quality Elixir implementation of the
 [A2UI protocol](https://a2ui.org) (Apache-2.0, Google + CopilotKit), shipped as a small
 family of focused Hex packages with Phoenix/LiveView as the reference renderer.
@@ -112,7 +117,7 @@ Umbrella project. One supervisor tree is *only* for the example host app; the pa
 themselves add zero processes.
 
 ```
-lab-elixir-a2ui/
+a2ui/
 ├── umbrella/                    # MIX project for monorepo tests/ci
 │   └── apps/
 │       ├── a2ui_core/           # THIS PLAN

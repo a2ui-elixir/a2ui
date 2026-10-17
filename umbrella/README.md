@@ -11,6 +11,5 @@ v0.9, v0.9.1 and v1.0.
 - `apps/a2ui_conformance`: the harness that runs the upstream YAML conformance
   suites.
 
-The repository `README.md` one level up covers fetching the pinned upstream
-reference the test suites run against, the commands, releasing, and bumping
-`SPEC_PIN`.
+`CONTRIBUTING.md` one level up covers fetching the pinned upstream reference
+the test suites run against, the commands, releasing, and bumping `SPEC_PIN`.

@@ -81,6 +81,9 @@ defmodule A2UICore.Functions.Basic do
       {:ok, valid?} ->
         {:ok, validity(valid?, v1?)}
 
+      {:error, %Error{code: "REGEX_LIMIT", message: message}} ->
+        {:error, expression_error(message)}
+
       {:error, _reason} ->
         {:error, expression_error("Invalid regex pattern '#{pattern}'")}
     end

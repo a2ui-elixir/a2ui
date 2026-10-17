@@ -3,8 +3,8 @@
 `a2ui_agent` is the agent's side of A2UI. The agent declares the catalogs it
 can write for and agrees with each renderer on the ones they share. It puts
 those catalogs' schemas in the model's prompt and reads the model's output
-back as messages a renderer will accept. `A2UIAgent.A2A` serves the result
-over A2A. Each example continues from the one before it.
+back as messages a renderer will accept. `A2UIAgent.A2A.Plug` serves the
+result over A2A. Each example continues from the one before it.
 
 ## Catalogs
 
@@ -275,7 +275,8 @@ forward "/a2a", A2UIAgent.A2A.Plug, agent: GreetingAgent
 `POST` answers JSON-RPC: `message/send` with the finished task, and
 `message/stream` with server-sent events as the output arrives. `GET` serves
 the agent card. The renderer sends its capabilities in the message metadata,
-as `a2uiRendererCapabilities` (`a2uiClientCapabilities` in protocol v0.9).
+as `a2uiRendererCapabilities` (`a2uiClientCapabilities` in protocols v0.9
+and v0.9.1).
 The answer has a text part for each run of text and a data part for each
 A2UI message.
 

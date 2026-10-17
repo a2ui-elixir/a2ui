@@ -1,43 +1,150 @@
-# lab-elixir-a2ui
+# A2UI for Elixir
 
-An Elixir implementation of the [A2UI protocol](https://a2ui.org), protocol
-versions v0.9, v0.9.1 and v1.0: a protocol engine, a Phoenix LiveView renderer
-and an agent SDK, checked against the upstream conformance suites.
+[![CI](https://github.com/a2ui-elixir/a2ui/actions/workflows/ci.yml/badge.svg)](https://github.com/a2ui-elixir/a2ui/actions/workflows/ci.yml)
+[![a2ui_core](https://img.shields.io/hexpm/v/a2ui_core.svg?label=a2ui_core)](https://hex.pm/packages/a2ui_core)
+[![a2ui_phoenix](https://img.shields.io/hexpm/v/a2ui_phoenix.svg?label=a2ui_phoenix)](https://hex.pm/packages/a2ui_phoenix)
+[![a2ui_agent](https://img.shields.io/hexpm/v/a2ui_agent.svg?label=a2ui_agent)](https://hex.pm/packages/a2ui_agent)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-| Package | Namespace | What it is |
+An Elixir implementation of [A2UI](https://a2ui.org), the open protocol for
+agent-driven interfaces. An agent sends an interface as data; your Phoenix
+app renders it with components it trusts, and sends the user's actions back.
+Protocol versions v0.9, v0.9.1 and v1.0, checked against the upstream
+conformance suites.
+
+## Packages
+
+| Package | What it is | Docs |
 |---|---|---|
-| `a2ui_core` | `A2UICore` | Protocol engine: messages, catalogs, surface state, node resolution, function calls. Pure Elixir; Jason is its only dependency. |
-| `a2ui_phoenix` | `A2UIPhoenix` | LiveView renderer: the basic catalog as function components, two-way bindings, actions, and an SSE plug. |
-| `a2ui_agent` | `A2UIAgent` | Agent SDK: catalog negotiation, prompts in the direct JSON and Express formats, validated parsing of streamed model output, skills, and an A2A server. |
-| `a2ui_conformance` | `A2UIConformance` | Test harness for the upstream YAML conformance suites. Not published. |
+| [`a2ui_core`](https://hex.pm/packages/a2ui_core) | The protocol engine: messages, catalogs, surface state, node resolution, function calls. Pure Elixir; Jason is its only dependency. | [HexDocs](https://hexdocs.pm/a2ui_core) |
+| [`a2ui_phoenix`](https://hex.pm/packages/a2ui_phoenix) | A Phoenix LiveView renderer: the basic catalog as function components, two-way bindings, actions, and A2UI messages over server-sent events. | [HexDocs](https://hexdocs.pm/a2ui_phoenix) |
+| [`a2ui_agent`](https://hex.pm/packages/a2ui_agent) | The agent SDK: catalog negotiation, prompts in the direct JSON and Express formats, validated parsing of streamed model output, skills, and serving over A2A, MCP and AG-UI. | [HexDocs](https://hexdocs.pm/a2ui_agent) |
 
-Each package has a README and a guide under `umbrella/apps/*/guides`.
-`PLAN.md` holds the design, `TODO.md` the task list, `AGENTS.md` the
-invariants and commands, and `NOTES/` the research and the deliberate
-divergences from the reference implementations.
+## Installation
+
+Add the packages you need to `mix.exs`. Both `a2ui_phoenix` and `a2ui_agent`
+bring `a2ui_core` with them.
+
+```elixir
+def deps do
+  [
+    # Render agent interfaces in a Phoenix LiveView app
+    {:a2ui_phoenix, "~> 0.1.0"},
+    # Write the agent that sends them
+    {:a2ui_agent, "~> 0.1.0"}
+  ]
+end
+```
+
+## Quick start
+
+### Render surfaces in LiveView
+
+```elixir
+defmodule MyAppWeb.AgentLive do
+  use MyAppWeb, :live_view
+
+  alias A2UIPhoenix.{Live, Session}
+
+  def mount(_params, _session, socket) do
+    # Check every component against its catalog; relaxed validation still
+    # accepts a surface whose components arrive over several messages.
+    validation = A2UICore.Validation.Config.relaxed()
+    session = Session.new([A2UICore.Catalog.Basic.catalog("v1.0")], validation: validation)
+    {:ok, Live.init(socket, session, on_send: &send_to_agent/2)}
+  end
+
+  # Messages from the agent, however they arrive (SSE, A2A, a process).
+  def handle_info({:agent, payload}, socket) do
+    {_result, socket} = Live.handle_message(socket, payload)
+    {:noreply, socket}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <.live_component
+      :for={surface <- Session.surfaces(@a2ui)}
+      module={A2UIPhoenix.Surface}
+      id={"surface-" <> surface.id}
+      session={@a2ui}
+      surface_id={surface.id}
+    />
+    """
+  end
+
+  # Messages for the agent: actions, errors, function calls and responses.
+  defp send_to_agent(message, socket) do
+    Phoenix.PubSub.broadcast(MyApp.PubSub, "a2ui:renderer", {:renderer, self(), message})
+    socket
+  end
+end
+```
+
+Import the package's `a2ui_phoenix.js` and `a2ui_phoenix.css` into your
+assets. The guide,
+[Rendering surfaces](https://hexdocs.pm/a2ui_phoenix/rendering_surfaces.html),
+shows how, and covers theming, agent functions, catalogs of your own and the
+MCP catalog.
+
+### Serve an agent over A2A
+
+```elixir
+defmodule MyAgent do
+  @behaviour A2UIAgent.A2A.Agent
+
+  alias A2UIAgent.A2A.Request
+
+  # No catalog negotiated with the renderer: answer in text.
+  @impl true
+  def run(%Request{processor: nil, text: text}), do: {:ok, MyModel.reply(text)}
+
+  # Put the negotiated catalogs in the model's prompt; its output, whole or
+  # streamed, goes back to the renderer as validated A2UI messages.
+  def run(%Request{processor: processor, text: text, events: events}) do
+    {:ok, prompt} = A2UIAgent.RequestProcessor.prompt(processor)
+    {:ok, MyModel.stream(prompt, text, events)}
+  end
+
+  @impl true
+  def options do
+    basic = A2UIAgent.CatalogConfig.new(A2UICore.Catalog.Basic.catalog("v1.0"))
+    [generator: A2UIAgent.Generator.new([basic])]
+  end
+
+  @impl true
+  def card do
+    %{
+      "name" => "My agent",
+      "capabilities" => %{"extensions" => [A2UIAgent.A2A.agent_extension("1.0")]}
+    }
+  end
+end
+
+# In a Phoenix router or a Plug.Router:
+forward "/a2a", A2UIAgent.A2A.Plug, agent: MyAgent
+```
+
+`MyModel` stands for your model client. The guide,
+[Serving an agent](https://hexdocs.pm/a2ui_agent/serving_an_agent.html),
+covers prompts, parsing, Express, MCP and AG-UI. To work with the protocol
+directly, without a renderer or an agent, start with
+[Processing messages](https://hexdocs.pm/a2ui_core/processing_messages.html).
 
 ## Examples
 
-`examples/` holds three applications that use the packages together: a
-restaurant-finder agent served over A2A, MCP, AG-UI, server-sent events and
-WebSocket; a Phoenix LiveView gallery whose scenarios cover the protocol,
-with the upstream example surfaces and a live chat with that agent; and a
-renderer that draws surfaces in the terminal. `examples/README.md` says how to
-run them and which features each one exercises.
+[`examples/`](examples/README.md) holds three applications that use the
+packages together:
 
-## Landing page
-
-`site/` is the project's landing page, a small Phoenix application
-(`mix phx.server`, port 4040) that `mix site.build` exports as static files
-for any host. What it says about the packages is tested against this
-repository, and its Examples section plays recorded runs of the examples
-(`mix gallery.replays` in `examples/gallery`); `site/README.md` has the
-details.
+| Example | What it is |
+|---|---|
+| [`restaurant_agent`](examples/restaurant_agent/README.md) | An agent that finds restaurants and books tables, served over A2A, MCP, AG-UI, server-sent events and WebSocket. |
+| [`gallery`](examples/gallery/README.md) | A Phoenix LiveView app: scenarios that cover the protocol, the upstream example surfaces, and a live chat with the restaurant agent. |
+| [`terminal_client`](examples/terminal_client/README.md) | A renderer that draws surfaces in the terminal, with a client for every transport the agent serves. |
 
 ## Conformance
 
-Of the 1144 upstream cases at the pinned commit (`SPEC_PIN`), 946 run and all
-of them pass. The others are skipped, each for a stated reason:
+Of the 1144 upstream cases at the pinned commit (`SPEC_PIN`), 946 run
+and all of them pass. The others are skipped, each for a stated reason:
 
 | Suite family | Cases | Run | Skipped |
 |---|---:|---:|---|
@@ -51,124 +158,27 @@ of them pass. The others are skipped, each for a stated reason:
 | `extensions/a2a` | 14 | 13 | 1 v0.8 payload |
 | `extensions/adk` | 11 | 0 | adapters for Google's Python ADK |
 
-## Getting the upstream reference
+Where the packages deliberately differ from the reference implementations,
+[`NOTES/divergences.md`](NOTES/divergences.md) says how and why.
 
-The fidelity and conformance suites run against a pinned checkout of
-[a2ui-project/a2ui](https://github.com/a2ui-project/a2ui) at
-`reference/a2ui` (gitignored; the commit is recorded in `SPEC_PIN`):
+## Repository
 
-```bash
-pin=$(awk '/commit:/ {print $NF}' SPEC_PIN)
-git init reference/a2ui
-git -C reference/a2ui fetch --depth 1 https://github.com/a2ui-project/a2ui.git "$pin"
-git -C reference/a2ui checkout --detach FETCH_HEAD
-```
+| Path | What it holds |
+|---|---|
+| `umbrella/apps/` | The three packages, and `a2ui_conformance`, the unpublished harness that runs the upstream suites |
+| `examples/` | The example applications |
+| `site/` | The landing page, a Phoenix app exported as static files |
+| `NOTES/` | Protocol research and the deliberate divergences from the reference |
+| `PLAN.md`, `TODO.md` | The plan the packages were built from, and the log of the work |
 
-Environment variables:
-
-- `A2UI_REFERENCE_ROOT`: absolute path of the checkout (default: found by walking up
-  to `reference/a2ui`).
-- `A2UI_REQUIRE_REFERENCE=1`: fail instead of silently generating zero tests when the
-  checkout is missing (CI sets this).
-
-## Develop
-
-```bash
-cd umbrella
-mix deps.get
-mix test                                  # all apps
-MIX_ENV=test mix coveralls --umbrella     # tests + coverage gate
-mix format --check-formatted
-mix compile --warnings-as-errors
-mix credo --strict
-mix dialyzer                              # first run builds the PLT
-```
-
-Each publishable package builds its own documentation:
-
-```bash
-cd umbrella/apps/a2ui_core && mix docs    # likewise a2ui_phoenix and a2ui_agent
-```
-
-## Releasing
-
-The three packages share a version. `a2ui_phoenix` and `a2ui_agent` depend on
-`a2ui_core`: on the sibling app inside this repository, and on the Hex release
-in the published package. `A2UI_HEX_BUILD=1` selects the Hex release for a
-build:
-
-```bash
-cd umbrella/apps/a2ui_core && mix hex.build
-cd ../a2ui_phoenix && A2UI_HEX_BUILD=1 mix hex.build
-cd ../a2ui_agent && A2UI_HEX_BUILD=1 mix hex.build
-```
-
-To release:
-
-1. Set the version in the three `mix.exs` files, and give the version's
-   section in each `CHANGELOG.md` its date.
-2. Check that `@source_url` in the three `mix.exs` files is this project's
-   repository. The docs link source files to the tag `v<version>` there.
-3. Tag the commit `v<version>` and push the tag.
-4. Publish from a fresh clone of the tag, `a2ui_core` first. `mix hex.publish`
-   compiles `a2ui_phoenix` and `a2ui_agent` and their docs against the Hex
-   release of `a2ui_core`, so those two fetch it before they publish, which
-   adds it to `umbrella/mix.lock`; the clone keeps that out of your checkout:
-
-   ```bash
-   git clone --branch v<version> https://github.com/a2ui-elixir/a2ui.git a2ui-release
-   cd a2ui-release/umbrella && mix deps.get
-   (cd apps/a2ui_core && mix hex.publish)
-   for app in a2ui_phoenix a2ui_agent; do
-     (cd apps/$app && A2UI_HEX_BUILD=1 mix deps.get && A2UI_HEX_BUILD=1 mix hex.publish)
-   done
-   ```
-
-## Bumping `SPEC_PIN`
-
-1. Check out the new upstream commit:
-
-   ```bash
-   new=<commit>
-   git -C reference/a2ui fetch --depth 1 https://github.com/a2ui-project/a2ui.git "$new"
-   git -C reference/a2ui checkout --detach FETCH_HEAD
-   ```
-
-2. Run the vendored-drift test. It fails for every schema or catalog under
-   `umbrella/apps/a2ui_core/priv` that differs from the checkout, and for
-   schema files added or removed upstream:
-
-   ```bash
-   cd umbrella/apps/a2ui_core
-   A2UI_REQUIRE_REFERENCE=1 mix test --only vendored_drift
-   ```
-
-3. Copy the changed files over. Run this from the repository root:
-
-   ```bash
-   ref=reference/a2ui
-   priv=umbrella/apps/a2ui_core/priv
-   for v in v0_9 v0_9_1 v1_0; do
-     rm "$priv/schemas/$v"/*.json
-     cp "$ref/specification/$v/json"/*.json "$priv/schemas/$v/"
-   done
-   cp "$ref/specification/v0_9_1/catalogs/basic/catalog.json" "$priv/catalogs/basic_v0_9_1.json"
-   cp "$ref/catalogs/basic/v1/catalog.json" "$priv/catalogs/basic_v1_0.json"
-   cp "$ref/specification/v1_0/test/testing_catalog.json" "$priv/catalogs/testing_v1_0.json"
-   ```
-
-4. Record the commit, its date and what was checked in `SPEC_PIN`.
-5. Run the full gate (the commands under Develop) with
-   `A2UI_REQUIRE_REFERENCE=1`. The conformance suite also fails on an
-   action the harness does not know and on an explicit skip in
-   `A2UIConformance.SkipPolicy` that no longer matches a case.
-6. Fix what fails, or skip a case in `A2UIConformance.SkipPolicy` with the
-   reason. Record deliberate differences from the reference in
-   `NOTES/divergences.md`, update the scoreboard above, and commit.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) covers the development setup, the
+pinned upstream checkout the test suites run against, releasing, and moving
+to a newer specification. To report a security issue, see
+[`SECURITY.md`](SECURITY.md).
 
 ## License
 
-Apache-2.0 (`LICENSE`), the license of the upstream specification and
-conformance suites too. The JSON schemas and catalogs under
+Apache-2.0 ([`LICENSE`](LICENSE)), the license of the A2UI specification and
+its conformance suites too. The JSON schemas and catalogs under
 `umbrella/apps/a2ui_core/priv` are copies of the specification's files, with
 its license file (`priv/LICENSE-APACHE`).
