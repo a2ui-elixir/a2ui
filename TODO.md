@@ -543,6 +543,8 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       must be a `ComponentId`), v0.9.1 named with v0.9, `callAgentFunction`
       among the messages for the agent, the MCP client's optional callbacks,
       validation in the LiveView examples, installation sections.
+- [x] M26.6 0.1.0 replaced on Hex (within the hour it allows) with these
+      fixes, and the tag `v0.1.0` moved to them.
 - [ ] M26.5 CI job on Elixir 1.17 / OTP 27, the oldest the packages accept:
       confirm it passes, or raise the requirement in the next release.
 

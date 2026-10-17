@@ -1,12 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- A regular-expression search (the basic catalog's `regex` check, a schema's
-  `pattern`) stops after a million backtracking steps with a `REGEX_LIMIT`
-  error. It used to run until PCRE's own limit, ten times that, a quarter of
-  a second for a pattern such as `^(a+)+$`, and then report no match.
-
 ## 0.1.0 (2026-10-17)
 
 First release.
@@ -54,3 +47,6 @@ First release.
   takes text in single quotes literally, as TR35 patterns do.
 - `A2UICore.KeyOrder.message/1` orders a message's keys as the protocol's
   schemas list them.
+- Regular-expression searches (the basic catalog's `regex` check, a schema's
+  `pattern`) stop after a million backtracking steps with a `REGEX_LIMIT`
+  error, so a pattern an agent or a catalog supplies cannot keep the host busy.
