@@ -1,56 +1,3 @@
-defmodule A2UICore.Message.Operation do
-  @moduledoc """
-  Version-neutral operations: what `A2UICore.Message.decode/2` returns
-  and `A2UICore.Processor.apply_operations/3` applies.
-
-  Adapters (`A2UICore.Message.Adapter`) normalize wire envelopes into
-  these structs; every later stage (surface lifecycle, data model,
-  RPC) works only against them. Field names mirror the wire (`surfaceId`
-  → `surface_id`), and the version-specific edge cases are smoothed out
-  at construction:
-
-    * `v0.9.x` `updateDataModel` may omit `value` (delete) — `value` is
-      `nil` either way; v1.0's explicit `null` and v0.9's omission are
-      the same canonical op.
-    * `v1.0` `createSurface` may inline `components` and `dataModel`;
-      the v1.0 adapter expands those into separate
-      `update_components`/`update_data_model` ops after the
-      `create_surface` op, exactly like the reference implementation.
-    * `v0.9.x` carries `theme` through to the surface; v1.0 drops it.
-  """
-
-  alias A2UICore.Message.Operation.{
-    AgentFunctionResponse,
-    CallRendererFunction,
-    CreateSurface,
-    DeleteSurface,
-    UpdateComponents,
-    UpdateDataModel
-  }
-
-  @moduledoc since: "0.1.0"
-
-  @type t ::
-          CreateSurface.t()
-          | UpdateComponents.t()
-          | UpdateDataModel.t()
-          | DeleteSurface.t()
-          | CallRendererFunction.t()
-          | AgentFunctionResponse.t()
-
-  @doc """
-  The canonical action key of an operation (matching the wire's
-  message-type keys).
-  """
-  @spec action(t()) :: String.t()
-  def action(%CreateSurface{}), do: "createSurface"
-  def action(%UpdateComponents{}), do: "updateComponents"
-  def action(%UpdateDataModel{}), do: "updateDataModel"
-  def action(%DeleteSurface{}), do: "deleteSurface"
-  def action(%CallRendererFunction{}), do: "callRendererFunction"
-  def action(%AgentFunctionResponse{}), do: "agentFunctionResponse"
-end
-
 defmodule A2UICore.Message.Operation.CreateSurface do
   @moduledoc """
   A `createSurface` message: a new surface, the catalog it uses
@@ -174,4 +121,57 @@ defmodule A2UICore.Message.Operation.AgentFunctionResponse do
           error: %{optional(String.t()) => term()} | nil,
           version: String.t()
         }
+end
+
+defmodule A2UICore.Message.Operation do
+  @moduledoc """
+  Version-neutral operations: what `A2UICore.Message.decode/2` returns
+  and `A2UICore.Processor.apply_operations/3` applies.
+
+  Adapters (`A2UICore.Message.Adapter`) normalize wire envelopes into
+  these structs; every later stage (surface lifecycle, data model,
+  RPC) works only against them. Field names mirror the wire (`surfaceId`
+  → `surface_id`), and the version-specific edge cases are smoothed out
+  at construction:
+
+    * `v0.9.x` `updateDataModel` may omit `value` (delete) — `value` is
+      `nil` either way; v1.0's explicit `null` and v0.9's omission are
+      the same canonical op.
+    * `v1.0` `createSurface` may inline `components` and `dataModel`;
+      the v1.0 adapter expands those into separate
+      `update_components`/`update_data_model` ops after the
+      `create_surface` op, exactly like the reference implementation.
+    * `v0.9.x` carries `theme` through to the surface; v1.0 drops it.
+  """
+
+  alias A2UICore.Message.Operation.{
+    AgentFunctionResponse,
+    CallRendererFunction,
+    CreateSurface,
+    DeleteSurface,
+    UpdateComponents,
+    UpdateDataModel
+  }
+
+  @moduledoc since: "0.1.0"
+
+  @type t ::
+          CreateSurface.t()
+          | UpdateComponents.t()
+          | UpdateDataModel.t()
+          | DeleteSurface.t()
+          | CallRendererFunction.t()
+          | AgentFunctionResponse.t()
+
+  @doc """
+  The canonical action key of an operation (matching the wire's
+  message-type keys).
+  """
+  @spec action(t()) :: String.t()
+  def action(%CreateSurface{}), do: "createSurface"
+  def action(%UpdateComponents{}), do: "updateComponents"
+  def action(%UpdateDataModel{}), do: "updateDataModel"
+  def action(%DeleteSurface{}), do: "deleteSurface"
+  def action(%CallRendererFunction{}), do: "callRendererFunction"
+  def action(%AgentFunctionResponse{}), do: "agentFunctionResponse"
 end

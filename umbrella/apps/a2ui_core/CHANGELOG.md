@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1 (2026-10-17)
+
+- Compiles on Elixir 1.17: the message operation structs come before the
+  module that matches on them, which Elixir 1.17 needs.
+- Regular expressions match the same on every Erlang/OTP release. `\d`,
+  `\w` and `\b` are spelled out as ASCII classes, since the PCRE of
+  Erlang/OTP 27 and earlier counts Latin-1 letters such as `é` as word
+  characters. There, `XID_Start` and `XID_Continue` now include the
+  Other_ID_Start and Other_ID_Continue characters (`℘`, `·`), and
+  `\p{Script=Greek}` and `\p{sc=Greek}` compile.
+
 ## 0.1.0 (2026-10-17)
 
 First release.

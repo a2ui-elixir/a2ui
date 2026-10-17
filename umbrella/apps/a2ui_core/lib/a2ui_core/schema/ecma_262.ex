@@ -13,10 +13,11 @@ defmodule A2UICore.Schema.ECMA262 do
     `$` outside character classes to an absolute end anchor; so does
     this module (`\\z`).
   * **Character classes** — `\\d`, `\\w` and `\\b` are ASCII, as in
-    ECMA-262 (patterns compile without PCRE's Unicode classes); `\\s`
-    is ECMA-262's white space and line terminators (PCRE's Unicode
-    spaces plus U+FEFF), `\\v` the vertical tab alone, and `.` any
-    character but a line terminator.
+    ECMA-262, and are spelled out as ASCII classes: the PCRE of
+    Erlang/OTP 27 and earlier counts Latin-1 letters such as `é` as word
+    characters. `\\s` is ECMA-262's white space and line terminators
+    (PCRE's Unicode spaces plus U+FEFF), `\\v` the vertical tab alone,
+    and `.` any character but a line terminator.
   * **Escapes** — `\\uXXXX` (a surrogate pair of them is one code
     point) and `\\u{X...}` become PCRE's `\\x{...}`.
   * **Unicode property names** — `\\p{...}` and `\\P{...}` take
@@ -27,9 +28,15 @@ defmodule A2UICore.Schema.ECMA262 do
     `General_Category=`/`gc=` forms or `Assigned`; those are rewritten.
   * **XID properties on older PCRE** — Erlang/OTP 28 and later bundle
     PCRE2, whose `XID_Start` and `XID_Continue` are exact. Older PCRE
-    lacks them, so there they expand to a Unicode-derived
-    approximation: `XID_Start` ≈ `\\p{L}\\p{Nl}`, `XID_Continue` ≈
-    `\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}`.
+    lacks them, so there they expand to their derivation: `XID_Start` ≈
+    `\\p{L}\\p{Nl}` and the Other_ID_Start characters that stay
+    identifiers under NFKC (`℘`, `℮`, U+1885, U+1886); `XID_Continue` ≈
+    that, `\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}` and the Other_ID_Continue
+    characters (`·`, U+0387, U+1369 to U+1371, U+19DA).
+  * **Scripts on older PCRE** — older PCRE names a script bare
+    (`\\p{Greek}`), so `Script=` and `sc=` are dropped there, and
+    `Script_Extensions=`/`scx=` fall back to the script. Only full script
+    names (`Greek`, not `Grek`) are known to it.
 
   Matching is *search* (unanchored), per JSON Schema. A search stops
   after a million backtracking steps: patterns come from agents and
@@ -44,6 +51,13 @@ defmodule A2UICore.Schema.ECMA262 do
   @match_limit 1_000_000
 
   @native_xid match?({:ok, _regex}, Regex.compile("\\p{XID_Start}", "u"))
+  @native_scripts match?({:ok, _regex}, Regex.compile("\\p{sc=Greek}", "u"))
+
+  # ECMA-262's ASCII word characters and digits, and their complements as
+  # members of a class (surrogates left out).
+  @word "A-Za-z0-9_"
+  @not_word "\\x{0}-\\x{2F}\\x{3A}-\\x{40}\\x{5B}-\\x{5E}\\x{60}\\x{7B}-\\x{D7FF}\\x{E000}-\\x{10FFFF}"
+  @not_digit "\\x{0}-\\x{2F}\\x{3A}-\\x{D7FF}\\x{E000}-\\x{10FFFF}"
 
   # ECMA-262 white space and line terminators: PCRE's spaces (Unicode
   # category Z, tab, line feed, vertical tab, form feed, carriage return)
@@ -187,20 +201,47 @@ defmodule A2UICore.Schema.ECMA262 do
   defp do_translate(<<>>, _in_class, acc), do: acc
 
   unless @native_xid do
-    defp do_translate("\\p{XID_Start}" <> rest, in_class, acc) do
-      emit = if in_class, do: "\\p{L}\\p{Nl}", else: "[\\p{L}\\p{Nl}]"
-      do_translate(rest, in_class, acc <> emit)
-    end
+    @id_start "\\p{L}\\p{Nl}\\x{1885}\\x{1886}\\x{2118}\\x{212E}"
+    @id_continue @id_start <>
+                   "\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}\\x{B7}\\x{387}\\x{1369}-\\x{1371}\\x{19DA}"
 
-    defp do_translate("\\p{XID_Continue}" <> rest, in_class, acc) do
-      emit =
-        if in_class,
-          do: "\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}",
-          else: "[\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]"
+    defp do_translate("\\p{XID_Start}" <> rest, in_class, acc),
+      do: do_translate(rest, in_class, acc <> members(@id_start, in_class))
 
-      do_translate(rest, in_class, acc <> emit)
-    end
+    defp do_translate("\\p{XID_Continue}" <> rest, in_class, acc),
+      do: do_translate(rest, in_class, acc <> members(@id_continue, in_class))
   end
+
+  defp do_translate("\\d" <> rest, in_class, acc),
+    do: do_translate(rest, in_class, acc <> members("0-9", in_class))
+
+  defp do_translate("\\D" <> rest, in_class, acc),
+    do: do_translate(rest, in_class, acc <> if(in_class, do: @not_digit, else: "[^0-9]"))
+
+  defp do_translate("\\w" <> rest, in_class, acc),
+    do: do_translate(rest, in_class, acc <> members(@word, in_class))
+
+  defp do_translate("\\W" <> rest, in_class, acc),
+    do: do_translate(rest, in_class, acc <> if(in_class, do: @not_word, else: "[^#{@word}]"))
+
+  # Inside a class `\\b` is a backspace, as in ECMA-262.
+  defp do_translate("\\b" <> rest, true, acc), do: do_translate(rest, true, acc <> "\\x{08}")
+
+  defp do_translate("\\b" <> rest, false, acc),
+    do:
+      do_translate(
+        rest,
+        false,
+        acc <> "(?:(?<=[#{@word}])(?![#{@word}])|(?<![#{@word}])(?=[#{@word}]))"
+      )
+
+  defp do_translate("\\B" <> rest, false, acc),
+    do:
+      do_translate(
+        rest,
+        false,
+        acc <> "(?:(?<=[#{@word}])(?=[#{@word}])|(?<![#{@word}])(?![#{@word}]))"
+      )
 
   defp do_translate("\\s" <> rest, in_class, acc),
     do: do_translate(rest, in_class, acc <> if(in_class, do: @space, else: "[#{@space}]"))
@@ -302,10 +343,24 @@ defmodule A2UICore.Schema.ECMA262 do
 
   defp code_point_escape(code_point), do: "\\x{" <> Integer.to_string(code_point, 16) <> "}"
 
+  defp members(set, true), do: set
+  defp members(set, false), do: "[" <> set <> "]"
+
   defp property(p, name) do
-    case Map.get(@properties, name, name) do
+    case Map.get(@properties, name, script_name(name)) do
       {:not, pcre} -> <<?\\, negate(p), ?{, pcre::binary, ?}>>
       pcre -> <<?\\, p, ?{, pcre::binary, ?}>>
+    end
+  end
+
+  if @native_scripts do
+    defp script_name(name), do: name
+  else
+    defp script_name(name) do
+      case String.split(name, "=", parts: 2) do
+        [key, script] when key in ~w(Script sc Script_Extensions scx) -> script
+        _other -> name
+      end
     end
   end
 

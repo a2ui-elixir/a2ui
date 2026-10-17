@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-10-17)
+
+- Requires `a2ui_core` 0.1.1, which compiles on Elixir 1.17.
+
 ## 0.1.0 (2026-10-17)
 
 First release.

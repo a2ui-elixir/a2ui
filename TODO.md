@@ -545,8 +545,8 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       validation in the LiveView examples, installation sections.
 - [x] M26.6 0.1.0 replaced on Hex (within the hour it allows) with these
       fixes, and the tag `v0.1.0` moved to them.
-- [ ] M26.5 CI job on Elixir 1.17 / OTP 27, the oldest the packages accept:
-      confirm it passes, or raise the requirement in the next release.
+- [x] M26.5 CI job on Elixir 1.17 / OTP 27, the oldest the packages accept.
+      It failed: see M28.
 
 ### M27 — the website on GitHub Pages (2026-10-17)
 
@@ -559,6 +559,18 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       LiveView sample; a clone-and-run terminal; the coverage figure.
 - [x] M27.3 Canonical URL, Open Graph and Twitter card metadata, and a
       1200×630 preview image cut from the film's end card.
+
+### M28 — 0.1.1: Elixir 1.17 and OTP 27 (2026-10-17)
+
+- [x] M28.1 `a2ui_core` 0.1.0 did not compile on Elixir 1.17: the operation
+      structs were defined below the module matching on them. They come
+      first now; the whole umbrella passes on Elixir 1.17 / OTP 27 (Docker,
+      `elixir:1.17-otp-27`), as CI's `oldest` job runs it.
+- [x] M28.2 Regular expressions on the PCRE of OTP 27: ASCII `\d`/`\w`/`\b`
+      spelled out (its tables are Latin-1), the XID approximation with
+      Other_ID_Start/Other_ID_Continue, `Script=`/`sc=` names.
+- [x] M28.3 The site's header links GitHub with its mark.
+- [ ] M28.4 Publish 0.1.1 (`a2ui_core` first) and tag `v0.1.1`.
 
 ### Decisions
 

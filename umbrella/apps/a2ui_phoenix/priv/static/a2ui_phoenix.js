@@ -394,7 +394,7 @@
     initializeResult() {
       return {
         protocolVersion: PROTOCOL_VERSION,
-        hostInfo: {name: "a2ui_phoenix", version: "0.1.0"},
+        hostInfo: {name: "a2ui_phoenix", version: "0.1.1"},
         hostCapabilities: {openLinks: {}, logging: {}, serverTools: {}},
         hostContext: this.hostContext(),
       };
