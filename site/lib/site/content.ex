@@ -11,6 +11,7 @@ defmodule Site.Content do
   @spec_commit "5d74ffb"
   @repo_url "https://github.com/a2ui-elixir/a2ui"
   @site_url "https://a2ui-elixir.github.io/a2ui/"
+  @video_id "16X-sRsGlcs"
 
   @doc "The upstream commit the conformance figures were measured at."
   def spec_commit, do: @spec_commit
@@ -23,6 +24,15 @@ defmodule Site.Content do
 
   @doc "The social preview image, by its absolute URL (`priv/static/social.png`)."
   def social_image_url, do: @site_url <> "social.png"
+
+  @doc "The video, a minute long, on YouTube."
+  def video_url, do: "https://www.youtube.com/watch?v=" <> @video_id
+
+  @doc "The video's player, played where the page's poster was (YouTube's no-cookie host)."
+  def video_embed_url, do: "https://www.youtube-nocookie.com/embed/#{@video_id}?autoplay=1&rel=0"
+
+  @doc "The video's length, as the page shows it."
+  def video_duration, do: "1:03"
 
   @doc "A package's page on Hex."
   def hex_url(package), do: "https://hex.pm/packages/" <> package

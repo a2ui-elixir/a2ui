@@ -22,6 +22,9 @@ CI publishes it on GitHub Pages, at <https://a2ui-elixir.github.io/a2ui/>: the
 packages, the examples and the page pass. The address is `Site.Content.site_url/0`,
 which the page names as its canonical URL and in its social preview metadata.
 `priv/static/social.png` is that preview, 1200×630; a test checks its size.
+The video section shows `priv/static/video.webp`, a frame of the video, and a
+click on it swaps in YouTube's player (`Site.Content.video_embed_url/0`, the
+no-cookie host); without the script it links to the video.
 
 | Path | |
 |---|---|

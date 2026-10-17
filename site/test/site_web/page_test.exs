@@ -194,6 +194,16 @@ defmodule SiteWeb.PageTest do
     assert <<0x89, "PNG", _::binary-size(12), 1200::32, 630::32, _::binary>> = png
   end
 
+  test "the video plays from its poster, and links to YouTube without the script", %{doc: doc} do
+    assert attributes(doc, "a[data-video]", "href") == [Content.video_url()]
+    assert attributes(doc, "a[data-video]", "data-video") == [Content.video_embed_url()]
+    assert "#video" in attributes(doc, ".hero-actions a", "href")
+
+    [poster] = attributes(doc, "a[data-video] img", "src")
+    image = File.read!(Path.join(Application.app_dir(:site, "priv/static"), poster))
+    assert <<"RIFF", _::binary-size(4), "WEBP", _::binary>> = image
+  end
+
   test "every asset the page and its stylesheet use exists" do
     static = Application.app_dir(:site, "priv/static")
     html = build_conn() |> get("/") |> html_response(200)
@@ -228,7 +238,8 @@ defmodule SiteWeb.PageTest do
           {"/assets/catalog.css", "text/css"},
           {"/assets/fonts/MaterialSymbolsOutlined-subset.woff2", "font/woff2"},
           {"/favicon.svg", "image/svg+xml"},
-          {"/social.png", "image/png"}
+          {"/social.png", "image/png"},
+          {"/video.webp", "image/webp"}
         ] do
       conn = get(build_conn(), path)
       assert conn.status == 200

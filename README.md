@@ -1,5 +1,7 @@
 # A2UI for Elixir
 
+[![A2UI for Elixir: agent-driven interfaces for Elixir and Phoenix LiveView](site/priv/static/social.png)](https://a2ui-elixir.github.io/a2ui/)
+
 [![CI](https://github.com/a2ui-elixir/a2ui/actions/workflows/ci.yml/badge.svg)](https://github.com/a2ui-elixir/a2ui/actions/workflows/ci.yml)
 [![a2ui_core](https://img.shields.io/hexpm/v/a2ui_core.svg?label=a2ui_core)](https://hex.pm/packages/a2ui_core)
 [![a2ui_phoenix](https://img.shields.io/hexpm/v/a2ui_phoenix.svg?label=a2ui_phoenix)](https://hex.pm/packages/a2ui_phoenix)
@@ -14,6 +16,8 @@ conformance suites.
 
 **Website: [a2ui-elixir.github.io/a2ui](https://a2ui-elixir.github.io/a2ui/)**,
 with recorded runs of the examples.
+**Video: [A2UI for Elixir in a minute](https://www.youtube.com/watch?v=16X-sRsGlcs)**
+(1:03, on YouTube).
 
 ## Packages
 

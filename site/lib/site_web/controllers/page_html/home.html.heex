@@ -83,6 +83,9 @@
             Get started <.icon name="arrow" class="icon icon-sm" />
           </a>
           <a class="button button-secondary" href="#features">Explore the features</a>
+          <a class="button button-secondary" href="#video">
+            <.icon name="play" class="icon icon-sm" /> Watch the video
+          </a>
         </div>
         <div class="install-line">
           <span class="install-label">mix.exs</span>
@@ -208,6 +211,33 @@
             <b :if={stat[:mark]} style={"left: #{stat[:mark]}%"}></b>
           </span>
         </div>
+      </div>
+    </section>
+
+    <section class="band video" id="video" aria-labelledby="video-title">
+      <div class="video-inner">
+        <div class="video-copy" data-reveal>
+          <p class="sec-label">Video</p>
+          <h2 id="video-title">A2UI for Elixir in a minute.</h2>
+          <p class="video-lead">
+            An agent sends an interface, Phoenix renders it, and the user's actions go back.
+            Every surface in it is a recording of the examples in this repository.
+          </p>
+          <a class="video-link" href={Content.video_url()} rel="noopener">
+            Watch on YouTube <.icon name="external" class="icon icon-xs" />
+          </a>
+        </div>
+        <a
+          class="video-player"
+          href={Content.video_url()}
+          rel="noopener"
+          data-video={Content.video_embed_url()}
+          aria-label={"Play the video, #{Content.video_duration()}"}
+        >
+          <img src="video.webp" width="1280" height="720" alt="" loading="lazy" decoding="async" />
+          <span class="video-play" aria-hidden="true"><.icon name="play" /></span>
+          <span class="video-duration mono" aria-hidden="true">{Content.video_duration()}</span>
+        </a>
       </div>
     </section>
 

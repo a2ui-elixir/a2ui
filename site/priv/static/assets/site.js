@@ -374,6 +374,27 @@
   // surfaces it changed, the messages that crossed, what was said and what
   // the user does next; the player builds the conversation up to a step
   // (as Site.Replays.view/2 does on the server) and acts out each move.
+  // The video: a click on the poster swaps it for YouTube's player. Without
+  // the script, or with a modifier key held, the poster links to YouTube.
+  function initVideo() {
+    each("[data-video]", function (link) {
+      link.addEventListener("click", function (event) {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        var frame = document.createElement("iframe");
+        frame.src = link.getAttribute("data-video");
+        frame.title = "A2UI for Elixir in a minute";
+        frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+        frame.allowFullscreen = true;
+        var player = document.createElement("div");
+        player.className = "video-player";
+        player.appendChild(frame);
+        link.replaceWith(player);
+        frame.focus();
+      });
+    });
+  }
+
   function initReplays() {
     var player = document.querySelector("[data-replays]");
     var data = document.getElementById("replay-data");
@@ -909,4 +930,5 @@
   initSpotlight();
   initDemo();
   initReplays();
+  initVideo();
 })();
