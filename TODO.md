@@ -570,7 +570,7 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       spelled out (its tables are Latin-1), the XID approximation with
       Other_ID_Start/Other_ID_Continue, `Script=`/`sc=` names.
 - [x] M28.3 The site's header links GitHub with its mark.
-- [ ] M28.4 Publish 0.1.1 (`a2ui_core` first) and tag `v0.1.1`.
+- [x] M28.4 0.1.1 published (`a2ui_core` first) from the tag `v0.1.1`.
 
 ### Decisions
 
