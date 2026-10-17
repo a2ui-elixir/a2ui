@@ -16,6 +16,7 @@ conformance suites.
 
 **Website: [a2ui-elixir.github.io/a2ui](https://a2ui-elixir.github.io/a2ui/)**,
 with recorded runs of the examples.
+
 **Video: [A2UI for Elixir in a minute](https://www.youtube.com/watch?v=16X-sRsGlcs)**
 (1:03, on YouTube).
 
