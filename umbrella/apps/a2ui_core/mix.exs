@@ -2,7 +2,7 @@ defmodule A2UICore.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/a2ui-project/a2ui-elixir"
+  @source_url "https://github.com/a2ui-elixir/a2ui"
 
   def project do
     [

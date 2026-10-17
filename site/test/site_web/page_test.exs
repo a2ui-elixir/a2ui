@@ -173,6 +173,16 @@ defmodule SiteWeb.PageTest do
     end
   end
 
+  test "the footer links to the repository and to each package's docs", %{doc: doc} do
+    hrefs = attributes(doc, "footer nav[aria-label='Project'] a", "href")
+    assert hrefs == Enum.map(Content.project_links(), & &1.url)
+    assert "https://github.com/a2ui-elixir/a2ui" in hrefs
+
+    for package <- Content.packages() do
+      assert ("https://hexdocs.pm/" <> package.name) in hrefs
+    end
+  end
+
   test "every asset the page and its stylesheet use exists" do
     static = Application.app_dir(:site, "priv/static")
     html = build_conn() |> get("/") |> html_response(200)

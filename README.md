@@ -109,9 +109,20 @@ To release:
    section in each `CHANGELOG.md` its date.
 2. Check that `@source_url` in the three `mix.exs` files is this project's
    repository. The docs link source files to the tag `v<version>` there.
-3. Tag the commit `v<version>`.
-4. Publish `a2ui_core` first, then `a2ui_phoenix` and `a2ui_agent`, using
-   `A2UI_HEX_BUILD=1 mix hex.publish` for the last two.
+3. Tag the commit `v<version>` and push the tag.
+4. Publish from a fresh clone of the tag, `a2ui_core` first. `mix hex.publish`
+   compiles `a2ui_phoenix` and `a2ui_agent` and their docs against the Hex
+   release of `a2ui_core`, so those two fetch it before they publish, which
+   adds it to `umbrella/mix.lock`; the clone keeps that out of your checkout:
+
+   ```bash
+   git clone --branch v<version> https://github.com/a2ui-elixir/a2ui.git a2ui-release
+   cd a2ui-release/umbrella && mix deps.get
+   (cd apps/a2ui_core && mix hex.publish)
+   for app in a2ui_phoenix a2ui_agent; do
+     (cd apps/$app && A2UI_HEX_BUILD=1 mix deps.get && A2UI_HEX_BUILD=1 mix hex.publish)
+   done
+   ```
 
 ## Bumping `SPEC_PIN`
 

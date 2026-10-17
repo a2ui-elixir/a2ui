@@ -846,6 +846,12 @@
         <p class="mini-label">this page</p>
         <a :for={{label, id} <- nav_links()} href={"#" <> id}>{label}</a>
       </nav>
+      <nav class="footer-col" aria-label="Project">
+        <p class="mini-label">project</p>
+        <a :for={link <- Content.project_links()} href={link.url} rel="noopener">
+          {link.label} <.icon name="external" class="icon icon-xs" />
+        </a>
+      </nav>
       <nav class="footer-col" aria-label="Protocols">
         <p class="mini-label">protocols</p>
         <a :for={link <- Content.links()} href={link.url} rel="noopener">

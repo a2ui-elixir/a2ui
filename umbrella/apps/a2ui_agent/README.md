@@ -108,4 +108,5 @@ plug needs the optional `plug` dependency.
 
 ## License
 
-Apache-2.0
+Apache-2.0. The prompt rules are the A2UI project's text, which the
+conformance suites compare exactly, under the same license.

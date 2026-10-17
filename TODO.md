@@ -230,11 +230,9 @@ failed negotiation fails the task already announced.
       more data comes, so a test waiting on its first event failed now and
       then (OTP's `httpc_handler`).
 
-Open before a first release: the repository URL (`@source_url` names
-`github.com/a2ui-project/a2ui-elixir`, the upstream organization's namespace);
-the copyright holder in the LICENSE files ("lab-elixir-a2ui contributors");
-a license review of upstream text reproduced verbatim because the suites
-compare it exactly (the direct JSON prompt rules, error messages).
+Settled for the first release (M25): the repository URL, the copyright
+holder, and the license of upstream text reproduced verbatim because the
+suites compare it exactly (Apache-2.0 on both sides).
 
 ### M12 — spec bump to `5d74ffb` (2026-10-16; conformance: 788 passed, 374 skipped; 741 of 1115 upstream cases run)
 
@@ -515,6 +513,19 @@ dependency decision; `A2UICore.Formatter` is pluggable).
       on one line; the replays recorded again; the site's icon subset holds
       the icons they use; READMEs, the guide, CHANGELOG; checked in a browser
       at desktop and phone widths in both themes.
+
+### M25 — license and first release (2026-10-17)
+
+- [x] M25.1 Apache-2.0, the specification's license, in every commit
+      (history rewritten): LICENSE files with the full text and
+      "Copyright 2026 Reza Ebrahimi", `licenses: ["Apache-2.0"]`, the READMEs,
+      the landing page, the film's narration and end card.
+- [x] M25.2 `@source_url` is `github.com/a2ui-elixir/a2ui`; the 0.1.0
+      changelog sections are dated; the landing page's footer links the
+      repository and each package's docs; the film's end card shows the
+      repository.
+- [ ] M25.3 Publish 0.1.0 to Hex: `a2ui_core`, then `a2ui_phoenix` and
+      `a2ui_agent` (`A2UI_HEX_BUILD=1`); tag `v0.1.0`.
 
 ### Decisions
 

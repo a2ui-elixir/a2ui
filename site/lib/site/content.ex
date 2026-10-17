@@ -840,6 +840,13 @@ defmodule Site.Content do
     """
   end
 
+  @doc "Links to the repository and to each package's documentation."
+  def project_links do
+    [%{label: "GitHub", url: "https://github.com/a2ui-elixir/a2ui"}] ++
+      for name <- ~w(a2ui_core a2ui_phoenix a2ui_agent),
+          do: %{label: name, url: "https://hexdocs.pm/" <> name}
+  end
+
   @doc "Links to the protocols the packages implement."
   def links do
     [

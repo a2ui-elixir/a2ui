@@ -3930,7 +3930,7 @@ html:not(.js) .replay-controls {
 
 .footer-inner {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
   gap: 40px;
   padding: 48px var(--pad);
 }
@@ -4177,7 +4177,7 @@ html:not(.js) .replay-controls {
   }
 
   .footer-inner {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .footer-brand {
