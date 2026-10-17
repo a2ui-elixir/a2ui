@@ -3994,12 +3994,6 @@ html:not(.js) .replay-controls {
   font: 400 12px/1.6 var(--font-mono);
 }
 
-.footer-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
 /* Reveal on scroll */
 
 .reveal-ready [data-reveal] {
