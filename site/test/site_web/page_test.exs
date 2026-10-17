@@ -183,12 +183,26 @@ defmodule SiteWeb.PageTest do
     end
   end
 
+  test "the page names its published address and its preview image", %{doc: doc} do
+    assert attributes(doc, "link[rel='canonical']", "href") == [Content.site_url()]
+    assert attributes(doc, "meta[property='og:url']", "content") == [Content.site_url()]
+    assert attributes(doc, "meta[property='og:image']", "content") == [Content.social_image_url()]
+
+    # The image is the export's social.png, at the size the metadata states.
+    "social.png" = String.replace_prefix(Content.social_image_url(), Content.site_url(), "")
+    png = File.read!(Application.app_dir(:site, "priv/static/social.png"))
+    assert <<0x89, "PNG", _::binary-size(12), 1200::32, 630::32, _::binary>> = png
+  end
+
   test "every asset the page and its stylesheet use exists" do
     static = Application.app_dir(:site, "priv/static")
     html = build_conn() |> get("/") |> html_response(200)
     doc = LazyHTML.from_document(html)
 
-    links = attributes(doc, "link[href]", "href") ++ attributes(doc, "script[src]", "src")
+    links =
+      (attributes(doc, "link[href]", "href") ++ attributes(doc, "script[src]", "src"))
+      |> Enum.reject(&String.starts_with?(&1, "https://"))
+
     css = File.read!(Path.join(static, "assets/site.css"))
     fonts = for [_, url] <- Regex.scan(~r/url\("(fonts\/[^"]+)"\)/, css), do: "assets/" <> url
 
@@ -213,7 +227,8 @@ defmodule SiteWeb.PageTest do
           {"/assets/a2ui_phoenix.css", "text/css"},
           {"/assets/catalog.css", "text/css"},
           {"/assets/fonts/MaterialSymbolsOutlined-subset.woff2", "font/woff2"},
-          {"/favicon.svg", "image/svg+xml"}
+          {"/favicon.svg", "image/svg+xml"},
+          {"/social.png", "image/png"}
         ] do
       conn = get(build_conn(), path)
       assert conn.status == 200

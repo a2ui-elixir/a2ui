@@ -53,7 +53,8 @@ defmodule SiteWeb.Components do
     "back" => ~S(<path d="m14.5 6-6 6 6 6"/>),
     "next" => ~S(<path d="m9.5 6 6 6-6 6"/>),
     "play" => ~S(<path d="M7.5 5v14l11-7-11-7Z"/>),
-    "pause" => ~S(<path d="M8.5 5.5v13M15.5 5.5v13"/>)
+    "pause" => ~S(<path d="M8.5 5.5v13M15.5 5.5v13"/>),
+    "code" => ~S(<path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m13.5 4-3 16"/>)
   }
 
   @doc "The names of the available icons."

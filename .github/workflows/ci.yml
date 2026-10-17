@@ -179,10 +179,29 @@ jobs:
       - run: mix test
       - run: mix site.build
 
-      - uses: actions/upload-artifact@v4
+      # The built page, for the pages job below (and as a download).
+      - uses: actions/upload-pages-artifact@v3
         with:
-          name: landing-page
           path: site/dist
+
+  # Publishes the landing page on GitHub Pages, from main, once the
+  # packages, the examples and the page itself pass.
+  pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [verify, examples, site]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
 
   package:
     runs-on: ubuntu-latest

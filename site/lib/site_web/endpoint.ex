@@ -5,7 +5,7 @@ defmodule SiteWeb.Endpoint do
     at: "/",
     from: :site,
     gzip: false,
-    only: ~w(assets favicon.svg robots.txt)
+    only: ~w(assets favicon.svg robots.txt social.png)
 
   if code_reloading? do
     plug Phoenix.CodeReloader

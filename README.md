@@ -12,6 +12,9 @@ app renders it with components it trusts, and sends the user's actions back.
 Protocol versions v0.9, v0.9.1 and v1.0, checked against the upstream
 conformance suites.
 
+**Website: [a2ui-elixir.github.io/a2ui](https://a2ui-elixir.github.io/a2ui/)**,
+with recorded runs of the examples.
+
 ## Packages
 
 | Package | What it is | Docs |
@@ -167,7 +170,7 @@ Where the packages deliberately differ from the reference implementations,
 |---|---|
 | `umbrella/apps/` | The three packages, and `a2ui_conformance`, the unpublished harness that runs the upstream suites |
 | `examples/` | The example applications |
-| `site/` | The landing page, a Phoenix app exported as static files |
+| `site/` | The website, a Phoenix app exported as static files and published on GitHub Pages |
 | `NOTES/` | Protocol research and the deliberate divergences from the reference |
 | `PLAN.md`, `TODO.md` | The plan the packages were built from, and the log of the work |
 

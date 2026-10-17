@@ -548,6 +548,18 @@ dependency decision; `A2UICore.Formatter` is pluggable).
 - [ ] M26.5 CI job on Elixir 1.17 / OTP 27, the oldest the packages accept:
       confirm it passes, or raise the requirement in the next release.
 
+### M27 — the website on GitHub Pages (2026-10-17)
+
+- [x] M27.1 CI publishes the landing page on GitHub Pages
+      (`a2ui-elixir.github.io/a2ui`) from `main`, after the packages, the
+      examples and the page pass.
+- [x] M27.2 The page now that the packages are on Hex: links to Hex, HexDocs
+      (the guides) and GitHub; the install step without the "not on Hex
+      yet" note; assets imported as the guide says; validation in the
+      LiveView sample; a clone-and-run terminal; the coverage figure.
+- [x] M27.3 Canonical URL, Open Graph and Twitter card metadata, and a
+      1200×630 preview image cut from the film's end card.
+
 ### Decisions
 
 - **D1 Order.** PLAN.md says 8 → 9 → 10 → 11. Recommended: 8 → 10 → 9 → 11.

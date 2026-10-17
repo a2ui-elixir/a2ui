@@ -11,7 +11,16 @@
       <a :for={{label, id} <- nav_links()} href={"#" <> id} data-nav-link>{label}</a>
     </nav>
     <div class="header-actions">
-      <span class="version-badge">v0.1.0</span>
+      <a class="version-badge" href={Content.hex_url("a2ui_phoenix")} rel="noopener">v0.1.0</a>
+      <a
+        class="icon-button"
+        href={Content.repo_url()}
+        rel="noopener"
+        aria-label="Source on GitHub"
+        title="Source on GitHub"
+      >
+        <.icon name="code" />
+      </a>
       <button
         type="button"
         class="icon-button theme-toggle"
@@ -459,16 +468,18 @@
               <h3><span class="step-num">01</span>Add the packages</h3>
               <.code_panel code={Content.install()} title="mix.exs" class="code-compact" />
               <p class="note">
-                Version 0.1.0 is not on Hex yet. Until it is, use <code>path:</code>
-                dependencies on a checkout, as the examples do.
+                On Hex: <a href={Content.hex_url("a2ui_core")} rel="noopener">a2ui_core</a>,
+                <a href={Content.hex_url("a2ui_phoenix")} rel="noopener">a2ui_phoenix</a>
+                and <a href={Content.hex_url("a2ui_agent")} rel="noopener">a2ui_agent</a>.
               </p>
             </li>
             <li>
               <h3><span class="step-num">02</span>Add the assets</h3>
               <p class="cell-text">
-                <code>a2ui_phoenix.js</code>
-                and <code>a2ui_phoenix.css</code>
-                from the renderer's <code>priv/static</code>, in your layout.
+                Import the renderer's <code>a2ui_phoenix.js</code>
+                into <code>app.js</code>
+                and its <code>a2ui_phoenix.css</code>
+                into <code>app.css</code>.
               </p>
             </li>
             <li>
@@ -481,7 +492,9 @@
               <h3><span class="step-num">04</span>Read the guides</h3>
               <ul class="guides">
                 <li :for={guide <- Content.guides()}>
-                  <code>{guide.package}/{guide.path}</code>
+                  <a href={guide.url} rel="noopener">
+                    <code>{guide.package}</code> · {guide.title}
+                  </a>
                   <span>{guide.covers}</span>
                 </li>
               </ul>
@@ -543,7 +556,12 @@
     <section class="sec" id="examples" aria-labelledby="examples-title">
       <.section_heading id="examples-title" number="07" eyebrow="Examples">
         <:title>Three apps to run and read</:title>
-        In <code>examples/</code>: an agent, a LiveView gallery and a terminal renderer that talk to each other, each with its README and tests. Below, three of their runs, recorded.
+        In the repository's <code>examples/</code>: an agent, a LiveView gallery and a terminal renderer that talk to each other, each with its README and tests. Clone
+        <a
+          href={Content.repo_url()}
+          rel="noopener"
+        >a2ui-elixir/a2ui</a>
+        to run them. Below, three of their runs, recorded.
       </.section_heading>
 
       <% replays = Site.Replays.all() %>
@@ -814,13 +832,20 @@
           <a class="button button-primary" href="#install">
             Get started <.icon name="arrow" class="icon icon-sm" />
           </a>
-          <a class="button button-secondary" href="https://a2ui.org" rel="noopener">
-            The A2UI specification <.icon name="external" class="icon icon-sm" />
+          <a class="button button-secondary" href={Content.repo_url()} rel="noopener">
+            Source on GitHub <.icon name="external" class="icon icon-sm" />
+          </a>
+          <a
+            class="button button-secondary"
+            href={Content.docs_url("a2ui_phoenix")}
+            rel="noopener"
+          >
+            Docs on HexDocs <.icon name="external" class="icon icon-sm" />
           </a>
         </div>
       </div>
       <.code_panel
-        code={Enum.at(Content.examples(), 1).run}
+        code={Content.try_it()}
         language={:shell}
         title="terminal"
         numbers={false}

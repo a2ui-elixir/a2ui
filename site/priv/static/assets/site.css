@@ -419,6 +419,12 @@ main:focus {
   border: 1px solid var(--line);
   color: var(--muted);
   font: 500 12px/1 var(--font-mono);
+  text-decoration: none;
+}
+
+a.version-badge:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .icon-button {
@@ -2766,6 +2772,16 @@ html:not(.js) .demo-replay {
   gap: 3px;
   padding-left: 12px;
   border-left: 2px solid var(--line-2);
+}
+
+.guides a {
+  justify-self: start;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.guides a:hover {
+  color: var(--accent);
 }
 
 .guides code {

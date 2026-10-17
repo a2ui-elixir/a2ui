@@ -9,9 +9,29 @@ defmodule Site.Content do
   """
 
   @spec_commit "5d74ffb"
+  @repo_url "https://github.com/a2ui-elixir/a2ui"
+  @site_url "https://a2ui-elixir.github.io/a2ui/"
 
   @doc "The upstream commit the conformance figures were measured at."
   def spec_commit, do: @spec_commit
+
+  @doc "The project's repository."
+  def repo_url, do: @repo_url
+
+  @doc "Where the page is published (GitHub Pages)."
+  def site_url, do: @site_url
+
+  @doc "The social preview image, by its absolute URL (`priv/static/social.png`)."
+  def social_image_url, do: @site_url <> "social.png"
+
+  @doc "A package's page on Hex."
+  def hex_url(package), do: "https://hex.pm/packages/" <> package
+
+  @doc "A package's documentation on HexDocs."
+  def docs_url(package), do: "https://hexdocs.pm/" <> package
+
+  @doc "A page of a package's documentation on HexDocs."
+  def docs_url(package, page), do: docs_url(package) <> "/" <> page
 
   @doc "The protocol versions the packages implement."
   def versions, do: ["v0.9", "v0.9.1", "v1.0"]
@@ -44,9 +64,9 @@ defmodule Site.Content do
       %{key: "Catalog", value: "18 + 14", label: "basic components and functions", bar: nil},
       %{
         key: "Coverage",
-        value: "97.6%",
+        value: "97.8%",
         label: "lines covered, behind a 95% gate",
-        bar: 97.6,
+        bar: 97.8,
         mark: 95
       }
     ]
@@ -692,7 +712,10 @@ defmodule Site.Content do
           alias A2UIPhoenix.{Live, Session}
 
           def mount(_params, _session, socket) do
-            session = Session.new([A2UICore.Catalog.Basic.catalog("v1.0")])
+            # Every component checked against its catalog, as it streams in.
+            validation = A2UICore.Validation.Config.relaxed()
+            catalogs = [A2UICore.Catalog.Basic.catalog("v1.0")]
+            session = Session.new(catalogs, validation: validation)
             {:ok, Live.init(socket, session, on_send: &send_to_agent/2)}
           end
 
@@ -794,26 +817,42 @@ defmodule Site.Content do
     ]
   end
 
-  @doc "Each package's guide, and what it covers."
+  @doc "Each package's guide, what it covers, and where it is published."
   def guides do
     [
       %{
         package: "a2ui_core",
         path: "guides/processing_messages.md",
+        title: "Processing messages",
         covers:
           "catalogs and versions, applying messages, drawing a surface, user input, function calls"
       },
       %{
         package: "a2ui_phoenix",
         path: "guides/rendering_surfaces.md",
+        title: "Rendering surfaces",
         covers: "the session, LiveView, agent functions, themes, MCP apps, components of your own"
       },
       %{
         package: "a2ui_agent",
         path: "guides/serving_an_agent.md",
+        title: "Serving an agent",
         covers: "catalogs, the prompt, reading the model's output, A2A, MCP and AG-UI, Express"
       }
     ]
+    |> Enum.map(
+      &Map.put(&1, :url, docs_url(&1.package, Path.basename(&1.path, ".md") <> ".html"))
+    )
+  end
+
+  @doc "How to get the examples and run the gallery, from a fresh clone."
+  def try_it do
+    """
+    git clone #{@repo_url}.git
+    cd a2ui/examples/gallery
+    mix deps.get
+    mix phx.server        # http://localhost:4000
+    """
   end
 
   @doc "What the packages need."
@@ -842,9 +881,9 @@ defmodule Site.Content do
 
   @doc "Links to the repository and to each package's documentation."
   def project_links do
-    [%{label: "GitHub", url: "https://github.com/a2ui-elixir/a2ui"}] ++
+    [%{label: "GitHub", url: @repo_url}] ++
       for name <- ~w(a2ui_core a2ui_phoenix a2ui_agent),
-          do: %{label: name, url: "https://hexdocs.pm/" <> name}
+          do: %{label: name, url: docs_url(name)}
   end
 
   @doc "Links to the protocols the packages implement."
